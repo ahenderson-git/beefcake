@@ -10,7 +10,6 @@ pub struct TemplateApp {
     #[serde(skip)] // This how you opt out of serialization of a field
     value: f32,
     file_path: Option<String>,
-
 }
 
 impl Default for TemplateApp {
@@ -79,7 +78,7 @@ impl eframe::App for TemplateApp {
                     ui.separator();
                     ui.label(format!("Selected file: {path}"));
                 }
-                
+
                 ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
                 if ui.button("Increment").clicked() {
                     self.value += 1.0;
@@ -101,7 +100,7 @@ impl eframe::App for TemplateApp {
     }
 }
 
-fn powered_by_egui_and_eframe (ui: &mut egui::Ui) {
+fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         ui.label("Powered by ");
