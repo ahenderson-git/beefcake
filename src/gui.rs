@@ -1,3 +1,5 @@
+use eframe::egui;
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -7,6 +9,8 @@ pub struct TemplateApp {
 
     #[serde(skip)] // This how you opt out of serialization of a field
     value: f32,
+    file_path: Option<String>,
+
 }
 
 impl Default for TemplateApp {
@@ -15,6 +19,7 @@ impl Default for TemplateApp {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
+            file_path: None,
         }
     }
 }
@@ -65,20 +70,16 @@ impl eframe::App for TemplateApp {
             ui.heading("Analyse CSV");
 
             ui.horizontal(|ui| {
-                if ui.button("Click Me!").clicked() {
-                    println!("You Clicked Me!");
-                }
-
-                ui.vertical(|ui| {
-                    if ui.button("Click me!").clicked() {
-                        println!("You Clicked Me!");
+                if ui.button("Open file...").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        self.file_path = Some(path.display().to_string());
                     }
-
-
-                    ui.label("Write something: ");
-                    ui.text_edit_singleline(&mut self.label);
-                });
-
+                }
+                if let Some(path) = &self.file_path {
+                    ui.separator();
+                    ui.label(format!("Selected file: {path}"));
+                }
+                
                 ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
                 if ui.button("Increment").clicked() {
                     self.value += 1.0;
@@ -92,12 +93,13 @@ impl eframe::App for TemplateApp {
                 });
             });
         });
-    }}
+    }
+
     /// Called by the framework to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
-
+}
 
 fn powered_by_egui_and_eframe (ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
@@ -111,4 +113,4 @@ fn powered_by_egui_and_eframe (ui: &mut egui::Ui) {
         );
         ui.label(".");
     });
-}}}
+}
