@@ -5,7 +5,7 @@ pub struct TemplateApp {
     // Example stuff:
     label: String,
 
-    #[serde(skip)] // This how you opt-out of serialization of a field
+    #[serde(skip)] // This how you opt out of serialization of a field
     value: f32,
 }
 
@@ -68,31 +68,38 @@ impl eframe::App for TemplateApp {
                 if ui.button("Click Me!").clicked() {
                     println!("You Clicked Me!");
                 }
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
-            }
+                ui.vertical(|ui| {
+                    if ui.button("Click me!").clicked() {
+                        println!("You Clicked Me!");
+                    }
 
-            ui.separator();
 
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
+                    ui.label("Write something: ");
+                    ui.text_edit_singleline(&mut self.label);
+                });
+
+                ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
+                if ui.button("Increment").clicked() {
+                    self.value += 1.0;
+                }
+
+                ui.separator();
+
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    powered_by_egui_and_eframe(ui);
+                    egui::warn_if_debug_build(ui);
+                });
             });
         });
-    }
-
+    }}
     /// Called by the framework to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
-}
 
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
+
+fn powered_by_egui_and_eframe (ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         ui.label("Powered by ");
@@ -104,4 +111,4 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
         );
         ui.label(".");
     });
-}
+}}}
