@@ -2,12 +2,8 @@ use anyhow::{anyhow, Context, Result};
 use csv::StringRecord;
 use eframe::egui;
 use std::collections::HashMap;
-use crate::{gui, TemplateApp};
 
 pub fn run_analyser() -> App{ App::default() }
-
-
-
 
 #[derive(Clone)]
 struct ColumnSummary {
@@ -129,7 +125,13 @@ impl App {
                     for col in &self.summary {
                         body.row(18.0, |mut row| {
                             row.col(|ui| { ui.label(&col.name); });
-                            row.col(|ui| { ui.label(col.kind.as_str()); });
+                                row.col(|ui| {
+                                    if let ColumnStats::Text(s) = &col.stats {
+                                        ui.label(format!("Text ({})", s.distinct));
+                                    } else {
+                                        ui.label(col.kind.as_str());
+                                    }
+                                });
                             row.col(|ui| { ui.label(col.count.to_string()); });
                             row.col(|ui| { ui.label(col.nulls.to_string()); });
                             
@@ -329,7 +331,7 @@ fn infer_kind(values: &[Option<String>]) -> ColumnKind {
 }
 
 fn parse_number(s: &str) -> Option<f64> {
-    // Basic numeric parsing: allow commas in thousands (e.g., "1,234.56")
+    // Basic numeric parsing: allow commas in thousands (e.g. "1,234.56")
     let cleaned = s.replace(',', "");
     cleaned.parse::<f64>().ok()
 }
