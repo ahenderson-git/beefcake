@@ -1,16 +1,17 @@
 use eframe::egui;
 
-pub enum AppState {
-    MainMenu,
-    Analyser(crate::analyser::App),
-}
-
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
+/// Build a struct that implements eframe::App.
+/// We derive Deserialize/Serialize so we can persist the app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct TemplateApp {
     #[serde(skip)]
     pub state: AppState,
+}
+
+pub enum AppState {
+    MainMenu,
+    Analyser(crate::analyser::App),
 }
 
 impl Default for AppState {
