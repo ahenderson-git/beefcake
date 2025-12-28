@@ -8,6 +8,9 @@ pub fn run_analyser() -> App {
     App::default()
 }
 
+// DATA STRUCTURES: These define how we store the results of our CSV analysis.
+
+// This holds the summary for one single column (e.g., "Age" or "Name").
 #[derive(Clone)]
 struct ColumnSummary {
     name: String,
@@ -40,6 +43,7 @@ struct TextStats {
     top_value: Option<(String, usize)>,
 }
 
+// This identifies if a column contains Numbers, Text, or Categories (repeated labels).
 #[derive(Clone, Copy)]
 enum ColumnKind {
     Numeric,
@@ -56,6 +60,7 @@ impl ColumnKind {
         }
     }
 }
+// This structure holds the actual state of the Analyser page.
 #[derive(Default)]
 pub struct App {
     file_path: Option<String>,
@@ -65,9 +70,11 @@ pub struct App {
 }
 
 impl App {
+    // DRAWING LOGIC: This creates the visual interface for the Analyser.
     pub fn update(&mut self, ctx: &egui::Context) -> bool {
         let mut go_back = false;
 
+        // TOP BAR: Contains the Back button and the "Open CSV" button.
         egui::TopBottomPanel::top("top_analyser").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui.button("⬅ Back").clicked() {
@@ -76,6 +83,7 @@ impl App {
                 ui.separator();
 
                 if ui.button("Open CSV...").clicked() {
+                    // Open the OS file picker and start the analysis.
                     match pick_and_summarise_csv() {
                         Ok((path, size, summary)) => {
                             self.file_path = Some(path);
@@ -100,14 +108,16 @@ impl App {
             }
         });
 
+        // CENTRAL AREA: Where the metadata and the big data table live.
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Summary");
 
             if self.summary.is_empty() {
-                ui.label("Open a CSV to see per-column statistics (like R's summary()).");
+                ui.label("Open a CSV to see per-column statistics.");
                 return;
             }
 
+            // FILE INFO: A collapsible section showing file size and row/column counts.
             ui.collapsing("📄 File Metadata", |ui| {
                 egui::Grid::new("file_info_grid").num_columns(2).spacing([40.0, 4.0]).show(ui, |ui| {
                     ui.label("Path:");
@@ -129,11 +139,13 @@ impl App {
             });
             ui.separator();
 
+            // DATA TABLE: The large scrolling table showing the stats for every column.
             egui::ScrollArea::both()
                 .auto_shrink([false; 2])
                 .show(ui, |ui| {
+                    // TableBuilder creates a high-performance grid for our results.
                     egui_extras::TableBuilder::new(ui)
-                        .striped(true)
+                        .striped(true) // Alternating row colors
                         .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                         .columns(egui_extras::Column::auto(), 10)
                         .header(20.0, |mut header| {
@@ -250,6 +262,9 @@ impl App {
     }
 }
 
+// FILE PROCESSING: The "Under the hood" functions that read the actual CSV.
+
+// Starts the "Open File" dialog and then hands the file to the summariser.
 fn pick_and_summarise_csv() -> Result<(String, u64, Vec<ColumnSummary>)> {
     let file = FileDialog::new()
         .add_filter("CSV", &["csv"])
@@ -261,7 +276,9 @@ fn pick_and_summarise_csv() -> Result<(String, u64, Vec<ColumnSummary>)> {
     Ok((path, size, summary))
 }
 
+// The main logic loop: Reads headers, then every row, then calculates stats for each column.
 fn summarise_csv(path: &std::path::Path) -> Result<(u64, Vec<ColumnSummary>)> {
+    // 1. Get file size from the OS.
     let metadata = std::fs::metadata(path)?;
     let size = metadata.len();
     
@@ -371,6 +388,7 @@ fn push_record(
     Ok(())
 }
 
+// Heuristic function: Guesses if a column is "Numeric", "Categorical", or "Text".
 fn infer_kind(values: &[Option<String>]) -> ColumnKind {
     // Simple heuristic:
     // - consider non-null values
