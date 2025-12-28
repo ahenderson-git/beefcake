@@ -15,7 +15,6 @@ pub struct TemplateApp {
 
     #[serde(skip)]
     analyser_state: Option<crate::analyser::App>,
-    
 }
 
 impl Default for TemplateApp {
@@ -51,7 +50,7 @@ impl eframe::App for TemplateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
-        
+
         // If the analyser is active, show its UI instead
         if let Some(analyser) = &mut self.analyser_state {
             if analyser.update(ctx) {
@@ -95,7 +94,8 @@ impl eframe::App for TemplateApp {
                 ui.separator();
 
                 if ui.button("Analyse File").clicked() {
-                self.analyser_state = Some(crate::analyser::run_analyser());
+                    self.analyser_state =
+                        Some(crate::analyser::run_analyser(self.file_path.clone()));
                 }
 
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
