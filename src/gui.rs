@@ -1,6 +1,4 @@
 use eframe::egui;
-//use crate::analyser::{self, run_analyser};
-//use crate::analyser::run_analyser;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -15,7 +13,7 @@ pub struct TemplateApp {
 
     #[serde(skip)]
     analyser_state: Option<crate::analyser::App>,
-    
+
 }
 
 impl Default for TemplateApp {
@@ -51,7 +49,7 @@ impl eframe::App for TemplateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
-        
+
         // If the analyser is active, show its UI instead
         if let Some(analyser) = &mut self.analyser_state {
             if analyser.update(ctx) {
@@ -61,48 +59,29 @@ impl eframe::App for TemplateApp {
         }
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
-
             egui::MenuBar::new().ui(ui, |ui| {
-                // NOTE: no File->Quit on web pages!
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.add_space(16.0);
-                }
-
-                egui::widgets::global_theme_preference_buttons(ui);
+                ui.menu_button("File", |ui| {
+                    if ui.button("Quit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+                ui.add_space(16.0);
             });
         });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("Analyse CSV");
-
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("Open file...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        self.file_path = Some(path.display().to_string());
-                    }
-                }
-                if let Some(path) = &self.file_path {
-                    ui.separator();
-                    ui.label(format!("Selected file: {path}"));
-                }
-                ui.separator();
-
-                if ui.button("Analyse File").clicked() {
-                self.analyser_state = Some(crate::analyser::run_analyser());
-                }
-
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                    powered_by_egui_and_eframe(ui);
-                    egui::warn_if_debug_build(ui);
+                powered_by_egui_and_eframe(ui);
+                egui::warn_if_debug_build(ui);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    egui::widgets::global_theme_preference_buttons(ui);
                 });
             });
+        });
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("UTILITIES");
+            if ui.button("Analyse File").clicked() {
+                self.analyser_state = Some(crate::analyser::run_analyser());
+            }
         });
     }
 

@@ -2,8 +2,9 @@ use anyhow::{anyhow, Context, Result};
 use csv::StringRecord;
 use eframe::egui;
 use std::collections::HashMap;
+use rfd::FileDialog; // Add this import
 
-pub fn run_analyser() -> App{ App::default() }
+pub fn run_analyser() -> App { App::default() }
 
 #[derive(Clone)]
 struct ColumnSummary {
@@ -175,15 +176,15 @@ impl App {
 }
 
 fn pick_and_summarise_csv() -> Result<(String, Vec<ColumnSummary>)> {
-    let file = rfd::FileDialog::new()
-        .add_filter("CSV", &["csv"])
-        .pick_file()
-        .ok_or_else(|| anyhow!("No file selected"))?;
+        let file = FileDialog::new()
+            .add_filter("CSV", &["csv"])
+            .pick_file()
+            .ok_or_else(|| anyhow!("No file selected"))?;
 
-    let path = file.display().to_string();
-    let summary = summarise_csv(&file)?;
-    Ok((path, summary))
-}
+        let path = file.display().to_string();
+        let summary = summarise_csv(&file)?;
+        Ok((path, summary))
+    }
 
 fn summarise_csv(path: &std::path::Path) -> Result<Vec<ColumnSummary>> {
     let mut rdr = csv::ReaderBuilder::new()

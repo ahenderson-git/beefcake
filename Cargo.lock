@@ -514,8 +514,6 @@ dependencies = [
  "log",
  "rfd",
  "serde",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
