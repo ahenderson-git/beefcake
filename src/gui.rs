@@ -54,7 +54,9 @@ impl eframe::App for TemplateApp {
         
         // If the analyser is active, show its UI instead
         if let Some(analyser) = &mut self.analyser_state {
-            analyser.update(ctx, _frame);
+            if analyser.update(ctx) {
+                self.analyser_state = None;
+            }
             return;
         }
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {

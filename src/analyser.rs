@@ -4,143 +4,10 @@ use eframe::egui;
 use std::collections::HashMap;
 use crate::{gui, TemplateApp};
 
-pub fn run_analyser() -> App{ App::default() } 
+pub fn run_analyser() -> App{ App::default() }
 
-#[derive(Default)]
-pub struct App {
-    file_path: Option<String>,
-    status: String,
-    summary: Vec<ColumnSummary>,
-}
-impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("top").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui.button("Open CSV…").clicked() {
-                    match pick_and_summarise_csv() {
-                        Ok((path, summary)) => {
-                            self.file_path = Some(path);
-                            self.summary = summary;
-                            self.status = "Loaded and summarised.".to_string();
-                        }
-                        Err(e) => {
-                            self.status = format!("Error: {e:#}");
-                        }
-                    }
-                }
 
-                if let Some(p) = &self.file_path {
-                    ui.label(format!("File: {p}"));
-                }
-            });
 
-            if !self.status.is_empty() {
-                ui.separator();
-                ui.label(&self.status);
-            }
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Summary");
-
-            if self.summary.is_empty() {
-                ui.label("Open a CSV to see per-column statistics (like R's summary()).");
-                return;
-            }
-
-            egui::ScrollArea::both().auto_shrink([false; 2]).show(ui, |ui| {
-                egui_extras::TableBuilder::new(ui)
-                    .striped(true)
-                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                    .columns(egui_extras::Column::auto(), 10)
-                    .header(20.0, |mut header| {
-                        header.col(|ui| {
-                            ui.strong("Column");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Type");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Count");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Nulls");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Min");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Q1");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Median");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Mean");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Q3");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Max / Top");
-                        });
-                    })
-                    .body(|mut body| {
-                        for col in &self.summary {
-                            body.row(18.0, |mut row| {
-                                row.col(|ui| {
-                                    ui.label(&col.name);
-                                });
-                                row.col(|ui| {
-                                    ui.label(col.kind.as_str());
-                                });
-                                row.col(|ui| {
-                                    ui.label(col.count.to_string());
-                                });
-                                row.col(|ui| {
-                                    ui.label(col.nulls.to_string());
-                                });
-
-                                match &col.stats {
-                                    ColumnStats::Numeric(s) => {
-                                        row.col(|ui|{ui.label(fmt_opt(s.min)); });
-                                        row.col(|ui|{ui.label(fmt_opt(s.q1)); });
-                                        row.col(|ui|{ui.label(fmt_opt(s.median)); });
-                                        row.col(|ui|{ui.label(fmt_opt(s.mean)); });
-                                        row.col(|ui|{ui.label(fmt_opt(s.q3)); });
-                                        row.col(|ui|{ui.label(fmt_opt(s.max)); });
-                                    }
-                                    ColumnStats::Text(s) => {
-                                        // For text, leave numeric cells blank, and show top value in last column.
-                                        row.col(|ui|{ui.label("—"); });
-                                        row.col(|ui|{ui.label("—"); });
-                                        row.col(|ui|{ui.label("—"); });
-                                        row.col(|ui|{ui.label("—"); });
-                                        row.col(|ui|{ui.label("—"); });
-                                        row.col(|ui| {
-                                            let top = s
-                                                .top_value
-                                                .as_ref()
-                                                .map(|(v, n)| format!("{v} ({n})"))
-                                                .unwrap_or_else(|| "—".to_string());
-                                            ui.label(top);
-                                        });
-                                    }
-                                }
-                            });
-                        }
-                    });
-            });
-        });
-    }
-}
-
-fn fmt_opt(v: Option<f64>) -> String {
-    match v {
-        Some(x) if x.is_finite() => format!("{:.4}", x),
-        _ => "—".to_string(),
-    }
-}
 
 #[derive(Clone)]
 struct ColumnSummary {
@@ -155,6 +22,7 @@ struct ColumnSummary {
 enum ColumnStats {
     Numeric(NumericStats),
     Text(TextStats),
+    Categorical(HashMap<String, usize>),
 }
 
 #[derive(Clone)]
@@ -177,6 +45,7 @@ struct TextStats {
 enum ColumnKind {
     Numeric,
     Text,
+    Categorical,
 }
 
 impl ColumnKind {
@@ -184,7 +53,122 @@ impl ColumnKind {
         match self {
             ColumnKind::Numeric => "Numeric",
             ColumnKind::Text => "Text",
+            ColumnKind::Categorical => "Categorical",
         }
+    }
+}
+#[derive(Default)]
+pub struct App {
+    file_path: Option<String>,
+    status: String,
+    summary: Vec<ColumnSummary>,
+}
+
+impl App {
+    pub fn update(&mut self, ctx: &egui::Context) -> bool {
+        let mut go_back = false;
+        
+        egui::TopBottomPanel::top("top_analyser").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                if ui.button("⬅ Back").clicked() {
+                    go_back = true;
+                }
+                ui.separator();
+                
+                if ui.button("Open CSV...").clicked() {
+                    match pick_and_summarise_csv() {
+                        Ok((path, summary)) => {
+                            self.file_path = Some(path);
+                            self.summary = summary;
+                            self.status = "Loaded and summarised.".to_string();
+                        }
+                        Err(e) => {
+                            self.status = format!("Error: {e:#}");
+                        }
+                    }
+                }
+                
+                if let Some(p) = &self.file_path {
+                    ui.label(format!("File: {p}"));
+                }
+            });
+            
+            if !self.status.is_empty() {
+                ui.separator();
+                ui.label(&self.status);
+            }
+            
+        });
+        
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Summary");
+            
+            if self.summary.is_empty() {
+                ui.label("Open a CSV to see per-column statistics (like R's summary()).");
+                return;
+            }
+
+            egui::ScrollArea::both().auto_shrink([false; 2]).show(ui, |ui| {
+                egui_extras::TableBuilder::new(ui)
+                    .striped(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .columns(egui_extras::Column::auto(), 10)
+                    .header(20.0, |mut header| {
+                        header.col(|ui| { ui.strong("Column"); });
+                        header.col(|ui| { ui.strong("Type"); });
+                        header.col(|ui| { ui.strong("Count"); });
+                        header.col(|ui| { ui.strong("Nulls"); });
+                        header.col(|ui| { ui.strong("Min"); });
+                        header.col(|ui| { ui.strong("Q1"); });
+                        header.col(|ui| { ui.strong("Median"); });
+                        header.col(|ui| { ui.strong("Mean"); });
+                        header.col(|ui| { ui.strong("Q3"); });
+                        header.col(|ui| { ui.strong("Max / Top"); });
+            })
+                .body(|mut body| {
+                    for col in &self.summary {
+                        body.row(18.0, |mut row| {
+                            row.col(|ui| { ui.label(&col.name); });
+                            row.col(|ui| { ui.label(col.kind.as_str()); });
+                            row.col(|ui| { ui.label(col.count.to_string()); });
+                            row.col(|ui| { ui.label(col.nulls.to_string()); });
+                            
+                            match &col.stats {
+                                ColumnStats::Numeric(s) => {
+                                    row.col(|ui| { ui.label(fmt_opt(s.min)); });
+                                    row.col(|ui| { ui.label(fmt_opt(s.q1)); });
+                                    row.col(|ui| { ui.label(fmt_opt(s.median)); });
+                                    row.col(|ui| { ui.label(fmt_opt(s.mean)); });
+                                    row.col(|ui| { ui.label(fmt_opt(s.q3)); });
+                                    row.col(|ui| { ui.label(fmt_opt(s.max)); });
+                                }
+                                ColumnStats::Categorical(freq) => {
+                                    for _ in 0..5 { row.col(|ui| { ui.label("—"); }); }
+                                    row.col(|ui| {
+                                        let top = freq.iter()
+                                            .max_by_key(|(_k, v)| *v)
+                                            .map(|(k, v)| format!("{k} ({v})"))
+                                            .unwrap_or_else(|| "—".to_string());
+                                        ui.label(top);
+                                    });
+                                }
+                                ColumnStats::Text(s) => {
+                                    for _ in 0..5 { row.col(|ui| { ui.label("—"); }); }
+                                    row.col(|ui| {
+                                        let top = s.top_value.as_ref()
+                                            .map(|(v, n)| format!("{v} ({n})"))
+                                            .unwrap_or_else(|| "—".to_string());
+                                        ui.label(top);
+                                    });
+                                }
+                            }
+                        })
+                    }
+                });
+            });
+        });
+        
+        go_back
     }
 }
 
@@ -264,6 +248,23 @@ fn summarise_csv(path: &std::path::Path) -> Result<Vec<ColumnSummary>> {
                     stats: ColumnStats::Text(stats),
                 }
             }
+            ColumnKind::Categorical => {
+                let mut freq: HashMap<String, usize> = HashMap::new();
+                for v in values.iter().filter_map(|v| v.as_deref()) {
+                    let s = v.trim();
+                    if !s.is_empty() {
+                        *freq.entry(s.to_string()).or_insert(0) += 1;
+                    }
+                }
+
+                ColumnSummary {
+                    name: name.to_string(),
+                    kind,
+                    count,
+                    nulls,
+                    stats: ColumnStats::Categorical(freq),
+                }
+            }
         };
 
         out.push(summary);
@@ -289,9 +290,12 @@ fn push_record(cols: &mut [Vec<Option<String>>], rec: &StringRecord, col_count: 
 fn infer_kind(values: &[Option<String>]) -> ColumnKind {
     // Simple heuristic:
     // - consider non-null values
-    // - if >= 90% parse as numbers -> Numeric else Text
+    // - if >= 90% parse as numbers -> Numeric
+    // - else if distinct values <= 20 and < 50% of total -> Categorical
+    // - else Text
     let mut non_null = 0usize;
     let mut numeric = 0usize;
+    let mut distinct_values: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for v in values.iter().filter_map(|v| v.as_deref()) {
         let s = v.trim();
@@ -299,6 +303,7 @@ fn infer_kind(values: &[Option<String>]) -> ColumnKind {
             continue;
         }
         non_null += 1;
+        distinct_values.insert(s.to_string());
         if parse_number(s).is_some() {
             numeric += 1;
         }
@@ -310,7 +315,14 @@ fn infer_kind(values: &[Option<String>]) -> ColumnKind {
 
     let ratio = numeric as f64 / non_null as f64;
     if ratio >= 0.9 {
-        ColumnKind::Numeric
+        return ColumnKind::Numeric;
+    }
+
+    let distinct_count = distinct_values.len();
+    let distinct_ratio = distinct_count as f64 / non_null as f64;
+
+    if distinct_count <= 20 && distinct_ratio < 0.5 {
+        ColumnKind::Categorical
     } else {
         ColumnKind::Text
     }
@@ -382,4 +394,10 @@ fn text_stats(values: &[&str]) -> TextStats {
     let top_value = freq.into_iter().max_by_key(|(_k, v)| *v);
 
     TextStats { distinct, top_value }
+}
+fn fmt_opt(v: Option<f64>) -> String {
+    match v {
+        Some(x) if x.is_finite() => format!("{:.4}", x),
+        _ => "—".to_string(),
+    }
 }
