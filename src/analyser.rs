@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use csv::StringRecord;
 use eframe::egui;
 use rfd::FileDialog;
-use std::collections::HashMap; // Add this import
+use std::collections::HashMap;
 
 pub fn run_analyser() -> App {
     App::default()
@@ -59,6 +59,7 @@ impl ColumnKind {
 #[derive(Default)]
 pub struct App {
     file_path: Option<String>,
+    file_size: u64,
     status: String,
     summary: Vec<ColumnSummary>,
 }
@@ -76,8 +77,9 @@ impl App {
 
                 if ui.button("Open CSV...").clicked() {
                     match pick_and_summarise_csv() {
-                        Ok((path, summary)) => {
+                        Ok((path, size, summary)) => {
                             self.file_path = Some(path);
+                            self.file_size = size;
                             self.summary = summary;
                             self.status = "Loaded and summarised.".to_string();
                         }
@@ -105,6 +107,27 @@ impl App {
                 ui.label("Open a CSV to see per-column statistics (like R's summary()).");
                 return;
             }
+
+            ui.collapsing("📄 File Metadata", |ui| {
+                egui::Grid::new("file_info_grid").num_columns(2).spacing([40.0, 4.0]).show(ui, |ui| {
+                    ui.label("Path:");
+                    ui.label(self.file_path.as_deref().unwrap_or("Unknown"));
+                    ui.end_row();
+
+                    ui.label("File Size:");
+                    ui.label(format!("{:.2} MB", self.file_size as f64 / 1_048_576.0));
+                    ui.end_row();
+
+                    ui.label("Records:");
+                    ui.label(self.summary.first().map(|s| s.count.to_string()).unwrap_or_else(|| "0".into()));
+                    ui.end_row();
+
+                    ui.label("Columns:");
+                    ui.label(self.summary.len().to_string());
+                    ui.end_row();
+                });
+            });
+            ui.separator();
 
             egui::ScrollArea::both()
                 .auto_shrink([false; 2])
@@ -227,22 +250,24 @@ impl App {
     }
 }
 
-fn pick_and_summarise_csv() -> Result<(String, Vec<ColumnSummary>)> {
+fn pick_and_summarise_csv() -> Result<(String, u64, Vec<ColumnSummary>)> {
     let file = FileDialog::new()
         .add_filter("CSV", &["csv"])
         .pick_file()
         .ok_or_else(|| anyhow!("No file selected"))?;
 
     let path = file.display().to_string();
-    let summary = summarise_csv(&file)?;
-    Ok((path, summary))
+    let (size, summary) = summarise_csv(&file)?;
+    Ok((path, size, summary))
 }
 
-fn summarise_csv(path: &std::path::Path) -> Result<Vec<ColumnSummary>> {
+fn summarise_csv(path: &std::path::Path) -> Result<(u64, Vec<ColumnSummary>)> {
+    let metadata = std::fs::metadata(path)?;
+    let size = metadata.len();
+    
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(true)
-        .from_path(path)
-        .with_context(|| format!("Failed to open CSV: {}", path.display()))?;
+        .from_path(path)?;
 
     let headers = rdr.headers().context("Failed to read headers")?.clone();
 
@@ -325,7 +350,7 @@ fn summarise_csv(path: &std::path::Path) -> Result<Vec<ColumnSummary>> {
         out.push(summary);
     }
 
-    Ok(out)
+    Ok((size, out))
 }
 
 fn push_record(
