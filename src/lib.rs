@@ -2,5 +2,6 @@
 
 mod gui;
 mod utils;
+mod analyser;
 
 pub use gui::TemplateApp;
