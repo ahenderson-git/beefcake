@@ -1,17 +1,15 @@
 use eframe::egui;
 
-/// Build a struct that implements eframe::App.
-/// We derive Deserialize/Serialize so we can persist the app state on shutdown.
+pub enum AppState {
+    MainMenu,
+    Analyser(crate::analyser::App),
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct TemplateApp {
     #[serde(skip)]
     pub state: AppState,
-}
-
-pub enum AppState {
-    MainMenu,
-    Analyser(crate::analyser::App),
 }
 
 impl Default for AppState {
@@ -31,7 +29,9 @@ impl Default for TemplateApp {
 impl TemplateApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            if let Some(app) = eframe::get_value(storage, eframe::APP_KEY) {
+                return app;
+            }
         }
         Default::default()
     }
@@ -70,6 +70,24 @@ impl TemplateApp {
 
 impl eframe::App for TemplateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Muted/Darkened Light Theme
+        if !ctx.style().visuals.dark_mode {
+            let mut visuals = egui::Visuals::light();
+            
+            // Darken the overall backgrounds (Greyer, less white)
+            visuals.panel_fill = egui::Color32::from_rgb(220, 220, 215);  // Deeper grey-tan
+            visuals.window_fill = egui::Color32::from_rgb(230, 230, 225); // Main background
+            
+            // Soften the widgets (buttons, etc) so they aren't stark white
+            visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(210, 210, 205);
+            visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(200, 200, 195);
+            
+            // Darken the text slightly (Deep Charcoal instead of Black)
+            visuals.override_text_color = Some(egui::Color32::from_rgb(50, 50, 55));
+            
+            ctx.set_visuals(visuals);
+        }
+
         self.render_footer(ctx);
 
         match &mut self.state {
