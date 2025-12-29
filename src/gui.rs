@@ -66,7 +66,7 @@ impl TemplateApp {
     }
 
     // Logic for drawing the shared footer at the bottom of every page.
-    fn render_footer(&self, ctx: &egui::Context) {
+    fn render_footer(ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("footer").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 powered_by_egui_and_eframe(ui);
@@ -92,7 +92,7 @@ impl eframe::App for TemplateApp {
         }
 
         // Always show the footer.
-        self.render_footer(ctx);
+        Self::render_footer(ctx);
 
         // Check our "State" to decide which main page content to draw.
         match &mut self.state {
