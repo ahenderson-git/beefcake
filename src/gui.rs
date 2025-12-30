@@ -6,7 +6,7 @@ pub enum AppState {
     Analyser(crate::analyser::App),
 }
 
-// This is the main data structure for your app. 
+// This is the main data structure for your app.
 // It keeps track of which "State" (page) we are currently on.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -86,7 +86,7 @@ impl eframe::App for TemplateApp {
         // CUSTOM THEME: If the user is in Light Mode, apply our "Muted/Soft" colors.
         if !ctx.style().visuals.dark_mode {
             let mut visuals = egui::Visuals::light();
-            visuals.panel_fill = egui::Color32::from_rgb(220, 220, 215); 
+            visuals.panel_fill = egui::Color32::from_rgb(220, 220, 215);
             visuals.window_fill = egui::Color32::from_rgb(230, 230, 225);
             ctx.set_visuals(visuals);
         }
