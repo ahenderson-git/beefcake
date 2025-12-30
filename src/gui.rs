@@ -117,8 +117,8 @@ impl eframe::App for TemplateApp {
 // Small helper function to draw the credits/links in the footer.
 fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 5.0;
-        ui.label("Developed by Anthony Henderson");
+        ui.spacing_mut().item_spacing.x = 3.0;
+        ui.label("App by Anthony Henderson");
         ui.separator();
         ui.label("Powered by ");
         ui.hyperlink_to("egui", "https://github.com/emilk/egui");

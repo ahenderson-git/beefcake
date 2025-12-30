@@ -10,7 +10,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 egui = "0.33.0"
-egui_extras = "0.33.3"
+egui_extras = "0.33.0"
+egui_plot = "0.34.0"
 eframe = { version = "0.33.0", default-features = false, features = [
     "accesskit",
     "default_fonts",
