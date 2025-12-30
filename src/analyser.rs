@@ -19,6 +19,7 @@ struct ColumnSummary {
     kind: ColumnKind,
     count: usize,
     nulls: usize,
+    has_special: bool,
     stats: ColumnStats,
 }
 
@@ -58,6 +59,7 @@ enum ColumnKind {
     Text,
     Categorical,
     Temporal,
+    Nested,
 }
 
 impl ColumnKind {
@@ -67,6 +69,7 @@ impl ColumnKind {
             Self::Text => "Text",
             Self::Categorical => "Categorical",
             Self::Temporal => "Temporal",
+            Self::Nested => "Nested",
         }
     }
 }
@@ -122,7 +125,7 @@ impl App {
                 ui.separator();
 
                 ui.add_enabled_ui(!self.is_loading, |ui| {
-                    if ui.button("Open CSV...").clicked() {
+                    if ui.button("Open File...").clicked() {
                         self.start_analysis(ctx.clone());
                     }
                 });
@@ -175,7 +178,7 @@ impl App {
             });
 
             if self.summary.is_empty() {
-                ui.label("Open a CSV to see per-column statistics.");
+                ui.label("Open a CSV or JSON file to see per-column statistics.");
                 return;
             }
 
@@ -214,7 +217,7 @@ impl App {
                     egui_extras::TableBuilder::new(ui)
                         .striped(true)
                         .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                        .columns(egui_extras::Column::auto(), 10)
+                        .columns(egui_extras::Column::auto(), 12)
                         .header(20.0, |mut header| {
                             header.col(|ui| {
                                 ui.strong("Column");
@@ -227,6 +230,12 @@ impl App {
                             });
                             header.col(|ui| {
                                 ui.strong("Nulls");
+                            });
+                            header.col(|ui| {
+                                ui.strong("Null %");
+                            });
+                            header.col(|ui| {
+                                ui.strong("Special");
                             });
                             header.col(|ui| {
                                 ui.strong("Min");
@@ -265,6 +274,21 @@ impl App {
                                     });
                                     row.col(|ui| {
                                         ui.label(col.nulls.to_string());
+                                    });
+                                    row.col(|ui| {
+                                        let pct = if col.count > 0 {
+                                            (col.nulls as f64 / col.count as f64) * 100.0
+                                        } else {
+                                            0.0
+                                        };
+                                        ui.label(format!("{:.1}%", pct));
+                                    });
+                                    row.col(|ui| {
+                                        if col.has_special {
+                                            ui.label("Yes");
+                                        } else {
+                                            ui.label("No");
+                                        }
                                     });
 
                                     match &col.stats {
@@ -342,7 +366,11 @@ impl App {
     }
 
     fn start_analysis(&mut self, ctx: egui::Context) {
-        let Some(file) = FileDialog::new().add_filter("CSV", &["csv"]).pick_file() else {
+        let Some(file) = FileDialog::new()
+            .add_filter("Data Files", &["csv", "json", "jsonl", "ndjson"])
+            .add_filter("CSV", &["csv"])
+            .add_filter("JSON", &["json", "jsonl", "ndjson"])
+            .pick_file() else {
             return;
         };
 
@@ -360,8 +388,11 @@ impl App {
         std::thread::spawn(move || {
             let timer = std::time::Instant::now(); // Internal thread timer
             let path_str = file.display().to_string();
-            let result = summarise_csv(&file, progress_clone)
+            
+            let result = load_df(&file, progress_clone)
+                .and_then(analyse_df)
                 .map(|s| (path_str, metadata.len(), s, timer.elapsed())); // Send duration back
+                
             if tx.send(result).is_err() {
                 log::error!("Failed to send analysis result");
             }
@@ -372,15 +403,72 @@ impl App {
 
 // HELPER FUNCTIONS
 
-fn summarise_csv(path: &std::path::Path, progress: Arc<AtomicU64>) -> Result<Vec<ColumnSummary>> {
-    let df = LazyCsvReader::new(path.to_str().expect("Invalid path"))
-        .with_try_parse_dates(true)
-        .finish()?
-        .collect()?;
+fn load_df(path: &std::path::Path, progress: Arc<AtomicU64>) -> Result<DataFrame> {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let mut df = match ext.as_str() {
+        "json" => {
+            let file = std::fs::File::open(path)?;
+            JsonReader::new(file).finish()?
+        }
+        "jsonl" | "ndjson" => JsonLineReader::from_path(path)?.finish()?,
+        _ => LazyCsvReader::new(path.to_str().expect("Invalid path"))
+            .with_try_parse_dates(true)
+            .finish()?
+            .collect()?,
+    };
+
+    if ext == "json" || ext == "jsonl" || ext == "ndjson" {
+        df = try_parse_temporal_columns(df)?;
+    }
 
     // Update progress to 100% since we loaded the whole thing
     progress.store(std::fs::metadata(path)?.len(), Ordering::SeqCst);
 
+    Ok(df)
+}
+
+fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
+    let mut columns = df.get_columns().to_vec();
+    let mut changed = false;
+
+    for i in 0..columns.len() {
+        let col = &columns[i];
+        if col.dtype().is_string() {
+            let s = col.as_materialized_series();
+            
+            // Try Datetime (Microseconds is a good default for Polars)
+            if let Ok(dt) = s.cast(&DataType::Datetime(TimeUnit::Microseconds, None)) {
+                // If the number of nulls didn't increase, it's a perfect match
+                if dt.null_count() == s.null_count() && s.len() > 0 {
+                    columns[i] = Column::from(dt);
+                    changed = true;
+                    continue;
+                }
+            }
+            
+            // Try Date
+            if let Ok(d) = s.cast(&DataType::Date) {
+                if d.null_count() == s.null_count() && s.len() > 0 {
+                    columns[i] = Column::from(d);
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    if changed {
+        DataFrame::new(columns).map_err(anyhow::Error::from)
+    } else {
+        Ok(df)
+    }
+}
+
+fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
     let row_count = df.height();
     let mut summaries = Vec::new();
 
@@ -390,6 +478,8 @@ fn summarise_csv(path: &std::path::Path, progress: Arc<AtomicU64>) -> Result<Vec
         let count = row_count;
 
         let dtype = col.dtype();
+        let mut has_special = false;
+
         let (kind, stats) = if dtype.is_numeric() {
             let series = col.as_materialized_series();
 
@@ -420,6 +510,14 @@ fn summarise_csv(path: &std::path::Path, progress: Arc<AtomicU64>) -> Result<Vec
             let series = col.as_materialized_series();
             let ca = series.str()?;
             let distinct = ca.n_unique()?;
+
+            has_special = ca.into_iter().any(|opt_s| {
+                opt_s.map_or(false, |s| {
+                    s.chars().any(|c| {
+                        !c.is_alphanumeric() && !c.is_whitespace() && !".,-_/:()!?;'\"".contains(c)
+                    })
+                })
+            });
 
             // Heuristic for Categorical vs Text
             if distinct <= 20 && (distinct as f64 / row_count as f64) < 0.5 {
@@ -486,12 +584,45 @@ fn summarise_csv(path: &std::path::Path, progress: Arc<AtomicU64>) -> Result<Vec
                 }),
             )
         } else {
-            // Default fallback for other types
+            // Default fallback for other types (including Nested like List/Struct)
+            let series = col.as_materialized_series();
+            let kind = if matches!(dtype, DataType::List(_) | DataType::Struct(_)) {
+                ColumnKind::Nested
+            } else {
+                ColumnKind::Text
+            };
+
+            let distinct = series.n_unique()?;
+            let top_value = if distinct > 0 {
+                let value_counts = series.value_counts(true, false, "counts".into(), false)?;
+                let values = value_counts.column(&name)?.as_materialized_series();
+                let counts = value_counts.column("counts")?.as_materialized_series();
+
+                // Try to get a string representation for the top value
+                let v = values.cast(&DataType::String).ok().and_then(|s| {
+                    s.str()
+                        .ok()
+                        .and_then(|ca| ca.get(0).map(|s| s.to_owned()))
+                });
+                let c = counts
+                    .u32()
+                    .ok()
+                    .and_then(|ca| ca.get(0).map(|c| c as usize));
+
+                if let (Some(v_str), Some(c_val)) = (v, c) {
+                    Some((v_str, c_val))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             (
-                ColumnKind::Text,
+                kind,
                 ColumnStats::Text(TextStats {
-                    distinct: col.as_materialized_series().n_unique()?,
-                    top_value: None,
+                    distinct,
+                    top_value,
                 }),
             )
         };
@@ -501,6 +632,7 @@ fn summarise_csv(path: &std::path::Path, progress: Arc<AtomicU64>) -> Result<Vec
             kind,
             count,
             nulls,
+            has_special,
             stats,
         });
     }
