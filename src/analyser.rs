@@ -514,7 +514,11 @@ fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
             has_special = ca.into_iter().any(|opt_s| {
                 opt_s.map_or(false, |s| {
                     s.chars().any(|c| {
-                        !c.is_alphanumeric() && !c.is_whitespace() && !".,-_/:()!?;'\"".contains(c)
+                        // Special if:
+                        // 1. Not alphanumeric, not whitespace, and not common punctuation
+                        // 2. OR it's a control character that isn't a standard newline or tab (like carriage return \r)
+                        (!c.is_alphanumeric() && !c.is_whitespace() && !".,-_/:()!?;'\"".contains(c))
+                            || (c.is_control() && c != '\n' && c != '\t')
                     })
                 })
             });
@@ -638,6 +642,29 @@ fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
     }
 
     Ok(summaries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_carriage_return_detection() -> Result<()> {
+        let s = Series::new("col".into(), vec!["line1\r\nline2"]);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df)?;
+        assert!(summaries[0].has_special, "Should detect \r as special");
+        Ok(())
+    }
+
+    #[test]
+    fn test_normal_whitespace_not_special() -> Result<()> {
+        let s = Series::new("col".into(), vec!["line1\nline2\twith spaces"]);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df)?;
+        assert!(!summaries[0].has_special, "Standard whitespace (\\n, \\t, space) should NOT be special");
+        Ok(())
+    }
 }
 
 fn fmt_opt(v: Option<f64>) -> String {
