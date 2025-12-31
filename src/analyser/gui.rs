@@ -1,14 +1,15 @@
 use anyhow::Result;
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
-use egui_plot::{Bar, BarChart, Line, Plot};
+use egui_plot::{Bar, BarChart, Line, Plot, PlotBounds};
+use polars::prelude::DataFrame;
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::utils::fmt_opt;
 use super::logic::{AnalysisReceiver, ColumnStats, ColumnSummary, FileHealth};
+use crate::utils::fmt_opt;
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct App {
@@ -17,6 +18,8 @@ pub struct App {
     pub status: String,
     pub summary: Vec<ColumnSummary>,
     pub health: Option<FileHealth>,
+    pub trim_pct: f64,
+    pub show_full_range: bool,
     #[serde(skip)]
     pub is_loading: bool,
     #[serde(skip)]
@@ -26,6 +29,10 @@ pub struct App {
     #[serde(skip)]
     pub start_time: Option<std::time::Instant>, // To track active time
     pub last_duration: Option<std::time::Duration>, // To show final time
+    #[serde(skip)]
+    pub df: Option<DataFrame>,
+    #[serde(skip)]
+    pub expanded_rows: std::collections::HashSet<String>,
 }
 
 impl App {
@@ -38,12 +45,13 @@ impl App {
                 self.receiver = None;
                 self.start_time = None; // Reset timer
                 match result {
-                    Ok((path, size, summary, health, duration)) => {
+                    Ok((path, size, summary, health, duration, df)) => {
                         self.file_path = Some(path);
                         self.file_size = size;
                         self.summary = summary;
                         self.health = Some(health);
                         self.last_duration = Some(duration);
+                        self.df = Some(df);
                         self.status = format!(
                             "Loaded {} in {:.2}s",
                             self.file_path.as_deref().unwrap_or("file"),
@@ -71,6 +79,33 @@ impl App {
             ui.horizontal(|ui| {
                 if ui.button("Open File").clicked() && !self.is_loading {
                     self.start_analysis(ctx.clone());
+                }
+
+                ui.separator();
+                ui.label("Trim %:").on_hover_text("Percentage to trim from EACH end of the data for the Trimmed Mean calculation.");
+                let slider = ui.add(
+                    egui::Slider::new(&mut self.trim_pct, 0.0..=0.2)
+                        .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
+                );
+
+                if slider.changed() && !self.is_loading {
+                    if self.df.is_some() {
+                        self.trigger_reanalysis(ctx.clone());
+                    }
+                }
+
+                ui.separator();
+                ui.checkbox(&mut self.show_full_range, "Full Histogram Range")
+                    .on_hover_text("If unchecked, the histogram zooms into the 5th-95th percentile to avoid being 'crushed' by extreme outliers.");
+
+                ui.separator();
+                if ui.button("Expand All").clicked() {
+                    for col in &self.summary {
+                        self.expanded_rows.insert(col.name.clone());
+                    }
+                }
+                if ui.button("Collapse All").clicked() {
+                    self.expanded_rows.clear();
                 }
 
                 if self.is_loading {
@@ -116,17 +151,20 @@ impl App {
                         .striped(true)
                         .resizable(true)
                         .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                        .column(Column::auto().at_least(30.0))  // Expand
                         .column(Column::auto().at_least(100.0)) // Name
                         .column(Column::auto().at_least(80.0))  // Type
                         .column(Column::auto().at_least(80.0))  // Nulls
                         .column(Column::auto().at_least(80.0))  // Special
                         .column(Column::auto().at_least(200.0)) // Stats
-                        .column(Column::remainder().at_least(250.0)) // Summary
-                        .column(Column::initial(150.0).at_least(150.0)) // Distribution
+                        .column(Column::initial(150.0).at_least(150.0)) // Summary
+                        .column(Column::initial(100.0).at_least(100.0)) // Histogram
+                        .column(Column::remainder()) // Spacer
                         .min_scrolled_height(0.0);
 
                     table
                         .header(25.0, |mut header| {
+                            header.col(|_| {}); // Expand
                             header.col(|ui| {
                                 ui.strong("Column");
                             });
@@ -146,21 +184,37 @@ impl App {
                                 ui.strong("Summary").on_hover_text("Plain-English interpretation of the data patterns.");
                             });
                             header.col(|ui| {
-                                ui.strong("Distribution");
+                                ui.strong("Histogram");
                             });
+                            header.col(|_| {}); // Spacer
                         })
                         .body(|mut body| {
                             for col in &self.summary {
-                                let row_height = match &col.stats {
-                                    ColumnStats::Numeric(_) => 100.0f32,
-                                    ColumnStats::Text(_) => 45.0f32,
-                                    ColumnStats::Categorical(_) => 100.0f32,
-                                    ColumnStats::Temporal(_) => 100.0f32,
-                                    ColumnStats::Boolean(_) => 45.0f32,
+                                let is_expanded = self.expanded_rows.contains(&col.name);
+                                let row_height = if is_expanded {
+                                    250.0f32
+                                } else {
+                                    match &col.stats {
+                                        ColumnStats::Numeric(_) => 110.0f32,
+                                        ColumnStats::Text(_) => 45.0f32,
+                                        ColumnStats::Categorical(_) => 100.0f32,
+                                        ColumnStats::Temporal(_) => 100.0f32,
+                                        ColumnStats::Boolean(_) => 45.0f32,
+                                    }
                                 }
                                 .max(35.0);
 
                                 body.row(row_height, |mut row| {
+                                    row.col(|ui| {
+                                        let icon = if is_expanded { "⏷" } else { "⏵" };
+                                        if ui.add(egui::Button::new(icon).frame(false)).clicked() {
+                                            if is_expanded {
+                                                self.expanded_rows.remove(&col.name);
+                                            } else {
+                                                self.expanded_rows.insert(col.name.clone());
+                                            }
+                                        }
+                                    });
                                     row.col(|ui| {
                                         ui.label(&col.name);
                                     });
@@ -196,6 +250,17 @@ impl App {
                                                         ui.label("|");
                                                         ui.label("Median:").on_hover_text("The middle value. 50% of the data is above this, and 50% is below.");
                                                         ui.label(fmt_opt(s.median));
+
+                                                        if let (Some(mean), Some(median)) = (s.mean, s.median) {
+                                                            if median.abs() > 1e-9 && (mean - median).abs() / median.abs() > 0.1 {
+                                                                ui.label("⚠").on_hover_text("Gap > 10%: Outliers likely influencing the average");
+                                                            }
+                                                        }
+                                                    });
+                                                    ui.horizontal(|ui| {
+                                                        ui.label(format!("Trimmed Mean ({:.0}%):", self.trim_pct * 100.0))
+                                                            .on_hover_text("The mean after removing the top and bottom X% of values. Helps reduce the influence of outliers.");
+                                                        ui.label(fmt_opt(s.trimmed_mean));
                                                     });
                                                     ui.horizontal(|ui| {
                                                         ui.label("Std Dev:").on_hover_text("Typical deviation from the average. High values mean the data is spread out.");
@@ -218,6 +283,7 @@ impl App {
                                                 });
                                             }
                                             ColumnStats::Categorical(freq) => {
+                                                let total = col.count as f64;
                                                 ui.vertical(|ui| {
                                                     ui.horizontal(|ui| {
                                                         ui.label("Categories:").on_hover_text("The number of unique groups detected.");
@@ -225,10 +291,19 @@ impl App {
                                                     });
                                                     let mut sorted: Vec<_> = freq.iter().collect();
                                                     sorted.sort_by(|a, b| b.1.cmp(a.1));
-                                                    for (val, count) in sorted.iter().take(3) {
-                                                        ui.label(format!("- {}: {}", val, count));
+                                                    let limit = if is_expanded { 10 } else { 3 };
+                                                    for (val, count) in sorted.iter().take(limit) {
+                                                        let pct = if total > 0.0 {
+                                                            (**count as f64 / total) * 100.0
+                                                        } else {
+                                                            0.0
+                                                        };
+                                                        ui.label(format!(
+                                                            "- {}: {} ({:.1}%)",
+                                                            val, count, pct
+                                                        ));
                                                     }
-                                                    if sorted.len() > 3 {
+                                                    if sorted.len() > limit {
                                                         ui.label("...");
                                                     }
                                                 });
@@ -246,11 +321,33 @@ impl App {
                                                 });
                                             }
                                             ColumnStats::Boolean(s) => {
+                                                let total = col.count as f64;
                                                 ui.vertical(|ui| {
-                                                    ui.label(format!("True: {}", s.true_count));
-                                                    ui.label(format!("False: {}", s.false_count));
+                                                    let true_pct = if total > 0.0 {
+                                                        (s.true_count as f64 / total) * 100.0
+                                                    } else {
+                                                        0.0
+                                                    };
+                                                    let false_pct = if total > 0.0 {
+                                                        (s.false_count as f64 / total) * 100.0
+                                                    } else {
+                                                        0.0
+                                                    };
+                                                    ui.label(format!("True: {} ({:.1}%)", s.true_count, true_pct));
+                                                    ui.label(format!("False: {} ({:.1}%)", s.false_count, false_pct));
                                                 });
                                             }
+                                        }
+
+                                        if is_expanded && !col.samples.is_empty() {
+                                            ui.add_space(8.0);
+                                            ui.separator();
+                                            ui.strong("Sample Values:");
+                                            ui.label(
+                                                egui::RichText::new(col.samples.join(", "))
+                                                    .italics()
+                                                    .size(11.0),
+                                            );
                                         }
                                     });
                                     row.col(|ui| {
@@ -258,8 +355,15 @@ impl App {
                                         ui.label(&col.interpretation);
                                     });
                                     row.col(|ui| {
-                                        render_distribution(ui, &col.name, &col.stats);
+                                        render_distribution(
+                                            ui,
+                                            &col.name,
+                                            &col.stats,
+                                            self.show_full_range,
+                                            is_expanded,
+                                        );
                                     });
+                                    row.col(|_| {}); // Spacer
                                 });
                             }
                         });
@@ -272,7 +376,7 @@ impl App {
 
     pub fn start_analysis(&mut self, ctx: egui::Context) {
         let path = FileDialog::new()
-            .add_filter("Data Files", &["csv", "json", "jsonl", "ndjson"])
+            .add_filter("Data Files", &["csv", "json", "jsonl", "ndjson", "parquet"])
             .pick_file();
 
         let Some(path) = path else { return };
@@ -281,21 +385,23 @@ impl App {
         self.status = format!("Loading: {}", path.display());
         self.progress_counter.store(0, Ordering::SeqCst);
         self.start_time = Some(std::time::Instant::now());
+        self.expanded_rows.clear();
 
         let (tx, rx) = crossbeam_channel::unbounded();
         self.receiver = Some(rx);
 
         let progress = Arc::clone(&self.progress_counter);
         let path_str = path.to_string_lossy().to_string();
+        let trim_pct = self.trim_pct;
 
         std::thread::spawn(move || {
             let start = std::time::Instant::now();
-            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration)> {
+            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration, DataFrame)> {
                 let df = super::logic::load_df(&path, progress)?;
                 let file_size = std::fs::metadata(&path)?.len();
-                let summary = super::logic::analyse_df(df)?;
+                let summary = super::logic::analyse_df(df.clone(), trim_pct)?;
                 let health = super::logic::calculate_file_health(&summary);
-                Ok((path_str, file_size, summary, health, start.elapsed()))
+                Ok((path_str, file_size, summary, health, start.elapsed(), df))
             })();
 
             if tx.send(result).is_err() {
@@ -304,14 +410,51 @@ impl App {
             ctx.request_repaint();
         });
     }
+
+    pub fn trigger_reanalysis(&mut self, ctx: egui::Context) {
+        let Some(df) = self.df.clone() else { return };
+        let Some(path_str) = self.file_path.clone() else { return };
+        let file_size = self.file_size;
+        let trim_pct = self.trim_pct;
+
+        self.is_loading = true;
+        self.status = format!("Re-analysing with {:.0}% trim...", trim_pct * 100.0);
+        self.progress_counter.store(0, Ordering::SeqCst);
+        self.start_time = Some(std::time::Instant::now());
+
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.receiver = Some(rx);
+
+        std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration, DataFrame)> {
+                let summary = super::logic::analyse_df(df.clone(), trim_pct)?;
+                let health = super::logic::calculate_file_health(&summary);
+                Ok((path_str, file_size, summary, health, start.elapsed(), df))
+            })();
+
+            if tx.send(result).is_err() {
+                log::error!("Failed to send re-analysis result");
+            }
+            ctx.request_repaint();
+        });
+    }
 }
 
-fn render_distribution(ui: &mut egui::Ui, name: &str, stats: &ColumnStats) {
+fn render_distribution(
+    ui: &mut egui::Ui,
+    name: &str,
+    stats: &ColumnStats,
+    show_full_range: bool,
+    is_expanded: bool,
+) {
     ui.scope(|ui| {
         // Force light mode visuals for the distribution plots so they look the same in both themes
         ui.style_mut().visuals = egui::Visuals::light();
         // Set the plot background to match our light theme background
         ui.style_mut().visuals.extreme_bg_color = egui::Color32::from_rgb(220, 220, 215);
+
+        let plot_height = if is_expanded { 220.0 } else { 80.0 };
 
         match stats {
             ColumnStats::Numeric(s) => {
@@ -320,39 +463,62 @@ fn render_distribution(ui: &mut egui::Ui, name: &str, stats: &ColumnStats) {
                     return;
                 }
 
+                let (view_min, view_max) = {
+                    let min = s.min.unwrap_or(0.0);
+                    let max = s.max.unwrap_or(1.0);
+                    let p05 = s.p05.unwrap_or(min);
+                    let p95 = s.p95.unwrap_or(max);
+
+                    if show_full_range {
+                        (min, max)
+                    } else {
+                        let full_range = max - min;
+                        let zoom_range = p95 - p05;
+
+                        // Only auto-zoom if the full range is significantly (10x) larger than the central 90%.
+                        // This prevents "zooming in too far" on distributions that are just normally skewed.
+                        if full_range > 10.0 * zoom_range && zoom_range > 0.0 {
+                            (p05, p95)
+                        } else {
+                            (min, max)
+                        }
+                    }
+                };
+
+                let range = view_max - view_min;
+                let margin = if range > 0.0 { range * 0.05 } else { 1.0 };
+
                 let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(1) as f64;
 
                 let bars: Vec<egui_plot::Bar> = s
                     .histogram
                     .iter()
-                    .enumerate()
-                    .map(|(i, &(_, count))| egui_plot::Bar::new(i as f64, count as f64))
+                    .filter(|&&(val, _)| show_full_range || (val >= view_min - margin && val <= view_max + margin))
+                    .map(|&(val, count)| egui_plot::Bar::new(val, count as f64).width(s.bin_width))
                     .collect();
 
                 let chart = BarChart::new("Histogram", bars)
-                    .width(0.75)
                     .color(egui::Color32::from_rgb(140, 180, 240));
 
                 // Gaussian Curve Overlay
                 let mut curve_points = Vec::new();
-                if let (Some(mu), Some(sigma), Some(min), Some(max)) =
-                    (s.mean, s.std_dev, s.min, s.max)
-                {
-                    if sigma > 0.0 && max > min {
-                        let bin_width = (max - min) / 20.0;
-                        let mu_bin = (mu - min) / bin_width;
-                        let sigma_bin = sigma / bin_width;
+                if let (Some(mu), Some(sigma)) = (s.mean, s.std_dev) {
+                    if sigma > 0.0 {
+                        let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
+                        let scale = total_count as f64 * s.bin_width;
 
-                        let peak_val = 1.0 / (sigma_bin * (2.0 * std::f64::consts::PI).sqrt());
-                        let scale = max_count / (peak_val * 1.2); // Scale to 120% of max count for visual fit
-
-                        for i in 0..=100 {
-                            let x_bin = -1.0 + (22.0 * i as f64 / 100.0);
-                            let z = (x_bin - mu_bin) / sigma_bin;
-                            let y = scale
-                                * (1.0 / (sigma_bin * (2.0 * std::f64::consts::PI).sqrt()))
-                                * (-0.5 * z * z).exp();
-                            curve_points.push([x_bin, y]);
+                        let plot_min = view_min - margin;
+                        let plot_max = view_max + margin;
+                        if plot_max > plot_min {
+                            let step = (plot_max - plot_min) / 100.0;
+                            for i in 0..=100 {
+                                let x = plot_min + i as f64 * step;
+                                let z = (x - mu) / sigma;
+                                let y = scale
+                                    * (1.0 / (sigma * (2.0 * std::f64::consts::PI).sqrt()))
+                                    * (-0.5 * z * z).exp();
+                                curve_points.push([x, y]);
+                            }
                         }
                     }
                 }
@@ -361,17 +527,12 @@ fn render_distribution(ui: &mut egui::Ui, name: &str, stats: &ColumnStats) {
                     .color(egui::Color32::from_rgb(250, 150, 100))
                     .width(1.5);
 
-                // Box Plot Overlay (Manual Drawing)
+                // Box Plot Overlay
                 let mut box_lines = Vec::new();
                 if let (Some(q1), Some(median), Some(q3), Some(min), Some(max)) =
                     (s.q1, s.median, s.q3, s.min, s.max)
                 {
                     if max > min {
-                        let bin_width = (max - min) / 20.0;
-                        let q1_b = (q1 - min) / bin_width;
-                        let med_b = (median - min) / bin_width;
-                        let q3_b = (q3 - min) / bin_width;
-
                         let y_pos = -max_count * 0.15;
                         let y_h = max_count * 0.08;
 
@@ -379,46 +540,71 @@ fn render_distribution(ui: &mut egui::Ui, name: &str, stats: &ColumnStats) {
                         box_lines.push(Line::new(
                             "Box",
                             vec![
-                                [q1_b, y_pos - y_h],
-                                [q3_b, y_pos - y_h],
-                                [q3_b, y_pos + y_h],
-                                [q1_b, y_pos + y_h],
-                                [q1_b, y_pos - y_h],
+                                [q1, y_pos - y_h],
+                                [q3, y_pos - y_h],
+                                [q3, y_pos + y_h],
+                                [q1, y_pos + y_h],
+                                [q1, y_pos - y_h],
                             ],
                         ));
                         // Median
                         box_lines.push(Line::new(
                             "Median",
-                            vec![[med_b, y_pos - y_h], [med_b, y_pos + y_h]],
+                            vec![[median, y_pos - y_h], [median, y_pos + y_h]],
                         ));
-                        // Whiskers (simplified to min/max range)
-                        box_lines.push(Line::new("Whisker1", vec![[0.0, y_pos], [q1_b, y_pos]]));
-                        box_lines.push(Line::new("Whisker2", vec![[q3_b, y_pos], [20.0, y_pos]]));
+                        // Whiskers - Only draw if they are somewhat within view, or clip them
+                        let w_min = if show_full_range { min } else { min.max(view_min - margin) };
+                        let w_max = if show_full_range { max } else { max.min(view_max + margin) };
+                        
+                        if w_min < q1 {
+                            box_lines.push(Line::new("Whisker1", vec![[w_min, y_pos], [q1, y_pos]]));
+                        }
+                        if w_max > q3 {
+                            box_lines.push(Line::new("Whisker2", vec![[q3, y_pos], [w_max, y_pos]]));
+                        }
                     }
                 }
 
-                Plot::new(format!("plot_num_{name}"))
-                    .show_axes([false, false])
-                    .show_x(false)
-                    .show_y(false)
-                    .allow_zoom(false)
-                    .allow_drag(false)
-                    .allow_scroll(false)
-                    .include_y(max_count)
-                    .include_y(-max_count * 0.3)
-                    .include_x(-1.0)
-                    .include_x(21.0)
-                    .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
-                    .height(80.0)
-                    .show(ui, |plot_ui| {
-                        plot_ui.bar_chart(chart);
-                        if has_curve {
-                            plot_ui.line(curve);
+                ui.vertical(|ui| {
+                    Plot::new(format!("plot_num_{name}"))
+                        .show_axes([false, false])
+                        .show_x(false)
+                        .show_y(false)
+                        .allow_zoom(false)
+                        .allow_drag(false)
+                        .allow_scroll(false)
+                        .include_y(max_count)
+                        .include_y(-max_count * 0.3)
+                        .include_x(view_min - margin)
+                        .include_x(view_max + margin)
+                        .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
+                        .height(plot_height)
+                        .show(ui, |plot_ui| {
+                            plot_ui.set_plot_bounds(PlotBounds::from_min_max(
+                                [view_min - margin, -max_count * 0.3],
+                                [view_max + margin, max_count * 1.1],
+                            ));
+                            plot_ui.bar_chart(chart);
+                            if has_curve {
+                                plot_ui.line(curve);
+                            }
+                            for line in box_lines {
+                                plot_ui.line(line.color(egui::Color32::from_gray(120)).width(1.0));
+                            }
+                        });
+
+                    if !show_full_range {
+                        let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
+                        let in_view_count: usize = s.histogram.iter()
+                                .filter(|&&(v, _)| v >= view_min - s.bin_width/2.0 && v <= view_max + s.bin_width/2.0)
+                                .map(|&(_, c)| c)
+                                .sum();
+                        let out_pct = (1.0 - (in_view_count as f64 / total_count as f64)) * 100.0;
+                        if out_pct > 0.5 {
+                            ui.label(egui::RichText::new(format!("Zoomed to 5th-95th ({:.1}% hidden)", out_pct)).size(9.0).color(egui::Color32::GRAY));
                         }
-                        for line in box_lines {
-                            plot_ui.line(line.color(egui::Color32::from_gray(120)).width(1.0));
-                        }
-                    });
+                    }
+                });
             }
             ColumnStats::Categorical(freq) => {
                 if freq.is_empty() {
@@ -451,7 +637,7 @@ fn render_distribution(ui: &mut egui::Ui, name: &str, stats: &ColumnStats) {
                     .include_x(-1.0)
                     .include_x(10.0)
                     .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
-                    .height(80.0)
+                    .height(plot_height)
                     .show(ui, |plot_ui| {
                         plot_ui.bar_chart(chart);
                     });
@@ -461,32 +647,85 @@ fn render_distribution(ui: &mut egui::Ui, name: &str, stats: &ColumnStats) {
                     ui.label("—");
                     return;
                 }
-                let chart = BarChart::new(
-                    "Temporal",
-                    s.histogram
-                        .iter()
-                        .enumerate()
-                        .map(|(i, &(_ts, count))| Bar::new(i as f64, count as f64))
-                        .collect(),
-                )
-                .width(0.75)
-                .color(egui::Color32::from_rgb(200, 150, 100));
 
-                Plot::new(format!("plot_temp_{name}"))
-                    .show_axes([false, false])
-                    .show_x(false)
-                    .show_y(false)
-                    .allow_zoom(false)
-                    .allow_drag(false)
-                    .allow_scroll(false)
-                    .include_y(0.0)
-                    .include_x(-1.0)
-                    .include_x(20.0)
-                    .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
-                    .height(80.0)
-                    .show(ui, |plot_ui| {
-                        plot_ui.bar_chart(chart);
-                    });
+                let (view_min, view_max) = {
+                    let min = s.histogram.first().map(|h| h.0).unwrap_or(0.0);
+                    let max = s.histogram.last().map(|h| h.0).unwrap_or(1.0);
+                    let p05 = s.p05.unwrap_or(min);
+                    let p95 = s.p95.unwrap_or(max);
+
+                    if show_full_range {
+                        (min, max)
+                    } else {
+                        let full_range = max - min;
+                        let zoom_range = p95 - p05;
+
+                        if full_range > 10.0 * zoom_range && zoom_range > 0.0 {
+                            (p05, p95)
+                        } else {
+                            (min, max)
+                        }
+                    }
+                };
+
+                let range = view_max - view_min;
+                let margin = if range > 0.0 { range * 0.05 } else { 1.0 };
+
+                let bars: Vec<egui_plot::Bar> = s
+                    .histogram
+                    .iter()
+                    .filter(|&&(ts, _)| show_full_range || (ts >= view_min - margin && ts <= view_max + margin))
+                    .map(|&(ts, count)| Bar::new(ts, count as f64).width(s.bin_width))
+                    .collect();
+
+                let chart = BarChart::new("Temporal", bars).color(egui::Color32::from_rgb(200, 150, 100));
+
+                let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(1) as f64;
+
+                ui.vertical(|ui| {
+                    Plot::new(format!("plot_temp_{name}"))
+                        .show_axes([false, false])
+                        .show_x(false)
+                        .show_y(false)
+                        .allow_zoom(false)
+                        .allow_drag(false)
+                        .allow_scroll(false)
+                        .include_y(max_count)
+                        .include_y(0.0)
+                        .include_x(view_min - margin)
+                        .include_x(view_max + margin)
+                        .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
+                        .height(plot_height)
+                        .show(ui, |plot_ui| {
+                            plot_ui.set_plot_bounds(PlotBounds::from_min_max(
+                                [view_min - margin, -max_count * 0.1],
+                                [view_max + margin, max_count * 1.1],
+                            ));
+                            plot_ui.bar_chart(chart);
+                        });
+
+                    if !show_full_range {
+                        let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
+                        let in_view_count: usize = s.histogram
+                            .iter()
+                            .filter(|&&(v, _)| {
+                                v >= view_min - s.bin_width / 2.0 && v <= view_max + s.bin_width / 2.0
+                            })
+                            .map(|&(_, c)| c)
+                            .sum();
+                        let out_pct = (1.0 - (in_view_count as f64 / total_count as f64)) * 100.0;
+                        if out_pct > 0.5 {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "Zoomed to 5th-95th ({:.1}% hidden)",
+                                    out_pct
+                                ))
+                                .size(9.0)
+                                .color(egui::Color32::GRAY),
+                            );
+                        }
+                    }
+                });
             }
             ColumnStats::Text(_) => {
                 ui.label("—");
@@ -495,8 +734,10 @@ fn render_distribution(ui: &mut egui::Ui, name: &str, stats: &ColumnStats) {
                 let chart = BarChart::new(
                     "Boolean",
                     vec![
-                        Bar::new(0.0, s.true_count as f64).fill(egui::Color32::from_rgb(100, 200, 100)),
-                        Bar::new(1.0, s.false_count as f64).fill(egui::Color32::from_rgb(200, 100, 100)),
+                        Bar::new(0.0, s.true_count as f64)
+                            .fill(egui::Color32::from_rgb(100, 200, 100)),
+                        Bar::new(1.0, s.false_count as f64)
+                            .fill(egui::Color32::from_rgb(200, 100, 100)),
                     ],
                 )
                 .width(0.75);
@@ -512,7 +753,7 @@ fn render_distribution(ui: &mut egui::Ui, name: &str, stats: &ColumnStats) {
                     .include_x(-1.0)
                     .include_x(2.0)
                     .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
-                    .height(80.0)
+                    .height(plot_height)
                     .show(ui, |plot_ui| {
                         plot_ui.bar_chart(chart);
                     });

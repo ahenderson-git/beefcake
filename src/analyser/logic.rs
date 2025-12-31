@@ -16,6 +16,7 @@ pub struct ColumnSummary {
     pub has_special: bool,
     pub stats: ColumnStats,
     pub interpretation: String,
+    pub samples: Vec<String>,
 }
 
 impl ColumnSummary {
@@ -47,14 +48,31 @@ impl ColumnSummary {
                     let iqr = q3 - q1;
 
                     // Skewness / Distribution Shape
-                    if range > 0.0 {
-                        let diff_ratio = (mean - median).abs() / range;
-                        if diff_ratio < 0.02 {
+                    if let Some(skew) = s.skew {
+                        if skew.abs() < 0.1 {
+                            signals.push("Symmetric distribution.");
+                        } else if skew > 0.0 {
+                            signals.push("Right-skewed; average is influenced by high outliers.");
+                        } else {
+                            signals.push("Left-skewed; average is influenced by low values.");
+                        }
+                    } else if range > 0.0 {
+                        // Fallback if skew is not available
+                        let diff_ratio = (mean - median).abs() / iqr.max(s.std_dev.unwrap_or(0.0) * 0.1).max(1e-9);
+                        if diff_ratio < 0.1 {
                             signals.push("Symmetric distribution.");
                         } else if mean > median {
                             signals.push("Right-skewed; average is influenced by high outliers.");
                         } else {
                             signals.push("Left-skewed; average is influenced by low values.");
+                        }
+                    }
+
+                    // Mean vs Median Gap Indicator
+                    if median.abs() > 1e-9 {
+                        let gap_ratio = (mean - median).abs() / median.abs();
+                        if gap_ratio > 0.1 {
+                            signals.push("Outliers likely influencing the average.");
                         }
                     }
 
@@ -74,13 +92,10 @@ impl ColumnSummary {
                     signals.push("Binary field; suggests a toggle or yes/no choice.");
                 }
                 if freq.len() > 1 {
-                    if let (Some(max_v), Some(min_v)) = (
-                        freq.values().max(),
-                        freq.values().min(),
-                    ) {
-                         if (*max_v as f64 / *min_v as f64) > 5.0 {
+                    if let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min()) {
+                        if (*max_v as f64 / *min_v as f64) > 5.0 {
                             signals.push("Value distribution is heavily uneven.");
-                         }
+                        }
                     }
                 }
             }
@@ -134,18 +149,26 @@ pub struct BooleanStats {
 pub struct TemporalStats {
     pub min: Option<String>,
     pub max: Option<String>,
-    pub histogram: Vec<(i64, usize)>, // timestamp (ms) and count
+    pub p05: Option<f64>,
+    pub p95: Option<f64>,
+    pub bin_width: f64,
+    pub histogram: Vec<(f64, usize)>, // timestamp (ms) and count
 }
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct NumericStats {
     pub min: Option<f64>,
+    pub p05: Option<f64>,
     pub q1: Option<f64>,
     pub median: Option<f64>,
     pub mean: Option<f64>,
+    pub trimmed_mean: Option<f64>,
     pub q3: Option<f64>,
+    pub p95: Option<f64>,
     pub max: Option<f64>,
     pub std_dev: Option<f64>,
+    pub skew: Option<f64>,
+    pub bin_width: f64,
     pub histogram: Vec<(f64, usize)>, // bin center and count
 }
 
@@ -193,21 +216,39 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
         };
 
         if null_pct > 15.0 {
-            risks.push(format!("⚠️ Column '{}' has significant missing data ({:.1}%).", col.name, null_pct));
+            risks.push(format!(
+                "⚠️ Column '{}' has significant missing data ({:.1}%).",
+                col.name, null_pct
+            ));
         }
         if col.has_special {
-            risks.push(format!("🔍 Hidden/special characters detected in '{}'.", col.name));
+            risks.push(format!(
+                "🔍 Hidden/special characters detected in '{}'.",
+                col.name
+            ));
         }
-        
+
         match &col.stats {
             ColumnStats::Numeric(s) => {
-                if let (Some(mean), Some(median), Some(min), Some(max)) = (s.mean, s.median, s.min, s.max) {
+                if let (Some(mean), Some(median), Some(min), Some(max)) =
+                    (s.mean, s.median, s.min, s.max)
+                {
                     let range = max - min;
                     if range > 0.0 {
                         let diff_ratio = (mean - median).abs() / range;
                         if diff_ratio > 0.1 {
-                             risks.push(format!("📈 Column '{}' is heavily skewed; averages may be misleading.", col.name));
+                            risks.push(format!(
+                                "📈 Column '{}' is heavily skewed; averages may be misleading.",
+                                col.name
+                            ));
                         }
+                    }
+
+                    if median.abs() > 1e-9 && (mean - median).abs() / median.abs() > 0.1 {
+                        risks.push(format!(
+                            "📊 Column '{}': Outliers likely influencing the average.",
+                            col.name
+                        ));
                     }
                 }
             }
@@ -217,8 +258,16 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
     FileHealth { risks }
 }
 
-pub type AnalysisReceiver =
-    crossbeam_channel::Receiver<Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration)>>;
+pub type AnalysisReceiver = crossbeam_channel::Receiver<
+    Result<(
+        String,
+        u64,
+        Vec<ColumnSummary>,
+        FileHealth,
+        std::time::Duration,
+        DataFrame,
+    )>,
+>;
 
 // HELPER FUNCTIONS
 
@@ -235,6 +284,10 @@ pub fn load_df(path: &std::path::Path, progress: Arc<AtomicU64>) -> Result<DataF
             JsonReader::new(file).finish()?
         }
         "jsonl" | "ndjson" => JsonLineReader::from_path(path)?.finish()?,
+        "parquet" => {
+            let file = std::fs::File::open(path)?;
+            ParquetReader::new(file).finish()?
+        }
         _ => LazyCsvReader::new(path.to_str().expect("Invalid path"))
             .with_try_parse_dates(true)
             .finish()?
@@ -259,7 +312,7 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
         let col = &columns[i];
         if col.dtype().is_string() {
             let s = col.as_materialized_series();
-            
+
             // Try Datetime (Microseconds is a good default for Polars)
             if let Ok(dt) = s.cast(&DataType::Datetime(TimeUnit::Microseconds, None)) {
                 // If the number of nulls didn't increase, it's a perfect match
@@ -269,7 +322,7 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
                     continue;
                 }
             }
-            
+
             // Try Date
             if let Ok(d) = s.cast(&DataType::Date) {
                 if d.null_count() == s.null_count() && s.len() > 0 {
@@ -287,7 +340,7 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
     }
 }
 
-pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
+pub fn analyse_df(df: DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
     let row_count = df.height();
     let mut summaries = Vec::new();
 
@@ -295,6 +348,23 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
         let name = col.name().to_string();
         let nulls = col.null_count();
         let count = row_count;
+
+        let samples = {
+            let series = col.as_materialized_series();
+            let head = series.drop_nulls().head(Some(10));
+            match head.cast(&DataType::String) {
+                Ok(s_ca) => s_ca
+                    .str()
+                    .map(|ca| {
+                        ca.into_iter()
+                            .flatten()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default(),
+                Err(_) => head.iter().map(|v| v.to_string()).collect(),
+            }
+        };
 
         let dtype = col.dtype();
         let mut has_special = false;
@@ -359,30 +429,90 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
                 let q1 = ca.quantile(0.25, QuantileMethod::Linear)?;
                 let median = ca.median();
                 let q3 = ca.quantile(0.75, QuantileMethod::Linear)?;
+                let p05 = ca.quantile(0.05, QuantileMethod::Linear)?;
+                let p95 = ca.quantile(0.95, QuantileMethod::Linear)?;
 
-                // Compute Histogram
-                let mut histogram = Vec::new();
-                if let (Some(min_v), Some(max_v)) = (min, max) {
-                    let bins = 20;
-                    if min_v < max_v {
-                        let bin_width = (max_v - min_v) / bins as f64;
-                        let mut counts = vec![0; bins];
-                        for val in ca.into_iter().flatten() {
-                            let mut b = ((val - min_v) / bin_width).floor() as usize;
-                            if b >= bins {
-                                b = bins - 1;
-                            }
-                            counts[b] += 1;
-                        }
-                        for (i, count) in counts.into_iter().enumerate() {
-                            let center = min_v + (i as f64 + 0.5) * bin_width;
-                            histogram.push((center, count));
+                let skew = if let (Some(m), Some(md), Some(q1v), Some(q3v)) = (mean, median, q1, q3) {
+                    let iqr = q3v - q1v;
+                    if iqr > 0.0 {
+                        Some((m - md) / iqr)
+                    } else if let Some(s) = std_dev {
+                        if s > 0.0 {
+                            Some((m - md) / s)
+                        } else {
+                            Some(0.0)
                         }
                     } else {
-                        // All values are the same, put them in the middle
-                        for i in 0..bins {
-                            let count = if i == bins / 2 { ca.len() } else { 0 };
-                            histogram.push((min_v, count));
+                        Some(0.0)
+                    }
+                } else {
+                    None
+                };
+
+                // Trimmed Mean calculation
+                let trimmed_mean = if trim_pct > 0.0 {
+                    let sorted = ca.drop_nulls().sort(false);
+                    let n = sorted.len();
+                    let trim_count = (n as f64 * trim_pct).floor() as usize;
+                    if n > 2 * trim_count && trim_count > 0 {
+                        sorted.slice(trim_count as i64, n - 2 * trim_count).mean()
+                    } else {
+                        mean
+                    }
+                } else {
+                    mean
+                };
+
+                // Compute Histogram using Freedman-Diaconis rule for adaptive binning
+                let mut histogram = Vec::new();
+                let mut final_bin_width = 1.0;
+                if let (Some(min_v), Some(max_v), Some(q1_v), Some(q3_v)) = (min, max, q1, q3) {
+                    let n = ca.len() - ca.null_count();
+                    if n > 0 {
+                        let iqr = q3_v - q1_v;
+                        let mut bin_width = if iqr > 0.0 {
+                            2.0 * iqr / (n as f64).powf(1.0 / 3.0)
+                        } else {
+                            (max_v - min_v).max(1.0) / 20.0
+                        };
+
+                        if bin_width <= 0.0 || bin_width.is_nan() {
+                            bin_width = (max_v - min_v).max(1.0) / 20.0;
+                        }
+                        if bin_width <= 0.0 { bin_width = 1.0; }
+
+                        if min_v < max_v {
+                            let mut bin_counts: HashMap<i64, usize> = HashMap::new();
+                            for val in ca.into_iter().flatten() {
+                                let b = ((val - min_v) / bin_width).floor() as i64;
+                                *bin_counts.entry(b).or_insert(0) += 1;
+                            }
+
+                            // If too many non-empty bins, merge them to keep UI responsive
+                            while bin_counts.len() > 1000 {
+                                bin_width *= 2.0;
+                                let mut new_counts = HashMap::new();
+                                for (b, count) in bin_counts {
+                                    let new_b = if b >= 0 { b / 2 } else { (b - 1) / 2 };
+                                    *new_counts.entry(new_b).or_insert(0) += count;
+                                }
+                                bin_counts = new_counts;
+                            }
+
+                            final_bin_width = bin_width;
+                            for (b, count) in bin_counts {
+                                let center = min_v + (b as f64 + 0.5) * bin_width;
+                                histogram.push((center, count));
+                            }
+                            histogram.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                        } else {
+                            // All values are the same
+                            final_bin_width = 1.0 / 20.0;
+                            for i in 0..20 {
+                                let center = min_v - 0.5 + (i as f64 + 0.5) * final_bin_width;
+                                let count = if i == 10 { n } else { 0 };
+                                histogram.push((center, count));
+                            }
                         }
                     }
                 }
@@ -391,12 +521,17 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
                     ColumnKind::Numeric,
                     ColumnStats::Numeric(NumericStats {
                         min,
+                        p05,
                         q1,
                         median,
                         mean,
+                        trimmed_mean,
                         q3,
+                        p95,
                         max,
                         std_dev,
+                        skew,
+                        bin_width: final_bin_width,
                         histogram,
                     }),
                 )
@@ -412,7 +547,9 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
                         // Special if:
                         // 1. Not alphanumeric, not whitespace, and not common punctuation
                         // 2. OR it's a control character that isn't a standard newline or tab (like carriage return \r)
-                        (!c.is_alphanumeric() && !c.is_whitespace() && !".,-_/:()!?;'\"".contains(c))
+                        (!c.is_alphanumeric()
+                            && !c.is_whitespace()
+                            && !".,-_/:()!?;'\"".contains(c))
                             || (c.is_control() && c != '\n' && c != '\t')
                     })
                 })
@@ -482,27 +619,59 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
             let min_ts = ts_ca.min();
             let max_ts = ts_ca.max();
 
+            let mut final_bin_width = 1.0;
+            let mut p05 = None;
+            let mut p95 = None;
             if let (Some(min_v), Some(max_v)) = (min_ts, max_ts) {
-                let bins = 20;
-                if min_v < max_v {
-                    let bin_width = (max_v - min_v) as f64 / bins as f64;
-                    let mut counts = vec![0; bins];
-                    for val in ts_ca.into_iter().flatten() {
-                        let mut b = ((val - min_v) as f64 / bin_width).floor() as usize;
-                        if b >= bins {
-                            b = bins - 1;
+                let n = ts_ca.len() - ts_ca.null_count();
+                if n > 0 {
+                    let q1 = ts_ca.quantile(0.25, QuantileMethod::Linear)?;
+                    let q3 = ts_ca.quantile(0.75, QuantileMethod::Linear)?;
+                    p05 = ts_ca.quantile(0.05, QuantileMethod::Linear)?;
+                    p95 = ts_ca.quantile(0.95, QuantileMethod::Linear)?;
+
+                    let mut bin_width = if let (Some(q1_v), Some(q3_v)) = (q1, q3) {
+                        let iqr = q3_v - q1_v;
+                        if iqr > 0.0 {
+                            2.0 * iqr / (n as f64).powf(1.0 / 3.0)
+                        } else {
+                            (max_v - min_v).max(1) as f64 / 20.0
                         }
-                        counts[b] += 1;
+                    } else {
+                        (max_v - min_v).max(1) as f64 / 20.0
+                    };
+
+                    if bin_width <= 0.0 || bin_width.is_nan() {
+                        bin_width = (max_v - min_v).max(1) as f64 / 20.0;
                     }
-                    for (i, count) in counts.into_iter().enumerate() {
-                        let center = min_v + ((i as f64 + 0.5) * bin_width) as i64;
-                        histogram.push((center, count));
-                    }
-                } else {
-                    // All values are the same
-                    for i in 0..bins {
-                        let count = if i == bins / 2 { ts_ca.len() } else { 0 };
-                        histogram.push((min_v, count));
+                    if bin_width <= 0.0 { bin_width = 1.0; }
+
+                    if min_v < max_v {
+                        let mut bin_counts: HashMap<i64, usize> = HashMap::new();
+                        for val in ts_ca.into_iter().flatten() {
+                            let b = ((val - min_v) as f64 / bin_width).floor() as i64;
+                            *bin_counts.entry(b).or_insert(0) += 1;
+                        }
+
+                        while bin_counts.len() > 1000 {
+                            bin_width *= 2.0;
+                            let mut new_counts = HashMap::new();
+                            for (b, count) in bin_counts {
+                                let new_b = if b >= 0 { b / 2 } else { (b - 1) / 2 };
+                                *new_counts.entry(new_b).or_insert(0) += count;
+                            }
+                            bin_counts = new_counts;
+                        }
+
+                        final_bin_width = bin_width;
+                        for (b, count) in bin_counts {
+                            let center = min_v as f64 + (b as f64 + 0.5) * bin_width;
+                            histogram.push((center, count));
+                        }
+                        histogram.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                    } else {
+                        final_bin_width = 1.0;
+                        histogram.push((min_v as f64, n));
                     }
                 }
             }
@@ -512,6 +681,9 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
                 ColumnStats::Temporal(TemporalStats {
                     min: min_str,
                     max: max_str,
+                    p05,
+                    p95,
+                    bin_width: final_bin_width,
                     histogram,
                 }),
             )
@@ -531,11 +703,10 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
                 let counts = value_counts.column("counts")?.as_materialized_series();
 
                 // Try to get a string representation for the top value
-                let v = values.cast(&DataType::String).ok().and_then(|s| {
-                    s.str()
-                        .ok()
-                        .and_then(|ca| ca.get(0).map(|s| s.to_owned()))
-                });
+                let v = values
+                    .cast(&DataType::String)
+                    .ok()
+                    .and_then(|s| s.str().ok().and_then(|ca| ca.get(0).map(|s| s.to_owned())));
                 let c = counts
                     .u32()
                     .ok()
@@ -567,6 +738,7 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
             has_special,
             stats,
             interpretation: String::new(),
+            samples,
         };
         summary.interpretation = summary.generate_interpretation();
         summaries.push(summary);
@@ -574,7 +746,6 @@ pub fn analyse_df(df: DataFrame) -> Result<Vec<ColumnSummary>> {
 
     Ok(summaries)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -584,7 +755,7 @@ mod tests {
     fn test_carriage_return_detection() -> Result<()> {
         let s = Series::new("col".into(), vec!["line1\r\nline2"]);
         let df = DataFrame::new(vec![Column::from(s)])?;
-        let summaries = analyse_df(df)?;
+        let summaries = analyse_df(df, 0.0)?;
         assert!(summaries[0].has_special, "Should detect \r as special");
         Ok(())
     }
@@ -593,8 +764,11 @@ mod tests {
     fn test_normal_whitespace_not_special() -> Result<()> {
         let s = Series::new("col".into(), vec!["line1\nline2\twith spaces"]);
         let df = DataFrame::new(vec![Column::from(s)])?;
-        let summaries = analyse_df(df)?;
-        assert!(!summaries[0].has_special, "Standard whitespace (\\n, \\t, space) should NOT be special");
+        let summaries = analyse_df(df, 0.0)?;
+        assert!(
+            !summaries[0].has_special,
+            "Standard whitespace (\\n, \\t, space) should NOT be special"
+        );
         Ok(())
     }
 
@@ -602,8 +776,8 @@ mod tests {
     fn test_histogram_calculation() -> Result<()> {
         let s = Series::new("col".into(), vec![1.0, 1.0, 2.0, 3.0, 10.0]);
         let df = DataFrame::new(vec![Column::from(s)])?;
-        let summaries = analyse_df(df)?;
-        
+        let summaries = analyse_df(df, 0.0)?;
+
         if let ColumnStats::Numeric(stats) = &summaries[0].stats {
             assert!(!stats.histogram.is_empty(), "Histogram should not be empty");
             // Check that the sum of counts matches the number of non-null elements
@@ -620,13 +794,20 @@ mod tests {
     fn test_histogram_single_value() -> Result<()> {
         let s = Series::new("col".into(), vec![2.0, 2.0, 2.0]);
         let df = DataFrame::new(vec![Column::from(s)])?;
-        let summaries = analyse_df(df)?;
-        
+        let summaries = analyse_df(df, 0.0)?;
+
         if let ColumnStats::Numeric(stats) = &summaries[0].stats {
-            assert_eq!(stats.histogram.len(), 20, "Should have 20 bins even for single value");
+            assert_eq!(
+                stats.histogram.len(),
+                20,
+                "Should have 20 bins even for single value"
+            );
             let total_count: usize = stats.histogram.iter().map(|h| h.1).sum();
             assert_eq!(total_count, 3);
-            assert_eq!(stats.histogram[10].1, 3, "Middle bin should have all counts");
+            assert_eq!(
+                stats.histogram[10].1, 3,
+                "Middle bin should have all counts"
+            );
         } else {
             panic!("Expected NumericStats");
         }
@@ -637,23 +818,32 @@ mod tests {
     fn test_interpretation_generation() -> Result<()> {
         let s = Series::new("id".into(), vec!["1", "2", "3"]);
         let df = DataFrame::new(vec![Column::from(s)])?;
-        let summaries = analyse_df(df)?;
-        assert!(summaries[0].interpretation.contains("unique identifier"), "Should detect unique identifier");
+        let summaries = analyse_df(df, 0.0)?;
+        assert!(
+            summaries[0].interpretation.contains("unique identifier"),
+            "Should detect unique identifier"
+        );
 
         let s2 = Series::new("age".into(), vec![Some(25.0), Some(30.0), None]);
         let df2 = DataFrame::new(vec![Column::from(s2)])?;
-        let summaries2 = analyse_df(df2)?;
-        assert!(summaries2[0].interpretation.contains("missing data"), "Should detect nulls");
-        
+        let summaries2 = analyse_df(df2, 0.0)?;
+        assert!(
+            summaries2[0].interpretation.contains("missing data"),
+            "Should detect nulls"
+        );
+
         Ok(())
     }
 
     #[test]
     fn test_boolean_detection() -> Result<()> {
-        let s = Series::new("bool_col".into(), vec![Some(true), Some(false), None, Some(true)]);
+        let s = Series::new(
+            "bool_col".into(),
+            vec![Some(true), Some(false), None, Some(true)],
+        );
         let df = DataFrame::new(vec![Column::from(s)])?;
-        let summaries = analyse_df(df)?;
-        
+        let summaries = analyse_df(df, 0.0)?;
+
         assert_eq!(summaries[0].kind.as_str(), "Boolean");
         if let ColumnStats::Boolean(stats) = &summaries[0].stats {
             assert_eq!(stats.true_count, 2);
@@ -661,7 +851,10 @@ mod tests {
         } else {
             panic!("Expected BooleanStats");
         }
-        assert!(summaries[0].interpretation.contains("Binary field"), "Should detect binary signal");
+        assert!(
+            summaries[0].interpretation.contains("Binary field"),
+            "Should detect binary signal"
+        );
         Ok(())
     }
 
@@ -669,8 +862,8 @@ mod tests {
     fn test_effective_boolean_detection() -> Result<()> {
         let s = Series::new("is_active".into(), vec![Some(1), Some(0), None, Some(1)]);
         let df = DataFrame::new(vec![Column::from(s)])?;
-        let summaries = analyse_df(df)?;
-        
+        let summaries = analyse_df(df, 0.0)?;
+
         // This is what we WANT it to be
         assert_eq!(summaries[0].kind.as_str(), "Boolean");
         if let ColumnStats::Boolean(stats) = &summaries[0].stats {
@@ -678,6 +871,80 @@ mod tests {
             assert_eq!(stats.false_count, 1);
         } else {
             panic!("Expected BooleanStats for 0/1 numeric column");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_skewed_data_histogram() -> Result<()> {
+        let mut vals = vec![1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 3.0, 3.5, 4.0]; // Central mass
+        vals.push(1000.0); // Extreme outlier
+        let s = Series::new("col".into(), vals);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.0)?;
+
+        if let ColumnStats::Numeric(stats) = &summaries[0].stats {
+            // Skewness should be positive
+            assert!(stats.skew.unwrap() > 0.1, "Should detect right skew");
+            assert!(summaries[0].interpretation.contains("Right-skewed"), "Should report right skew");
+
+            // Histogram should have multiple bins for the central mass
+            // Outlier is at 1000, max is 1000, min is 1.0.
+            // IQR is roughly 3.0 - 1.5 = 1.5. n=11.
+            // bin_width = 2 * 1.5 / 11^(1/3) approx 3 / 2.2 = 1.36.
+            // Previous logic would have bin_width = (1000 - 1) / 500 = 2.0.
+            // All central values (1 to 4) would fall into the first 2 bins.
+            // With my fix, bin_width should be based on IQR.
+            assert!(stats.bin_width < 2.0, "Bin width should be small based on IQR, not large based on range");
+            assert!(stats.histogram.len() > 2, "Should have more than 2 bins");
+        } else {
+            panic!("Expected NumericStats");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_trimmed_mean() -> Result<()> {
+        // Values: 0, 10, 20, 30, 100
+        // Mean = 160 / 5 = 32
+        // Trim 20% from each end (1 element each) -> 10, 20, 30
+        // Trimmed Mean = 60 / 3 = 20
+        let s = Series::new("col".into(), vec![0.0, 10.0, 20.0, 30.0, 100.0]);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.2)?;
+
+        if let ColumnStats::Numeric(stats) = &summaries[0].stats {
+            assert_eq!(stats.mean, Some(32.0));
+            assert_eq!(stats.trimmed_mean, Some(20.0));
+        } else {
+            panic!("Expected NumericStats");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_temporal_histogram() -> Result<()> {
+        // Create some timestamps
+        let base = 1_700_000_000_000_i64; // Approx 2023
+        let vals = vec![
+            Some(base), 
+            Some(base + 1000), 
+            Some(base + 2000), 
+            Some(base + 3000), 
+            Some(base + 1_000_000) // Outlier
+        ];
+        let s = Series::new("ts".into(), vals).cast(&DataType::Datetime(TimeUnit::Milliseconds, None))?;
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.0)?;
+
+        if let ColumnStats::Temporal(stats) = &summaries[0].stats {
+            assert!(!stats.histogram.is_empty());
+            // IQR should be roughly (base+3000) - (base+1000) = 2000
+            // bin_width should be based on that, not on 1,000,000/20
+            assert!(stats.bin_width < 10000.0, "Bin width should be small based on IQR");
+            assert!(stats.histogram.len() > 2, "Should have multiple bins for central mass");
+        } else {
+            panic!("Expected TemporalStats");
         }
         Ok(())
     }
