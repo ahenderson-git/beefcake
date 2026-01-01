@@ -3,7 +3,7 @@ use eframe::egui;
 // This defines the possible "Pages" or "Views" in our application.
 pub enum AppState {
     MainMenu,
-    Analyser(crate::analyser::App),
+    Analyser(Box<crate::analyser::App>),
 }
 
 // This is the main data structure for your app.
@@ -70,7 +70,7 @@ impl TemplateApp {
                 analyser.pg_url = self.pg_url.clone();
                 analyser.pg_schema = self.pg_schema.clone();
                 analyser.pg_table = self.pg_table.clone();
-                self.state = AppState::Analyser(analyser);
+                self.state = AppState::Analyser(Box::new(analyser));
             }
         });
     }

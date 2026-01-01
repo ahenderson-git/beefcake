@@ -8,6 +8,16 @@ pub struct DbClient {
     pool: Pool<Postgres>,
 }
 
+pub struct AnalysisPush<'a> {
+    pub file_path: &'a str,
+    pub file_size: u64,
+    pub health: &'a FileHealth,
+    pub summaries: &'a [ColumnSummary],
+    pub df: &'a DataFrame,
+    pub schema_name: Option<&'a str>,
+    pub table_name: Option<&'a str>,
+}
+
 impl DbClient {
     pub async fn connect(url: &str) -> Result<Self> {
         let pool = PgPoolOptions::new()
@@ -50,31 +60,33 @@ impl DbClient {
         .execute(&self.pool)
         .await?;
 
+        // Ensure missing columns exist in case the table was created with an older version
+        sqlx::query("ALTER TABLE column_summaries ADD COLUMN IF NOT EXISTS interpretation TEXT")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("ALTER TABLE column_summaries ADD COLUMN IF NOT EXISTS business_summary TEXT")
+            .execute(&self.pool)
+            .await?;
+
         Ok(())
     }
 
     pub async fn push_analysis(
         &self,
-        file_path: &str,
-        file_size: u64,
-        health: &FileHealth,
-        summaries: &[ColumnSummary],
-        df: &DataFrame,
-        schema_name: Option<&str>,
-        table_name: Option<&str>,
+        params: AnalysisPush<'_>,
     ) -> Result<()> {
         // 1. Insert analysis metadata
         let analysis_id: i32 = sqlx::query_scalar(
             "INSERT INTO analyses (file_path, file_size, health_score) VALUES ($1, $2, $3) RETURNING id"
         )
-        .bind(file_path)
-        .bind(file_size as i64)
-        .bind(health.score as f64)
+        .bind(params.file_path)
+        .bind(params.file_size as i64)
+        .bind(params.health.score as f64)
         .fetch_one(&self.pool)
         .await?;
 
         // 2. Insert column summaries
-        for col in summaries {
+        for col in params.summaries {
             sqlx::query(
                 r#"
                 INSERT INTO column_summaries 
@@ -87,44 +99,46 @@ impl DbClient {
             .bind(col.kind.as_str())
             .bind(col.count as i64)
             .bind(col.nulls as i64)
-            .bind(&col.interpretation)
-            .bind(&col.business_summary)
+            .bind(col.interpretation.join(" "))
+            .bind(col.business_summary.join(" "))
             .bind(serde_json::to_value(&col.stats)?)
             .execute(&self.pool)
             .await?;
         }
 
         // 3. Push the data to a dedicated table
-        self.push_dataframe(analysis_id, df, schema_name, table_name).await?;
+        self.push_dataframe(analysis_id, params.df, params.schema_name, params.table_name).await?;
 
         Ok(())
     }
 
     async fn push_dataframe(&self, analysis_id: i32, df: &DataFrame, schema_name: Option<&str>, table_name: Option<&str>) -> Result<()> {
-        let final_table_name = table_name.unwrap_or(&format!("data_{}", analysis_id)).to_string();
+        let final_table_name = table_name.map_or_else(|| format!("data_{analysis_id}"), ToOwned::to_owned);
+        
+        let quote = |s: &str| format!("\"{}\"", s.replace('"', "\"\""));
+
         let full_identifier = match schema_name {
-            Some(s) if !s.is_empty() => format!("\"{}\".\"{}\"", s, final_table_name),
-            _ => format!("\"{}\"", final_table_name),
+            Some(s) if !s.is_empty() => format!("{}.{}", quote(s), quote(&final_table_name)),
+            _ => quote(&final_table_name),
         };
         
         let schema = df.schema();
-        let mut create_table_query = format!("CREATE TABLE {} (", full_identifier);
+        let mut create_table_query = format!("CREATE TABLE {full_identifier} (");
         let mut column_definitions = Vec::new();
         for (name, dtype) in schema.iter() {
             let sql_type = match dtype {
                 DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 |
                 DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => "BIGINT",
                 DataType::Float32 | DataType::Float64 => "DOUBLE PRECISION",
-                DataType::String => "TEXT",
                 DataType::Boolean => "BOOLEAN",
                 DataType::Date => "DATE",
                 DataType::Datetime(_, _) => "TIMESTAMPTZ",
                 _ => "TEXT",
             };
-            column_definitions.push(format!("\"{}\" {}", name, sql_type));
+            column_definitions.push(format!("{} {sql_type}", quote(name)));
         }
         create_table_query.push_str(&column_definitions.join(", "));
-        create_table_query.push_str(")");
+        create_table_query.push(')');
 
         sqlx::query(&create_table_query).execute(&self.pool).await?;
 
@@ -134,10 +148,10 @@ impl DbClient {
         
         for chunk_start in (0..df.height()).step_by(batch_size) {
             let chunk_end = (chunk_start + batch_size).min(df.height());
-            let mut query_builder: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!("INSERT INTO {} (", full_identifier));
+            let mut query_builder: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!("INSERT INTO {full_identifier} ("));
             
             for (i, name) in column_names.iter().enumerate() {
-                query_builder.push(format!("\"{}\"", name));
+                query_builder.push(quote(name));
                 if i < column_names.len() - 1 {
                     query_builder.push(", ");
                 }
@@ -146,7 +160,7 @@ impl DbClient {
 
             query_builder.push_values(chunk_start..chunk_end, |mut b, row_idx| {
                 for col_idx in 0..df.width() {
-                    let series = &df.get_columns()[col_idx];
+                    let series = df.get_columns().get(col_idx).expect("col_idx is within bounds");
                     let val = series.get(row_idx).unwrap_or(AnyValue::Null);
                     
                     match val {
@@ -164,16 +178,23 @@ impl DbClient {
                         AnyValue::StringOwned(v) => { b.push_bind(v.to_string()); },
                         AnyValue::Boolean(v) => { b.push_bind(v); },
                         AnyValue::Date(v) => {
-                             let date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap() + chrono::Duration::days(v as i64);
-                             b.push_bind(date);
-                        },
+                            let date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).expect("1970-01-01 is a valid date")
+                                + chrono::TimeDelta::try_days(v as i64).unwrap_or_default();
+                            b.push_bind(date);
+                        }
                         AnyValue::Datetime(v, tu, _) => {
-                             let dt = match tu {
-                                TimeUnit::Nanoseconds => chrono::DateTime::from_timestamp(v / 1_000_000_000, (v % 1_000_000_000) as u32),
-                                TimeUnit::Microseconds => chrono::DateTime::from_timestamp(v / 1_000_000, ((v % 1_000_000) * 1000) as u32),
-                                TimeUnit::Milliseconds => chrono::DateTime::from_timestamp(v / 1000, ((v % 1000) * 1_000_000) as u32),
-                             };
-                             b.push_bind(dt);
+                            let dt = match tu {
+                                TimeUnit::Nanoseconds => {
+                                    chrono::DateTime::from_timestamp(v / 1_000_000_000, (v % 1_000_000_000) as u32)
+                                }
+                                TimeUnit::Microseconds => {
+                                    chrono::DateTime::from_timestamp(v / 1_000_000, ((v % 1_000_000) * 1000) as u32)
+                                }
+                                TimeUnit::Milliseconds => {
+                                    chrono::DateTime::from_timestamp(v / 1000, ((v % 1000) * 1_000_000) as u32)
+                                }
+                            };
+                            b.push_bind(dt);
                         }
                         AnyValue::Null => { b.push_bind(None::<i64>); },
                         _ => { b.push_bind(val.to_string()); }
