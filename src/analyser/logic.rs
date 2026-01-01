@@ -16,6 +16,7 @@ pub struct ColumnSummary {
     pub has_special: bool,
     pub stats: ColumnStats,
     pub interpretation: String,
+    pub business_summary: String,
     pub samples: Vec<String>,
 }
 
@@ -76,6 +77,16 @@ impl ColumnSummary {
                         }
                     }
 
+                    // Standard Deviation Reliability
+                    if let Some(std_dev) = s.std_dev {
+                        if std_dev > 0.0 {
+                            let nonparametric_skew = (mean - median).abs() / std_dev;
+                            if nonparametric_skew > 0.3 {
+                                signals.push("Standard deviation may be less reliable as an indicator of 'typical' spread because the mean is significantly offset by skew or outliers.");
+                            }
+                        }
+                    }
+
                     // Variability
                     if range > 0.0 {
                         if iqr / range < 0.1 {
@@ -83,7 +94,65 @@ impl ColumnSummary {
                         } else if iqr / range > 0.6 {
                             signals.push("High variability across the range.");
                         }
+
+                        // Range-based signals (Skinny bars & Gaps)
+                        if range > 0.0 {
+                            let mut has_gaps = false;
+                            if s.histogram.len() > 1 {
+                                for i in 0..s.histogram.len() - 1 {
+                                    if s.histogram[i + 1].0 - s.histogram[i].0 > s.bin_width * 1.5 {
+                                        has_gaps = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if has_gaps {
+                                signals.push("Gaps between bars indicate sparse data or isolated clusters.");
+                                let num_bins = range / s.bin_width;
+                                if num_bins > 100.0 {
+                                    signals.push("Histogram bars appear very skinny because the data is spread across many small bins.");
+                                }
+                            }
+
+                            if let (Some(p05), Some(p95)) = (s.p05, s.p95) {
+                                let zoom_range = p95 - p05;
+                                if range > 3.0 * zoom_range && zoom_range > 0.0 {
+                                    signals.push("Histogram bars appear skinny because extreme outliers are stretching the scale.");
+                                }
+                            }
+                        }
+
+                        // Height-based signals (Invisible bars)
+                        if !s.histogram.is_empty() {
+                            let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
+                            let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
+                            
+                            let has_tiny_bars = s.histogram.iter().any(|&(_, c)| c > 0 && (c as f64) < max_count * 0.005);
+                            if has_tiny_bars {
+                                signals.push("Some bars are so short compared to the tallest one that they may be invisible.");
+                            }
+                            
+                            if total_count > 0 && max_count / total_count as f64 > 0.9 {
+                                signals.push("A single bin dominates the distribution, making other values difficult to see.");
+                            }
+                        }
                     }
+
+                    // Gaussian vs Histogram height
+                    if let (Some(sigma), _) = (s.std_dev, s.mean) {
+                        if sigma > 0.0 && !s.histogram.is_empty() {
+                            let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
+                            let gauss_peak = (total_count as f64 * s.bin_width)
+                                / (sigma * (2.0 * std::f64::consts::PI).sqrt());
+                            let max_bar = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
+
+                            if max_bar > gauss_peak * 1.5 {
+                                signals.push("The orange distribution curve is low because the data is more concentrated than a 'normal' distribution.");
+                            }
+                        }
+                    }
+
                 }
             }
             ColumnStats::Categorical(freq) => {
@@ -126,6 +195,81 @@ impl ColumnSummary {
             "No significant patterns detected.".to_string()
         } else {
             signals.join(" ")
+        }
+    }
+
+    pub fn generate_business_summary(&self) -> String {
+        let mut insights = Vec::new();
+
+        // 1. Quality & Completeness
+        let null_pct = if self.count > 0 {
+            (self.nulls as f64 / self.count as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        if self.nulls == 0 {
+            insights.push("This data is 100% complete and reliable.");
+        } else if null_pct > 15.0 {
+            insights.push("Caution: A significant amount of information is missing here, which may lead to incomplete insights.");
+        } else if null_pct > 5.0 {
+            insights.push("Most of the data is present, but some records are missing specific details.");
+        }
+
+        // 2. Business Meaning
+        match &self.stats {
+            ColumnStats::Numeric(s) => {
+                if let (Some(mean), Some(median), Some(std_dev)) = (s.mean, s.median, s.std_dev) {
+                    if let Some(skew) = s.skew {
+                        if skew.abs() < 0.1 {
+                            insights.push("The values are balanced and follow a predictable pattern.");
+                        } else if skew > 0.0 {
+                            insights.push("While most values are lower, a few high-value exceptions are pulling the average up.");
+                        } else {
+                            insights.push("Most values are on the higher side, but some unusually low entries are pulling the average down.");
+                        }
+                    }
+
+                    if std_dev > 0.0 {
+                        let nonparametric_skew = (mean - median).abs() / std_dev;
+                        if nonparametric_skew > 0.3 {
+                            insights.push("The 'average' is being heavily distorted by extreme outliers and might not represent a 'typical' case.");
+                        }
+                    }
+                }
+            }
+            ColumnStats::Categorical(freq) => {
+                if freq.len() == 2 {
+                    insights.push("This captures a simple choice or binary state (like Yes/No).");
+                } else if freq.len() > 1 {
+                    if let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min()) {
+                        if (*max_v as f64 / *min_v as f64) > 5.0 {
+                            insights.push("The distribution is uneven, with some categories appearing much more frequently than others.");
+                        } else {
+                            insights.push("The data is relatively well-distributed across different categories.");
+                        }
+                    }
+                }
+            }
+            ColumnStats::Text(s) => {
+                if s.distinct == self.count && self.nulls == 0 {
+                    insights.push("This appears to be a unique tracking number or identifier for each record.");
+                } else {
+                    insights.push("This is a standard text field containing descriptive information.");
+                }
+            }
+            ColumnStats::Temporal(_) => {
+                insights.push("This column tracks when events occurred, allowing for time-based trend analysis.");
+            }
+            ColumnStats::Boolean(_) => {
+                insights.push("This represents a simple toggle or true/false status.");
+            }
+        }
+
+        if insights.is_empty() {
+            "Standard data column with no unusual patterns identified.".to_string()
+        } else {
+            insights.join(" ")
         }
     }
 }
@@ -203,11 +347,14 @@ impl ColumnKind {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct FileHealth {
+    pub score: f32,
     pub risks: Vec<String>,
 }
 
 pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
     let mut risks = Vec::new();
+    let mut score: f64 = 100.0;
+
     for col in summaries {
         let null_pct = if col.count > 0 {
             (col.nulls as f64 / col.count as f64) * 100.0
@@ -220,12 +367,17 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
                 "⚠️ Column '{}' has significant missing data ({:.1}%).",
                 col.name, null_pct
             ));
+            score -= 10.0;
+        } else if null_pct > 5.0 {
+            score -= 5.0;
         }
+
         if col.has_special {
             risks.push(format!(
                 "🔍 Hidden/special characters detected in '{}'.",
                 col.name
             ));
+            score -= 5.0;
         }
 
         match &col.stats {
@@ -241,21 +393,18 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
                                 "📈 Column '{}' is heavily skewed; averages may be misleading.",
                                 col.name
                             ));
+                            score -= 5.0;
                         }
-                    }
-
-                    if median.abs() > 1e-9 && (mean - median).abs() / median.abs() > 0.1 {
-                        risks.push(format!(
-                            "📊 Column '{}': Outliers likely influencing the average.",
-                            col.name
-                        ));
                     }
                 }
             }
             _ => {}
         }
     }
-    FileHealth { risks }
+    FileHealth { 
+        score: score.max(0.0) as f32,
+        risks 
+    }
 }
 
 pub type AnalysisReceiver = crossbeam_channel::Receiver<
@@ -738,9 +887,11 @@ pub fn analyse_df(df: DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
             has_special,
             stats,
             interpretation: String::new(),
+            business_summary: String::new(),
             samples,
         };
         summary.interpretation = summary.generate_interpretation();
+        summary.business_summary = summary.generate_business_summary();
         summaries.push(summary);
     }
 
@@ -946,6 +1097,152 @@ mod tests {
         } else {
             panic!("Expected TemporalStats");
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_interpretation_histogram_signals() -> Result<()> {
+        // Case 1: Extreme outliers (skinny bars and gaps)
+        let mut vals = (0..100).map(|i| i as f64 * 0.1).collect::<Vec<_>>(); // 0.0 to 9.9
+        vals.push(10000.0); // Extreme outlier
+        let s = Series::new("outliers".into(), vals);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.0)?;
+        let interp = &summaries[0].interpretation;
+        
+        assert!(interp.contains("Histogram bars appear very skinny"), "Should report skinny bars. Interp: {}", interp);
+        assert!(interp.contains("Gaps between bars"), "Should report gaps. Interp: {}", interp);
+
+        // Case 2: Highly concentrated data (low Gaussian curve)
+        // A lot of 5.0, few others
+        let mut vals = vec![5.0; 100];
+        vals.push(1.0);
+        vals.push(9.0);
+        let s = Series::new("concentrated".into(), vals);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.0)?;
+        let interp = &summaries[0].interpretation;
+        
+        assert!(interp.contains("orange distribution curve is low"), "Should report low curve. Interp: {}", interp);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_user_reported_uniform_sequence_not_skinny() -> Result<()> {
+        // Uniform sequence
+        // n^(1/3) for 2,000,000 is ~126, which is > 100
+        let vals: Vec<f64> = (1..=2_000_000).map(|i| i as f64).collect(); 
+        let s = Series::new("order_id".into(), vals);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.0)?;
+        let interp = &summaries[0].interpretation;
+
+        println!("Interp: {}", interp);
+
+        // It should NOT contain "very skinny"
+        assert!(!interp.contains("Histogram bars appear very skinny"), "Should not report skinny bars for uniform sequence. Interp: {}", interp);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_user_reported_delivery_minutes_zoom() -> Result<()> {
+        // Range 20 to 530. Mean 45.9. Median 35.0. IQR 20.
+        // n=100. 95 elements from 20 to 100. 5 elements from 100 to 530.
+        let mut vals = Vec::new();
+        for i in 0..95 {
+            vals.push(20.0 + i as f64 * 0.84); // 20 to ~99.8
+        }
+        for i in 0..5 {
+            vals.push(100.0 + i as f64 * 107.5); // 100 to 530
+        }
+        
+        let s = Series::new("delivery_minutes".into(), vals);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.0)?;
+        let interp = &summaries[0].interpretation;
+        
+        println!("Interp: {}", interp);
+        
+        // With 3x threshold, it SHOULD detect skinny bars because of outliers
+        assert!(interp.contains("stretching the scale"), "Should detect skinny bars with 3x threshold. Interp: {}", interp);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_std_dev_reliability_signal() -> Result<()> {
+        // Highly skewed data: many 1s, one 1000
+        let mut vals = vec![1.0; 100];
+        vals.push(1000.0);
+        
+        let s = Series::new("skewed".into(), vals);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.0)?;
+        let interp = &summaries[0].interpretation;
+        
+        println!("Interp: {}", interp);
+        
+        // Nonparametric skew = (mean - median) / std_dev
+        // Mean approx 10.9
+        // Median = 1.0
+        // Std Dev approx 99
+        // (10.9 - 1) / 99 approx 0.1 ... wait, maybe not high enough for 0.3 threshold.
+        
+        // Let's make it more extreme
+        // 10 values: [1, 1, 1, 1, 1, 1, 1, 1, 1, 100]
+        // Mean = 109 / 10 = 10.9
+        // Median = 1
+        // Std Dev = sqrt( sum(x-mean)^2 / 9 )
+        // (1-10.9)^2 * 9 + (100-10.9)^2 = (-9.9)^2 * 9 + (89.1)^2 = 98.01 * 9 + 7938.81 = 882.09 + 7938.81 = 8820.9
+        // Std Dev = sqrt(8820.9 / 9) = sqrt(980.1) = 31.3
+        // (10.9 - 1) / 31.3 = 9.9 / 31.3 approx 0.316.
+        // This should trigger it!
+        
+        let mut vals2 = vec![1.0; 9];
+        vals2.push(100.0);
+        let s2 = Series::new("skewed2".into(), vals2);
+        let df2 = DataFrame::new(vec![Column::from(s2)])?;
+        let summaries2 = analyse_df(df2, 0.0)?;
+        let interp2 = &summaries2[0].interpretation;
+        
+        println!("Interp2: {}", interp2);
+        assert!(interp2.contains("Standard deviation may be less reliable"), "Should detect unreliable std dev. Interp: {}", interp2);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_business_summary_generation() -> Result<()> {
+        // Case 1: Perfect Unique ID
+        let s = Series::new("id".into(), vec!["1", "2", "3"]);
+        let df = DataFrame::new(vec![Column::from(s)])?;
+        let summaries = analyse_df(df, 0.0)?;
+        assert!(
+            summaries[0].business_summary.contains("unique tracking number"),
+            "Should identify unique ID in business terms. Got: {}", summaries[0].business_summary
+        );
+
+        // Case 2: Skewed Numeric Data
+        let mut vals = vec![1.0; 10];
+        vals.push(1000.0); // Extreme Outlier
+        let s2 = Series::new("sales".into(), vals);
+        let df2 = DataFrame::new(vec![Column::from(s2)])?;
+        let summaries2 = analyse_df(df2, 0.0)?;
+        let biz = &summaries2[0].business_summary;
+        assert!(biz.contains("high-value exceptions"), "Should mention high-value exceptions. Got: {}", biz);
+        assert!(biz.contains("heavily distorted"), "Should mention distorted average. Got: {}", biz);
+
+        // Case 3: Missing Data
+        let s3 = Series::new("notes".into(), vec![Some("A"), None, None]);
+        let df3 = DataFrame::new(vec![Column::from(s3)])?;
+        let summaries3 = analyse_df(df3, 0.0)?;
+        assert!(
+            summaries3[0].business_summary.contains("significant amount of information is missing"),
+            "Should warn about missing data. Got: {}", summaries3[0].business_summary
+        );
+
         Ok(())
     }
 }

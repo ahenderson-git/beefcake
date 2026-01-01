@@ -13,6 +13,9 @@ pub enum AppState {
 pub struct TemplateApp {
     #[serde(skip)] // We don't save the current page to disk when closing the app
     pub state: AppState,
+    pub pg_url: String,
+    pub pg_schema: String,
+    pub pg_table: String,
 }
 
 // Logic for starting up the app for the very first time.
@@ -26,6 +29,9 @@ impl Default for TemplateApp {
     fn default() -> Self {
         Self {
             state: AppState::MainMenu,
+            pg_url: String::new(),
+            pg_schema: String::new(),
+            pg_table: String::new(),
         }
     }
 }
@@ -60,7 +66,11 @@ impl TemplateApp {
             ui.heading("UTILITIES");
             if ui.button("Analyse File").clicked() {
                 // When clicked, we change the app state to the Analyser view.
-                self.state = AppState::Analyser(crate::analyser::run_analyser());
+                let mut analyser = crate::analyser::run_analyser();
+                analyser.pg_url = self.pg_url.clone();
+                analyser.pg_schema = self.pg_schema.clone();
+                analyser.pg_table = self.pg_table.clone();
+                self.state = AppState::Analyser(analyser);
             }
         });
     }
@@ -95,6 +105,7 @@ impl eframe::App for TemplateApp {
         Self::render_footer(ctx);
 
         // Check our "State" to decide which main page content to draw.
+        let mut switch_to_main = false;
         match &mut self.state {
             AppState::MainMenu => {
                 self.render_main_menu(ctx);
@@ -102,9 +113,18 @@ impl eframe::App for TemplateApp {
             AppState::Analyser(analyser) => {
                 // If the Analyser's update returns 'true', it means the user clicked "Back".
                 if analyser.update(ctx) {
-                    self.state = AppState::MainMenu;
+                    switch_to_main = true;
                 }
+
+                // Keep our persistent URL in sync
+                self.pg_url = analyser.pg_url.clone();
+                self.pg_schema = analyser.pg_schema.clone();
+                self.pg_table = analyser.pg_table.clone();
             }
+        }
+
+        if switch_to_main {
+            self.state = AppState::MainMenu;
         }
     }
 

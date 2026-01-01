@@ -1,5 +1,6 @@
 pub mod gui;
 pub mod logic;
+pub mod db;
 
 pub use gui::App;
 

@@ -33,6 +33,13 @@ pub struct App {
     pub df: Option<DataFrame>,
     #[serde(skip)]
     pub expanded_rows: std::collections::HashSet<String>,
+    pub pg_url: String,
+    pub pg_schema: String,
+    pub pg_table: String,
+    #[serde(skip)]
+    pub is_pushing: bool,
+    #[serde(skip)]
+    pub push_receiver: Option<crossbeam_channel::Receiver<anyhow::Result<()>>>,
 }
 
 impl App {
@@ -60,6 +67,21 @@ impl App {
                     }
                     Err(e) => {
                         self.status = format!("Error: {e}");
+                    }
+                }
+            }
+        }
+
+        if let Some(rx) = &self.push_receiver {
+            if let Ok(result) = rx.try_recv() {
+                self.is_pushing = false;
+                self.push_receiver = None;
+                match result {
+                    Ok(_) => {
+                        self.status = "Successfully pushed to PostgreSQL".to_string();
+                    }
+                    Err(e) => {
+                        self.status = format!("PostgreSQL Push Error: {e}");
                     }
                 }
             }
@@ -109,6 +131,7 @@ impl App {
                 }
 
                 if self.is_loading {
+                    ui.separator();
                     ui.spinner();
                     let bytes = self.progress_counter.load(Ordering::Relaxed);
                     if bytes > 0 {
@@ -121,7 +144,33 @@ impl App {
                         ui.label(format!("Time: {:.1}s", start.elapsed().as_secs_f32()));
                     }
                 } else if let Some(duration) = self.last_duration {
+                    ui.separator();
                     ui.label(format!("Last analysis took: {:.2}s", duration.as_secs_f32()));
+                }
+            });
+
+            ui.add_space(4.0);
+
+            ui.horizontal(|ui| {
+                ui.label("PostgreSQL URL:");
+                ui.add(egui::TextEdit::singleline(&mut self.pg_url).hint_text("postgres://user:pass@host/db").desired_width(250.0));
+                
+                ui.separator();
+                ui.label("Schema:");
+                ui.add(egui::TextEdit::singleline(&mut self.pg_schema).hint_text("public").desired_width(80.0));
+
+                ui.separator();
+                ui.label("Table:");
+                ui.add(egui::TextEdit::singleline(&mut self.pg_table).hint_text("data_123").desired_width(120.0));
+
+                ui.separator();
+                if self.is_pushing {
+                    ui.spinner();
+                    ui.label("Pushing to DB...");
+                } else if ui.button("🚀 Push to DB").on_hover_text("Initialize schema and push analysis results + data to PostgreSQL").clicked() {
+                    if let (Some(df), Some(health), Some(path)) = (self.df.as_ref(), self.health.as_ref(), self.file_path.as_ref()) {
+                        self.start_push_to_db(ctx.clone(), path.clone(), self.file_size, health.clone(), self.summary.clone(), df.clone());
+                    }
                 }
             });
 
@@ -157,7 +206,8 @@ impl App {
                         .column(Column::auto().at_least(80.0))  // Nulls
                         .column(Column::auto().at_least(80.0))  // Special
                         .column(Column::auto().at_least(200.0)) // Stats
-                        .column(Column::initial(150.0).at_least(150.0)) // Summary
+                        .column(Column::initial(150.0).at_least(150.0)) // Summary (Technical)
+                        .column(Column::initial(150.0).at_least(150.0)) // Stakeholder Insight
                         .column(Column::initial(100.0).at_least(100.0)) // Histogram
                         .column(Column::remainder()) // Spacer
                         .min_scrolled_height(0.0);
@@ -181,7 +231,10 @@ impl App {
                                 ui.strong("Stats / Info");
                             });
                             header.col(|ui| {
-                                ui.strong("Summary").on_hover_text("Plain-English interpretation of the data patterns.");
+                                ui.strong("Summary").on_hover_text("Technical analysis of data patterns.");
+                            });
+                            header.col(|ui| {
+                                ui.strong("Stakeholder Insight").on_hover_text("Plain-English interpretation for business stakeholders.");
                             });
                             header.col(|ui| {
                                 ui.strong("Histogram");
@@ -265,6 +318,16 @@ impl App {
                                                     ui.horizontal(|ui| {
                                                         ui.label("Std Dev:").on_hover_text("Typical deviation from the average. High values mean the data is spread out.");
                                                         ui.label(fmt_opt(s.std_dev));
+
+                                                        if let (Some(mean), Some(median), Some(std_dev)) = (s.mean, s.median, s.std_dev) {
+                                                            if std_dev > 0.0 {
+                                                                let nonparametric_skew = (mean - median).abs() / std_dev;
+                                                                if nonparametric_skew > 0.3 {
+                                                                    ui.label("⚠").on_hover_text("Standard deviation may be less reliable because the mean is heavily influenced by outliers or skew.");
+                                                                }
+                                                            }
+                                                        }
+
                                                         ui.label("|");
                                                         ui.label("IQR:").on_hover_text("Interquartile Range: The range of the middle 50% of your data.");
                                                         ui.label(format!("{}-{}", fmt_opt(s.q1), fmt_opt(s.q3)));
@@ -355,6 +418,10 @@ impl App {
                                         ui.label(&col.interpretation);
                                     });
                                     row.col(|ui| {
+                                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                                        ui.label(&col.business_summary);
+                                    });
+                                    row.col(|ui| {
                                         render_distribution(
                                             ui,
                                             &col.name,
@@ -439,6 +506,49 @@ impl App {
             ctx.request_repaint();
         });
     }
+
+    pub fn start_push_to_db(
+        &mut self,
+        ctx: egui::Context,
+        file_path: String,
+        file_size: u64,
+        health: FileHealth,
+        summary: Vec<ColumnSummary>,
+        df: DataFrame,
+    ) {
+        let pg_url = self.pg_url.clone();
+        let pg_schema = self.pg_schema.clone();
+        let pg_table = self.pg_table.clone();
+        if pg_url.is_empty() {
+            self.status = "Error: PostgreSQL URL is required".to_string();
+            return;
+        }
+
+        self.is_pushing = true;
+        self.status = "Connecting to PostgreSQL...".to_string();
+
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.push_receiver = Some(rx);
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let result = rt.block_on(async {
+                let client = super::db::DbClient::connect(&pg_url).await?;
+                client.init_schema().await?;
+                
+                let schema_opt = if pg_schema.is_empty() { None } else { Some(pg_schema.as_str()) };
+                let table_opt = if pg_table.is_empty() { None } else { Some(pg_table.as_str()) };
+
+                client.push_analysis(&file_path, file_size, &health, &summary, &df, schema_opt, table_opt).await?;
+                Ok(())
+            });
+
+            if tx.send(result).is_err() {
+                log::error!("Failed to send push result");
+            }
+            ctx.request_repaint();
+        });
+    }
 }
 
 fn render_distribution(
@@ -475,9 +585,9 @@ fn render_distribution(
                         let full_range = max - min;
                         let zoom_range = p95 - p05;
 
-                        // Only auto-zoom if the full range is significantly (10x) larger than the central 90%.
+                        // Only auto-zoom if the full range is significantly (3x) larger than the central 90%.
                         // This prevents "zooming in too far" on distributions that are just normally skewed.
-                        if full_range > 10.0 * zoom_range && zoom_range > 0.0 {
+                        if full_range > 3.0 * zoom_range && zoom_range > 0.0 {
                             (p05, p95)
                         } else {
                             (min, max)
@@ -493,12 +603,21 @@ fn render_distribution(
                 let bars: Vec<egui_plot::Bar> = s
                     .histogram
                     .iter()
-                    .filter(|&&(val, _)| show_full_range || (val >= view_min - margin && val <= view_max + margin))
-                    .map(|&(val, count)| egui_plot::Bar::new(val, count as f64).width(s.bin_width))
+                    .filter(|&&(val, _)| {
+                        show_full_range || (val >= view_min - margin && val <= view_max + margin)
+                    })
+                    .map(|&(val, count)| {
+                        egui_plot::Bar::new(val, count as f64)
+                            .width(s.bin_width)
+                            .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(100, 140, 240)))
+                    })
                     .collect();
 
                 let chart = BarChart::new("Histogram", bars)
-                    .color(egui::Color32::from_rgb(140, 180, 240));
+                    .color(egui::Color32::from_rgb(140, 180, 240))
+                    .element_formatter(Box::new(|bar, _| {
+                        format!("Value: {:.4}\nCount: {}", bar.argument, bar.value)
+                    }));
 
                 // Gaussian Curve Overlay
                 let mut curve_points = Vec::new();
@@ -660,7 +779,7 @@ fn render_distribution(
                         let full_range = max - min;
                         let zoom_range = p95 - p05;
 
-                        if full_range > 10.0 * zoom_range && zoom_range > 0.0 {
+                        if full_range > 3.0 * zoom_range && zoom_range > 0.0 {
                             (p05, p95)
                         } else {
                             (min, max)
@@ -674,8 +793,14 @@ fn render_distribution(
                 let bars: Vec<egui_plot::Bar> = s
                     .histogram
                     .iter()
-                    .filter(|&&(ts, _)| show_full_range || (ts >= view_min - margin && ts <= view_max + margin))
-                    .map(|&(ts, count)| Bar::new(ts, count as f64).width(s.bin_width))
+                    .filter(|&&(ts, _)| {
+                        show_full_range || (ts >= view_min - margin && ts <= view_max + margin)
+                    })
+                    .map(|&(ts, count)| {
+                        Bar::new(ts, count as f64)
+                            .width(s.bin_width)
+                            .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(160, 110, 60)))
+                    })
                     .collect();
 
                 let chart = BarChart::new("Temporal", bars).color(egui::Color32::from_rgb(200, 150, 100));
