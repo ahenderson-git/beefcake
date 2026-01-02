@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres, QueryBuilder};
 use polars::prelude::*;
@@ -23,7 +23,8 @@ impl DbClient {
         let pool = PgPoolOptions::new()
             .max_connections(5)
             .connect(url)
-            .await?;
+            .await
+            .context("Failed to connect to PostgreSQL")?;
         Ok(Self { pool })
     }
 
@@ -40,7 +41,8 @@ impl DbClient {
             "#,
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .context("Failed to create 'analyses' table")?;
 
         sqlx::query(
             r#"
@@ -58,15 +60,18 @@ impl DbClient {
             "#,
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .context("Failed to create 'column_summaries' table")?;
 
         // Ensure missing columns exist in case the table was created with an older version
         sqlx::query("ALTER TABLE column_summaries ADD COLUMN IF NOT EXISTS interpretation TEXT")
             .execute(&self.pool)
-            .await?;
+            .await
+            .context("Failed to add 'interpretation' column to 'column_summaries'")?;
         sqlx::query("ALTER TABLE column_summaries ADD COLUMN IF NOT EXISTS business_summary TEXT")
             .execute(&self.pool)
-            .await?;
+            .await
+            .context("Failed to add 'business_summary' column to 'column_summaries'")?;
 
         Ok(())
     }
@@ -83,7 +88,8 @@ impl DbClient {
         .bind(params.file_size as i64)
         .bind(params.health.score as f64)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .context("Failed to insert analysis metadata")?;
 
         // 2. Insert column summaries
         for col in params.summaries {
@@ -103,11 +109,14 @@ impl DbClient {
             .bind(col.business_summary.join(" "))
             .bind(serde_json::to_value(&col.stats)?)
             .execute(&self.pool)
-            .await?;
+            .await
+            .context(format!("Failed to insert summary for column '{}'", col.name))?;
         }
 
         // 3. Push the data to a dedicated table
-        self.push_dataframe(analysis_id, params.df, params.schema_name, params.table_name).await?;
+        self.push_dataframe(analysis_id, params.df, params.schema_name, params.table_name)
+            .await
+            .context("Failed to push data to dedicated table")?;
 
         Ok(())
     }
@@ -140,7 +149,10 @@ impl DbClient {
         create_table_query.push_str(&column_definitions.join(", "));
         create_table_query.push(')');
 
-        sqlx::query(&create_table_query).execute(&self.pool).await?;
+        sqlx::query(&create_table_query)
+            .execute(&self.pool)
+            .await
+            .context(format!("Failed to create data table '{full_identifier}'"))?;
 
         // Batch insert data using QueryBuilder
         let batch_size = 1000;
@@ -203,7 +215,9 @@ impl DbClient {
             });
 
             let query = query_builder.build();
-            query.execute(&self.pool).await?;
+            query.execute(&self.pool)
+                .await
+                .context(format!("Failed to insert batch starting at row {chunk_start} into '{full_identifier}'"))?;
         }
 
         Ok(())

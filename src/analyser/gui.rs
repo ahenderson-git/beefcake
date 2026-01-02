@@ -54,6 +54,8 @@ pub struct App {
     pub was_cleaning: bool,
     #[serde(skip)]
     pub push_receiver: Option<crossbeam_channel::Receiver<anyhow::Result<()>>>,
+    #[serde(skip)]
+    pub should_scroll_to_top: bool,
 }
 
 impl App {
@@ -71,7 +73,7 @@ impl App {
                     go_back = true;
                 }
                 ui.separator();
-                ui.heading("File Analyser");
+                ui.heading("Analyse, Clean & Export Data");
             });
         });
 
@@ -105,6 +107,7 @@ impl App {
                         self.health = Some(health);
                         self.last_duration = Some(duration);
                         self.df = Some(df);
+                        self.should_scroll_to_top = true;
 
                         // Reset cleaning configs if we just applied them, otherwise preserve (for trim changes)
                         if self.was_cleaning {
@@ -323,8 +326,13 @@ impl App {
     }
 
     fn render_summary_table(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::horizontal().show(ui, |ui| {
-            let table = TableBuilder::new(ui)
+        let mut scroll_area = egui::ScrollArea::horizontal();
+        if self.should_scroll_to_top {
+            scroll_area = scroll_area.scroll_offset(egui::Vec2::ZERO);
+        }
+
+        scroll_area.show(ui, |ui| {
+            let mut table = TableBuilder::new(ui)
                 .striped(true)
                 .resizable(true)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Min))
@@ -339,6 +347,11 @@ impl App {
                 .column(Column::initial(100.0).at_least(100.0)) // Histogram
                 .column(Column::remainder()) // Spacer
                 .min_scrolled_height(0.0);
+
+            if self.should_scroll_to_top {
+                table = table.scroll_to_row(0, None);
+                self.should_scroll_to_top = false;
+            }
 
             table
                 .header(25.0, |mut header| {
@@ -460,7 +473,7 @@ impl App {
 
                 // 4. Advanced Cleaning (Only shown when expanded)
                 if is_expanded {
-                    self.render_cleaning_controls(ui, &col.name);
+                    self.render_cleaning_controls(ui, col);
                 }
             });
         });
@@ -494,11 +507,11 @@ impl App {
         row.col(|_| {}); // Spacer
     }
 
-    fn render_cleaning_controls(&mut self, ui: &mut egui::Ui, col_name: &str) {
+    fn render_cleaning_controls(&mut self, ui: &mut egui::Ui, col: &ColumnSummary) {
         ui.add_space(8.0);
         ui.separator();
         ui.strong("🧽 Advanced Cleaning:");
-        if let Some(config) = self.cleaning_configs.get_mut(col_name) {
+        if let Some(config) = self.cleaning_configs.get_mut(&col.name) {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut config.trim_whitespace, "Trim Whitespace");
                 ui.checkbox(&mut config.remove_special_chars, "Remove Special Chars");
@@ -508,8 +521,10 @@ impl App {
             ui.horizontal(|ui| {
                 ui.label("🧪 ML Preprocessing:").on_hover_text("Prepare data for Machine Learning models.");
 
-                // Imputation
-                egui::ComboBox::from_id_salt(format!("impute_{col_name}"))
+                let effective_kind = config.target_dtype.unwrap_or(col.kind);
+
+                // --- Imputation (Depends on ORIGINAL data type) ---
+                egui::ComboBox::from_id_salt(format!("impute_{}", col.name))
                     .selected_text(match config.impute_mode {
                         super::logic::types::ImputeMode::None => "No Imputation",
                         super::logic::types::ImputeMode::Mean => "Fill with Mean",
@@ -519,32 +534,56 @@ impl App {
                     })
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::None, "No Imputation");
-                        ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Mean, "Fill with Mean");
-                        ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Median, "Fill with Median");
-                        ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Zero, "Fill with Zero");
-                        ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Mode, "Fill with Mode");
+                        
+                        if col.kind == super::logic::types::ColumnKind::Numeric {
+                            ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Mean, "Fill with Mean");
+                            ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Median, "Fill with Median");
+                            ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Zero, "Fill with Zero");
+                        }
+                        
+                        if col.kind == super::logic::types::ColumnKind::Categorical {
+                            ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Mode, "Fill with Mode");
+                        }
                     });
 
-                ui.separator();
+                // Auto-reset invalid imputation modes
+                match config.impute_mode {
+                    super::logic::types::ImputeMode::Mean | super::logic::types::ImputeMode::Median | super::logic::types::ImputeMode::Zero 
+                        if col.kind != super::logic::types::ColumnKind::Numeric => {
+                            config.impute_mode = super::logic::types::ImputeMode::None;
+                        }
+                    super::logic::types::ImputeMode::Mode if col.kind != super::logic::types::ColumnKind::Categorical => {
+                         config.impute_mode = super::logic::types::ImputeMode::None;
+                    }
+                    _ => {}
+                }
 
-                // Normalization
-                egui::ComboBox::from_id_salt(format!("norm_{col_name}"))
-                    .selected_text(match config.normalization {
-                        super::logic::types::NormalizationMethod::None => "No Scaling",
-                        super::logic::types::NormalizationMethod::ZScore => "Z-Score (Std)",
-                        super::logic::types::NormalizationMethod::MinMax => "Min-Max (0-1)",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::None, "No Scaling");
-                        ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::ZScore, "Z-Score (Std)");
-                        ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::MinMax, "Min-Max (0-1)");
-                    });
+                // --- Normalization (Depends on EFFECTIVE data type) ---
+                if effective_kind == super::logic::types::ColumnKind::Numeric {
+                    ui.separator();
+                    egui::ComboBox::from_id_salt(format!("norm_{}", col.name))
+                        .selected_text(match config.normalization {
+                            super::logic::types::NormalizationMethod::None => "No Scaling",
+                            super::logic::types::NormalizationMethod::ZScore => "Z-Score (Std)",
+                            super::logic::types::NormalizationMethod::MinMax => "Min-Max (0-1)",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::None, "No Scaling");
+                            ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::ZScore, "Z-Score (Std)");
+                            ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::MinMax, "Min-Max (0-1)");
+                        });
+                } else {
+                    config.normalization = super::logic::types::NormalizationMethod::None;
+                }
 
-                ui.separator();
-
-                // One-Hot Encoding
-                ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode")
-                    .on_hover_text("Convert categorical values into multiple binary columns.");
+                // --- One-Hot Encoding (Depends on EFFECTIVE data type) ---
+                if effective_kind == super::logic::types::ColumnKind::Categorical {
+                    ui.separator();
+                    ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode")
+                        .on_hover_text("Convert categorical values into multiple binary columns.");
+                } else {
+                    config.one_hot_encode = false;
+                }
             });
         }
     }
@@ -579,33 +618,19 @@ impl App {
                 .width(ui.available_width())
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut config.target_dtype, None, col.kind.as_str());
-                    if col.kind != super::logic::types::ColumnKind::Numeric {
-                        ui.selectable_value(
-                            &mut config.target_dtype,
-                            Some(super::logic::types::ColumnKind::Numeric),
-                            "Numeric",
-                        );
-                    }
-                    if col.kind != super::logic::types::ColumnKind::Text {
-                        ui.selectable_value(
-                            &mut config.target_dtype,
-                            Some(super::logic::types::ColumnKind::Text),
-                            "Text",
-                        );
-                    }
-                    if col.kind != super::logic::types::ColumnKind::Boolean {
-                        ui.selectable_value(
-                            &mut config.target_dtype,
-                            Some(super::logic::types::ColumnKind::Boolean),
-                            "Boolean",
-                        );
-                    }
-                    if col.kind != super::logic::types::ColumnKind::Temporal {
-                        ui.selectable_value(
-                            &mut config.target_dtype,
-                            Some(super::logic::types::ColumnKind::Temporal),
-                            "Temporal",
-                        );
+
+                    let targets = [
+                        super::logic::types::ColumnKind::Numeric,
+                        super::logic::types::ColumnKind::Text,
+                        super::logic::types::ColumnKind::Boolean,
+                        super::logic::types::ColumnKind::Temporal,
+                        super::logic::types::ColumnKind::Categorical,
+                    ];
+
+                    for target in targets {
+                        if target != col.kind && col.is_compatible_with(target) {
+                            ui.selectable_value(&mut config.target_dtype, Some(target), target.as_str());
+                        }
                     }
                 });
         } else {
@@ -898,25 +923,27 @@ impl App {
         self.push_receiver = Some(rx);
 
         std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-            let result = rt.block_on(async {
-                let client = super::db::DbClient::connect(&pg_url).await?;
-                client.init_schema().await?;
-                
-                let schema_opt = if pg_schema.is_empty() { None } else { Some(pg_schema.as_str()) };
-                let table_opt = if pg_table.is_empty() { None } else { Some(pg_table.as_str()) };
+            let result = (|| -> Result<()> {
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(async {
+                    let client = super::db::DbClient::connect(&pg_url).await?;
+                    client.init_schema().await?;
+                    
+                    let schema_opt = if pg_schema.is_empty() { None } else { Some(pg_schema.as_str()) };
+                    let table_opt = if pg_table.is_empty() { None } else { Some(pg_table.as_str()) };
 
-                client.push_analysis(super::db::AnalysisPush {
-                    file_path: &file_path,
-                    file_size,
-                    health: &health,
-                    summaries: &summary,
-                    df: &df,
-                    schema_name: schema_opt,
-                    table_name: table_opt,
-                }).await?;
-                Ok(())
-            });
+                    client.push_analysis(super::db::AnalysisPush {
+                        file_path: &file_path,
+                        file_size,
+                        health: &health,
+                        summaries: &summary,
+                        df: &df,
+                        schema_name: schema_opt,
+                        table_name: table_opt,
+                    }).await?;
+                    Ok(())
+                })
+            })();
 
             if tx.send(result).is_err() {
                 log::error!("Failed to send push result");
