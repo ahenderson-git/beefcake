@@ -48,7 +48,7 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
         }
     }
     FileHealth { 
-        score: score.max(0.0) as f32,
+        score: (score.max(0.0) / 100.0) as f32,
         risks 
     }
 }

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct ColumnSummary {
     pub name: String,
     pub kind: ColumnKind,
@@ -57,7 +57,7 @@ impl ColumnSummary {
     }
 }
 
-#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum NormalizationMethod {
     #[default]
     None,
@@ -65,7 +65,7 @@ pub enum NormalizationMethod {
     MinMax,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum ImputeMode {
     #[default]
     None,
@@ -75,10 +75,52 @@ pub enum ImputeMode {
     Mode,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub enum MlModelKind {
+    #[default]
+    LinearRegression,
+    DecisionTree,
+    LogisticRegression,
+}
+
+impl MlModelKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::LinearRegression => "Linear Regression",
+            Self::DecisionTree => "Decision Tree",
+            Self::LogisticRegression => "Logistic Regression",
+        }
+    }
+
+    pub fn is_suitable_target(&self, kind: ColumnKind) -> bool {
+        match self {
+            Self::LinearRegression => kind == ColumnKind::Numeric,
+            Self::DecisionTree | Self::LogisticRegression => {
+                matches!(kind, ColumnKind::Boolean | ColumnKind::Categorical)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct MlResults {
+    pub model_kind: MlModelKind,
+    pub target_column: String,
+    pub feature_columns: Vec<String>,
+    pub r2_score: Option<f64>,
+    pub accuracy: Option<f64>,
+    pub mse: Option<f64>,
+    pub duration: std::time::Duration,
+    pub coefficients: Option<HashMap<String, f64>>,
+    pub intercept: Option<f64>,
+    pub interpretation: Vec<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ColumnCleanConfig {
     pub new_name: String,
     pub target_dtype: Option<ColumnKind>,
+    pub active: bool,
     pub trim_whitespace: bool,
     pub remove_special_chars: bool,
     pub normalization: NormalizationMethod,
@@ -86,7 +128,22 @@ pub struct ColumnCleanConfig {
     pub impute_mode: ImputeMode,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+impl Default for ColumnCleanConfig {
+    fn default() -> Self {
+        Self {
+            new_name: String::new(),
+            target_dtype: None,
+            active: true,
+            trim_whitespace: false,
+            remove_special_chars: false,
+            normalization: NormalizationMethod::None,
+            one_hot_encode: false,
+            impute_mode: ImputeMode::None,
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub enum ColumnStats {
     Numeric(NumericStats),
     Text(TextStats),
@@ -95,13 +152,30 @@ pub enum ColumnStats {
     Boolean(BooleanStats),
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+impl ColumnStats {
+    pub fn n_distinct(&self) -> usize {
+        match self {
+            Self::Numeric(_) => 0, // Not tracked for numeric yet
+            Self::Text(s) => s.distinct,
+            Self::Categorical(freq) => freq.len(),
+            Self::Temporal(_) => 0, // Not tracked
+            Self::Boolean(s) => {
+                let mut count = 0;
+                if s.true_count > 0 { count += 1; }
+                if s.false_count > 0 { count += 1; }
+                count
+            }
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct BooleanStats {
     pub true_count: usize,
     pub false_count: usize,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct TemporalStats {
     pub min: Option<String>,
     pub max: Option<String>,
@@ -113,7 +187,7 @@ pub struct TemporalStats {
     pub histogram: Vec<(f64, usize)>, // timestamp (ms) and count
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct NumericStats {
     pub min: Option<f64>,
     pub p05: Option<f64>,
@@ -135,7 +209,7 @@ pub struct NumericStats {
     pub histogram: Vec<(f64, usize)>, // bin center and count
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct TextStats {
     pub distinct: usize,
     pub top_value: Option<(String, usize)>,
@@ -144,7 +218,7 @@ pub struct TextStats {
     pub avg_length: f64,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Debug)]
 pub enum ColumnKind {
     Numeric,
     Text,
@@ -194,7 +268,7 @@ impl ColumnKind {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct FileHealth {
     pub score: f32,
     pub risks: Vec<String>,
@@ -317,5 +391,20 @@ mod tests {
 
         assert!(summary_bool.is_compatible_with(ColumnKind::Numeric));
         assert!(summary_bool.is_compatible_with(ColumnKind::Boolean));
+    }
+
+    #[test]
+    fn test_ml_target_suitability() {
+        assert!(MlModelKind::LinearRegression.is_suitable_target(ColumnKind::Numeric));
+        assert!(!MlModelKind::LinearRegression.is_suitable_target(ColumnKind::Categorical));
+        assert!(!MlModelKind::LinearRegression.is_suitable_target(ColumnKind::Boolean));
+
+        assert!(!MlModelKind::LogisticRegression.is_suitable_target(ColumnKind::Numeric));
+        assert!(MlModelKind::LogisticRegression.is_suitable_target(ColumnKind::Categorical));
+        assert!(MlModelKind::LogisticRegression.is_suitable_target(ColumnKind::Boolean));
+
+        assert!(!MlModelKind::DecisionTree.is_suitable_target(ColumnKind::Numeric));
+        assert!(MlModelKind::DecisionTree.is_suitable_target(ColumnKind::Categorical));
+        assert!(MlModelKind::DecisionTree.is_suitable_target(ColumnKind::Boolean));
     }
 }

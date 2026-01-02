@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{Pool, Postgres, QueryBuilder};
 use polars::prelude::*;
 use crate::analyser::logic::{ColumnSummary, FileHealth};
@@ -19,10 +19,10 @@ pub struct AnalysisPush<'a> {
 }
 
 impl DbClient {
-    pub async fn connect(url: &str) -> Result<Self> {
+    pub async fn connect(options: PgConnectOptions) -> Result<Self> {
         let pool = PgPoolOptions::new()
             .max_connections(5)
-            .connect(url)
+            .connect_with(options)
             .await
             .context("Failed to connect to PostgreSQL")?;
         Ok(Self { pool })
@@ -132,7 +132,7 @@ impl DbClient {
         };
         
         let schema = df.schema();
-        let mut create_table_query = format!("CREATE TABLE {full_identifier} (");
+        let mut create_table_query = format!("CREATE TABLE IF NOT EXISTS {full_identifier} (");
         let mut column_definitions = Vec::new();
         for (name, dtype) in schema.iter() {
             let sql_type = match dtype {
@@ -208,7 +208,29 @@ impl DbClient {
                             };
                             b.push_bind(dt);
                         }
-                        AnyValue::Null => { b.push_bind(None::<i64>); },
+                        AnyValue::Null => {
+                            match series.dtype() {
+                                DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 |
+                                DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
+                                    b.push_bind(None::<i64>);
+                                }
+                                DataType::Float32 | DataType::Float64 => {
+                                    b.push_bind(None::<f64>);
+                                }
+                                DataType::Boolean => {
+                                    b.push_bind(None::<bool>);
+                                }
+                                DataType::Date => {
+                                    b.push_bind(None::<chrono::NaiveDate>);
+                                }
+                                DataType::Datetime(_, _) => {
+                                    b.push_bind(None::<chrono::DateTime<chrono::Utc>>);
+                                }
+                                _ => {
+                                    b.push_bind(None::<String>);
+                                }
+                            }
+                        },
                         _ => { b.push_bind(val.to_string()); }
                     }
                 }

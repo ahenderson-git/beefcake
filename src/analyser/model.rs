@@ -1,0 +1,36 @@
+use serde::{Deserialize, Serialize};
+use polars::prelude::DataFrame;
+use secrecy::SecretString;
+use std::collections::HashMap;
+use super::logic::{ColumnSummary, FileHealth, types::{ColumnCleanConfig, MlResults, MlModelKind}};
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct AnalysisModel {
+    pub file_path: Option<String>,
+    pub file_size: u64,
+    pub summary: Vec<ColumnSummary>,
+    pub health: Option<FileHealth>,
+    pub trim_pct: f64,
+    pub show_full_range: bool,
+    pub last_duration: Option<std::time::Duration>,
+
+    // Database Connection Info (Split)
+    pub pg_type: String,
+    pub pg_host: String,
+    pub pg_port: String,
+    pub pg_user: String,
+    #[serde(skip)]
+    pub pg_password: SecretString,
+    pub pg_database: String,
+
+    pub pg_schema: String,
+    pub pg_table: String,
+    pub save_password: bool,
+    pub push_last_duration: Option<std::time::Duration>,
+    pub cleaning_configs: HashMap<String, ColumnCleanConfig>,
+    pub ml_target: Option<String>,
+    pub ml_model_kind: MlModelKind,
+    pub ml_results: Option<MlResults>,
+    #[serde(skip)]
+    pub df: Option<DataFrame>,
+}

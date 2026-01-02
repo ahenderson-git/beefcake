@@ -2,12 +2,15 @@ pub mod types;
 pub mod interpretation;
 pub mod health;
 pub mod analysis;
+pub mod ml;
 
 pub use types::{
     BooleanStats, ColumnStats, ColumnSummary, FileHealth, NumericStats, TemporalStats, TextStats,
+    MlResults, MlModelKind,
 };
 pub use health::calculate_file_health;
 pub use analysis::{load_df, analyse_df, AnalysisReceiver};
+pub use ml::train_model;
 
 #[cfg(test)]
 mod tests {
@@ -281,6 +284,7 @@ mod tests {
             types::ColumnCleanConfig {
                 new_name: "full_name".to_string(),
                 target_dtype: None,
+                active: true,
                 trim_whitespace: true,
                 remove_special_chars: true,
                 normalization: types::NormalizationMethod::None,
@@ -293,6 +297,7 @@ mod tests {
             types::ColumnCleanConfig {
                 new_name: "age_num".to_string(),
                 target_dtype: Some(types::ColumnKind::Numeric),
+                active: true,
                 trim_whitespace: false,
                 remove_special_chars: false,
                 normalization: types::NormalizationMethod::None,
@@ -320,6 +325,86 @@ mod tests {
     }
 
     #[test]
+    fn test_ml_training_linear_regression() -> Result<()> {
+        // Create simple linear data: y = 2x + 1
+        let x = Series::new("x".into(), vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+        let y = Series::new("y".into(), vec![3.0, 5.0, 7.0, 9.0, 11.0]);
+        let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
+
+        let results = ml::train_model(&df, "y", types::MlModelKind::LinearRegression)?;
+
+        assert!(results.r2_score.unwrap() > 0.99);
+        let coeffs = results.coefficients.unwrap();
+        assert!((coeffs.get("x").unwrap() - 2.0).abs() < 1e-6);
+        assert!((results.intercept.unwrap() - 1.0).abs() < 1e-6);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_training_logistic_regression() -> Result<()> {
+        // Create simple classification data
+        let x = Series::new("x".into(), vec![1.0, 2.0, 10.0, 11.0]);
+        let y = Series::new("y".into(), vec![0, 0, 1, 1]); // Binary target
+        let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
+
+        let results = ml::train_model(&df, "y", types::MlModelKind::LogisticRegression)?;
+
+        assert!(results.accuracy.unwrap() > 0.9);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_training_single_class_error() -> Result<()> {
+        let x = Series::new("x".into(), vec![1.0, 2.0, 3.0]);
+        let y = Series::new("y".into(), vec![1, 1, 1]); // Only one class
+        let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
+
+        let result = ml::train_model(&df, "y", types::MlModelKind::LogisticRegression);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("must have at least two distinct classes"));
+
+        let result_tree = ml::train_model(&df, "y", types::MlModelKind::DecisionTree);
+        assert!(result_tree.is_err());
+        assert!(result_tree.unwrap_err().to_string().contains("at least two distinct classes"));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_training_null_target_class_error() -> Result<()> {
+        let x = Series::new("x".into(), vec![1.0, 2.0, 3.0]);
+        let y = Series::new("y".into(), vec![Some(1), None, Some(1)]); // 2 unique values (1, null) but only 1 class
+        let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
+
+        let result = ml::train_model(&df, "y", types::MlModelKind::LogisticRegression);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        // It should be our custom error message, not linfa's
+        assert!(err.contains("must have at least two distinct classes"), "Error was: {}", err);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_ml_interpretation() -> Result<()> {
+        let x = Series::new("x".into(), vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+        let y = Series::new("y".into(), vec![3.0, 5.0, 7.0, 9.0, 11.0]);
+        let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
+
+        let results = ml::train_model(&df, "y", types::MlModelKind::LinearRegression)?;
+        
+        assert!(!results.interpretation.is_empty());
+        let joined = results.interpretation.join(" ");
+        assert!(joined.contains("Strong predictive model"));
+        assert!(joined.contains("Primary Driver"));
+        
+        Ok(())
+    }
+
+    #[test]
     fn test_advanced_insights() -> Result<()> {
         // ... (existing test code)
         Ok(())
@@ -337,6 +422,7 @@ mod tests {
             types::ColumnCleanConfig {
                 new_name: "vals_clean".to_string(),
                 target_dtype: None,
+                active: true,
                 trim_whitespace: false,
                 remove_special_chars: false,
                 impute_mode: types::ImputeMode::Mean,
@@ -349,6 +435,7 @@ mod tests {
             types::ColumnCleanConfig {
                 new_name: "".to_string(),
                 target_dtype: None,
+                active: true,
                 trim_whitespace: false,
                 remove_special_chars: false,
                 impute_mode: types::ImputeMode::None,
@@ -377,6 +464,59 @@ mod tests {
         assert!(cleaned.column("cat_C").is_ok());
         assert!(cleaned.column("cat").is_err()); // Original column should be dropped
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_column_deactivation() -> Result<()> {
+        let s1 = Series::new("keep".into(), vec![1, 2, 3]);
+        let s2 = Series::new("drop".into(), vec![4, 5, 6]);
+        let df = DataFrame::new(vec![Column::from(s1), Column::from(s2)])?;
+
+        let mut configs = std::collections::HashMap::new();
+        configs.insert(
+            "keep".to_string(),
+            types::ColumnCleanConfig {
+                active: true,
+                ..Default::default()
+            },
+        );
+        configs.insert(
+            "drop".to_string(),
+            types::ColumnCleanConfig {
+                active: false,
+                ..Default::default()
+            },
+        );
+
+        let cleaned = analysis::clean_df(df, &configs)?;
+        assert_eq!(cleaned.width(), 1);
+        assert!(cleaned.column("keep").is_ok());
+        assert!(cleaned.column("drop").is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_health_score_range() -> Result<()> {
+        let s1 = Series::new("col".into(), vec![1.0, 2.0, 3.0]);
+        let df = DataFrame::new(vec![Column::from(s1)])?;
+        let summaries = analyse_df(&df, 0.0)?;
+        let health = calculate_file_health(&summaries);
+        
+        // Perfect health should be 1.0 (100%)
+        assert!(health.score <= 1.0, "Score should not exceed 1.0, got {}", health.score);
+        assert_eq!(health.score, 1.0);
+        
+        // Now create a summary with issues
+        let mut summaries_bad = summaries.clone();
+        summaries_bad[0].nulls = 100; // 100% nulls
+        summaries_bad[0].count = 100;
+        
+        let health_bad = calculate_file_health(&summaries_bad);
+        assert!(health_bad.score < 1.0, "Score should be reduced");
+        assert!(health_bad.score >= 0.0, "Score should not be negative");
+        
         Ok(())
     }
 }

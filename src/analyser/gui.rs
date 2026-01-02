@@ -3,66 +3,46 @@
 //! It uses `egui` for the UI and manages the state of file analysis,
 //! data cleaning configurations, and database export workflows.
 
-use anyhow::Result;
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 use egui_plot::{Bar, BarChart, Line, Plot, PlotBounds};
 use polars::prelude::DataFrame;
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 
+use super::model::AnalysisModel;
+use super::controller::AnalysisController;
 use super::logic::{
-    AnalysisReceiver, BooleanStats, ColumnStats, ColumnSummary, FileHealth,
+    BooleanStats, ColumnStats, ColumnSummary, FileHealth,
     NumericStats, TemporalStats, TextStats,
 };
-use crate::utils::fmt_opt;
+use crate::utils::{fmt_bytes, fmt_opt};
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct App {
-    pub file_path: Option<String>,
-    pub file_size: u64,
+    pub model: AnalysisModel,
+    #[serde(skip)]
+    pub controller: AnalysisController,
     pub status: String,
-    pub summary: Vec<ColumnSummary>,
-    pub health: Option<FileHealth>,
-    pub trim_pct: f64,
-    pub show_full_range: bool,
-    #[serde(skip)]
-    pub is_loading: bool,
-    #[serde(skip)]
-    pub progress_counter: Arc<AtomicU64>,
-    #[serde(skip)]
-    pub receiver: Option<AnalysisReceiver>,
-    #[serde(skip)]
-    pub start_time: Option<std::time::Instant>, // To track active time
-    pub last_duration: Option<std::time::Duration>, // To show final time
-    #[serde(skip)]
-    pub df: Option<DataFrame>,
+    pub load_summary: Option<String>,
     #[serde(skip)]
     pub expanded_rows: std::collections::HashSet<String>,
-    pub cleaning_configs: std::collections::HashMap<String, super::logic::types::ColumnCleanConfig>,
-    pub pg_url: String,
-    pub pg_schema: String,
-    pub pg_table: String,
-    #[serde(skip)]
-    pub is_pushing: bool,
-    #[serde(skip)]
-    pub push_start_time: Option<std::time::Instant>,
-    pub push_last_duration: Option<std::time::Duration>,
-    #[serde(skip)]
-    pub was_cleaning: bool,
-    #[serde(skip)]
-    pub push_receiver: Option<crossbeam_channel::Receiver<anyhow::Result<()>>>,
     #[serde(skip)]
     pub should_scroll_to_top: bool,
+    #[serde(skip)]
+    pub show_ml_details: bool,
 }
 
 impl App {
     pub fn update(&mut self, ctx: &egui::Context) -> bool {
         self.handle_receivers();
 
-        if self.is_loading || self.is_pushing {
+        if self.show_ml_details {
+            self.render_ml_details_window(ctx);
+        }
+
+        if self.controller.is_loading || self.controller.is_pushing {
             ctx.request_repaint();
         }
 
@@ -81,10 +61,42 @@ impl App {
             self.render_controls(ui, ctx);
             ui.add_space(4.0);
             self.render_db_config(ui, ctx);
-            ui.label(&self.status);
-            self.render_health_summary(ui);
+            ui.add_space(4.0);
+            self.render_ml_panel(ui, ctx);
 
-            if !self.summary.is_empty() {
+            let mut dismiss = false;
+            if let Some(summary) = &self.load_summary {
+                ui.add_space(8.0);
+                egui::Frame::group(ui.style())
+                    .fill(ui.visuals().faint_bg_color)
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("📋 File Summary").strong());
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    if ui.button("Dismiss").clicked() {
+                                        dismiss = true;
+                                    }
+                                });
+                            });
+                            ui.separator();
+                            ui.label(summary);
+                        });
+                    });
+            }
+            if dismiss {
+                self.load_summary = None;
+            }
+
+            ui.add_space(4.0);
+            if self.status.starts_with("Error") || self.status.contains("failed") {
+                ui.label(egui::RichText::new(&self.status).color(egui::Color32::RED).strong());
+            } else {
+                ui.label(&self.status);
+            }
+
+            if !self.model.summary.is_empty() {
                 ui.separator();
                 self.render_summary_table(ui);
             }
@@ -94,34 +106,69 @@ impl App {
     }
 
     fn handle_receivers(&mut self) {
-        if let Some(rx) = &self.receiver {
+        if let Some(rx) = &self.controller.receiver {
             if let Ok(result) = rx.try_recv() {
-                self.is_loading = false;
-                self.receiver = None;
-                self.start_time = None; // Reset timer
+                self.controller.is_loading = false;
+                self.controller.receiver = None;
+                self.controller.start_time = None; // Reset timer
                 match result {
                     Ok((path, size, summary, health, duration, df)) => {
-                        self.file_path = Some(path);
-                        self.file_size = size;
-                        self.summary = summary;
-                        self.health = Some(health);
-                        self.last_duration = Some(duration);
-                        self.df = Some(df);
+                        self.model.file_path = Some(path);
+                        self.model.file_size = size;
+                        self.model.summary = summary;
+                        self.model.health = Some(health);
+                        self.model.last_duration = Some(duration);
+                        self.model.df = Some(df);
                         self.should_scroll_to_top = true;
 
                         // Reset cleaning configs if we just applied them, otherwise preserve (for trim changes)
-                        if self.was_cleaning {
-                            self.cleaning_configs.clear();
+                        if self.controller.was_cleaning {
+                            self.model.cleaning_configs.clear();
                         }
-                        for col in &self.summary {
-                            self.cleaning_configs
+                        for col in &self.model.summary {
+                            self.model.cleaning_configs
                                 .entry(col.name.clone())
                                 .or_default();
                         }
 
-                        let path_display = self.file_path.as_deref().unwrap_or("file");
+                        let path_display = self.model.file_path.as_deref().unwrap_or("file");
                         let secs = duration.as_secs_f32();
                         self.status = format!("Loaded {path_display} in {secs:.2}s");
+
+                        // Generate load summary
+                        let mut breakdown = std::collections::HashMap::new();
+                        for col in &self.model.summary {
+                            *breakdown.entry(col.kind.as_str()).or_insert(0) += 1;
+                        }
+
+                        let mut breakdown_str = String::new();
+                        let mut keys: Vec<_> = breakdown.keys().collect();
+                        keys.sort();
+                        for key in keys {
+                            breakdown_str.push_str(&format!("\n - {}: {}", key, breakdown[key]));
+                        }
+
+                        let row_count = self.model.summary.first().map(|c| c.count).unwrap_or(0);
+                        let col_count = self.model.summary.len();
+                        let size_fmt = fmt_bytes(size);
+
+                        let mut msg = format!(
+                            "{} rows\n{} columns\nBreakdown by Type:{}",
+                            row_count, col_count, breakdown_str
+                        );
+                        msg.push_str(&format!("\n\nFile Size: {}", size_fmt));
+                        
+                        if let Some(h) = &self.model.health {
+                            msg.push_str(&format!("\nHealth Score: {:.0}%", h.score * 100.0));
+
+                            if !h.risks.is_empty() {
+                                msg.push_str("\n\nTop Risks:");
+                                for risk in h.risks.iter().take(3) {
+                                    msg.push_str(&format!("\n • {}", risk));
+                                }
+                            }
+                        }
+                        self.load_summary = Some(msg);
                     }
                     Err(e) => {
                         self.status = format!("Error: {e}");
@@ -130,12 +177,12 @@ impl App {
             }
         }
 
-        if let Some(rx) = &self.push_receiver {
+        if let Some(rx) = &self.controller.push_receiver {
             if let Ok(result) = rx.try_recv() {
-                let duration = self.push_start_time.take().map(|s| s.elapsed());
-                self.push_last_duration = duration;
-                self.is_pushing = false;
-                self.push_receiver = None;
+                let duration = self.controller.push_start_time.take().map(|s| s.elapsed());
+                self.model.push_last_duration = duration;
+                self.controller.is_pushing = false;
+                self.controller.push_receiver = None;
                 match result {
                     Ok(_) => {
                         let secs = duration.map(|d| d.as_secs_f32()).unwrap_or(0.0);
@@ -143,6 +190,21 @@ impl App {
                     }
                     Err(e) => {
                         self.status = format!("PostgreSQL Push Error: {e}");
+                    }
+                }
+            }
+        }
+
+        if let Some(rx) = &self.controller.test_receiver {
+            if let Ok(result) = rx.try_recv() {
+                self.controller.is_testing = false;
+                self.controller.test_receiver = None;
+                match result {
+                    Ok(_) => {
+                        self.status = "✅ Database connection test successful!".to_owned();
+                    }
+                    Err(e) => {
+                        self.status = format!("❌ Database connection test failed: {}", e);
                     }
                 }
             }
@@ -157,7 +219,7 @@ impl App {
             ui.group(|ui| {
                 ui.horizontal(|ui| {
                     ui.label("📁");
-                    if ui.button("Open File").clicked() && !self.is_loading {
+                    if ui.button("Open File").clicked() && !self.controller.is_loading {
                         self.start_analysis(ctx.clone());
                     }
                 });
@@ -171,16 +233,16 @@ impl App {
                         "Percentage to trim from EACH end of the data for the Trimmed Mean calculation.",
                     );
                     let slider = ui.add(
-                        egui::Slider::new(&mut self.trim_pct, 0.0..=0.2)
+                        egui::Slider::new(&mut self.model.trim_pct, 0.0..=0.2)
                             .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
                     );
 
-                    if slider.changed() && !self.is_loading && self.df.is_some() {
+                    if slider.changed() && !self.controller.is_loading && self.model.df.is_some() {
                         self.trigger_reanalysis(ctx.clone());
                     }
 
                     ui.separator();
-                    ui.checkbox(&mut self.show_full_range, "Full Range")
+                    ui.checkbox(&mut self.model.show_full_range, "Full Range")
                         .on_hover_text("If unchecked, the histogram zooms into the 5th-95th percentile to avoid being 'crushed' by extreme outliers.");
                 });
             });
@@ -190,7 +252,7 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.label("🗄 View:");
                     if ui.button("Expand All").clicked() {
-                        for col in &self.summary {
+                        for col in &self.model.summary {
                             self.expanded_rows.insert(col.name.clone());
                         }
                     }
@@ -208,8 +270,8 @@ impl App {
                         .button("Apply Cleaning")
                         .on_hover_text("Apply the selected cleaning actions to the data and re-analyse.")
                         .clicked()
-                        && !self.is_loading
-                        && self.df.is_some()
+                        && !self.controller.is_loading
+                        && self.model.df.is_some()
                     {
                         self.start_cleaning(ctx.clone());
                     }
@@ -217,11 +279,11 @@ impl App {
             });
 
             // --- Status & Timing ---
-            if self.is_loading {
+            if self.controller.is_loading {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    let bytes = self.progress_counter.load(Ordering::Relaxed);
+                    let bytes = self.controller.progress_counter.load(Ordering::Relaxed);
                     if bytes > 0 {
                         let mb = bytes as f64 / 1_000_000.0;
                         ui.label(format!("Loading... ({mb:.1} MB)"));
@@ -229,12 +291,12 @@ impl App {
                         ui.label("Processing...");
                     }
 
-                    if let Some(start) = self.start_time {
+                    if let Some(start) = self.controller.start_time {
                         let elapsed = start.elapsed().as_secs_f32();
                         ui.label(format!("({elapsed:.1}s)"));
                     }
                 });
-            } else if let Some(duration) = self.last_duration {
+            } else if let Some(duration) = self.model.last_duration {
                 ui.add_space(4.0);
                 let secs = duration.as_secs_f32();
                 ui.label(egui::RichText::new(format!("⏱ {secs:.2}s")).weak());
@@ -251,17 +313,38 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.label("🚀 Database Export:");
 
-                    ui.label("URL:");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.pg_url)
-                            .hint_text("postgres://user:pass@host/db")
-                            .desired_width(200.0),
-                    );
+                    if self.model.pg_host.is_empty() || self.model.pg_database.is_empty() {
+                        ui.label(egui::RichText::new("⚠ Connection not set").color(egui::Color32::RED))
+                            .on_hover_text("Configure the database connection in Main Menu -> Database Settings");
+                    } else {
+                        ui.label(egui::RichText::new("✅ Configured").color(egui::Color32::from_rgb(0, 150, 0)))
+                            .on_hover_text("Database connection is configured in Settings.");
+                        
+                        if self.controller.is_testing {
+                            ui.spinner();
+                            ui.label("Testing...");
+                        } else {
+                            if ui.button("🔌 Test").clicked() {
+                                self.start_test_connection(ctx.clone());
+                            }
+
+                            if self.status.contains("connection test") {
+                                let color = if self.status.contains("failed") || self.status.contains("Error") {
+                                    egui::Color32::RED
+                                } else if self.status.contains("successful") {
+                                    egui::Color32::from_rgb(0, 150, 0)
+                                } else {
+                                    ui.visuals().text_color()
+                                };
+                                ui.label(egui::RichText::new(&self.status).color(color));
+                            }
+                        }
+                    }
 
                     ui.separator();
                     ui.label("Schema:");
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.pg_schema)
+                        egui::TextEdit::singleline(&mut self.model.pg_schema)
                             .hint_text("public")
                             .desired_width(60.0),
                     );
@@ -269,16 +352,16 @@ impl App {
                     ui.separator();
                     ui.label("Table:");
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.pg_table)
+                        egui::TextEdit::singleline(&mut self.model.pg_table)
                             .hint_text("data_123")
                             .desired_width(100.0),
                     );
 
                     ui.separator();
-                    if self.is_pushing {
+                    if self.controller.is_pushing {
                         ui.spinner();
                         let mut label = "Pushing...".to_owned();
-                        if let Some(start) = self.push_start_time {
+                        if let Some(start) = self.controller.push_start_time {
                             label.push_str(&format!(" ({:.1}s)", start.elapsed().as_secs_f32()));
                         }
                         ui.label(label);
@@ -290,15 +373,28 @@ impl App {
                         .clicked()
                     {
                         if let (Some(df), Some(health), Some(path)) =
-                            (self.df.as_ref(), self.health.as_ref(), self.file_path.as_ref())
+                            (self.model.df.as_ref(), self.model.health.as_ref(), self.model.file_path.as_ref())
                         {
+                            // Filter out inactive columns before pushing
+                            let mut filtered_df = df.clone();
+                            let mut filtered_summary = self.model.summary.clone();
+                            
+                            for (name, config) in &self.model.cleaning_configs {
+                                if !config.active {
+                                    if filtered_df.column(name).is_ok() {
+                                        let _ = filtered_df.drop_in_place(name);
+                                    }
+                                    filtered_summary.retain(|c| &c.name != name);
+                                }
+                            }
+
                             self.start_push_to_db(
                                 ctx.clone(),
                                 path.clone(),
-                                self.file_size,
+                                self.model.file_size,
                                 health.clone(),
-                                self.summary.clone(),
-                                df.clone(),
+                                filtered_summary,
+                                filtered_df,
                             );
                         }
                     }
@@ -307,23 +403,188 @@ impl App {
         });
     }
 
-    fn render_health_summary(&self, ui: &mut egui::Ui) {
-        if let Some(health) = &self.health {
-            if !health.risks.is_empty() {
-                ui.add_space(8.0);
-                egui::Frame::group(ui.style())
-                    .fill(egui::Color32::from_rgba_premultiplied(255, 200, 0, 10))
-                    .show(ui, |ui| {
-                        ui.vertical(|ui| {
-                            ui.strong("Data Health Summary");
-                            for risk in &health.risks {
-                                ui.label(risk);
+    fn render_ml_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+
+            // --- Group: Machine Learning ---
+            ui.group(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label("🧠 ML Training:");
+
+                    // 1. Model Selection
+                    egui::ComboBox::from_id_salt("ml_model")
+                        .selected_text(self.model.ml_model_kind.as_str())
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.model.ml_model_kind, super::logic::MlModelKind::LinearRegression, "Linear Regression");
+                            ui.selectable_value(&mut self.model.ml_model_kind, super::logic::MlModelKind::DecisionTree, "Decision Tree");
+                            ui.selectable_value(&mut self.model.ml_model_kind, super::logic::MlModelKind::LogisticRegression, "Logistic Regression");
+                        });
+
+                    // Validate current target is still active and suitable
+                    if let Some(target) = &self.model.ml_target {
+                        if let Some(col) = self.model.summary.iter().find(|c| &c.name == target) {
+                            let is_active = self.model.cleaning_configs.get(target).map(|c| c.active).unwrap_or(true);
+                            let is_suitable = self.model.ml_model_kind.is_suitable_target(col.kind);
+                            let is_classification = matches!(self.model.ml_model_kind, super::logic::MlModelKind::LogisticRegression | super::logic::MlModelKind::DecisionTree);
+                            let has_enough_classes = !is_classification || col.stats.n_distinct() >= 2;
+
+                            if !is_active || !is_suitable || !has_enough_classes {
+                                self.model.ml_target = None;
+                            }
+                        } else {
+                            // Column gone (e.g. after cleaning)
+                            self.model.ml_target = None;
+                        }
+                    }
+
+                    ui.separator();
+
+                    // 2. Target Column Selection
+                    ui.label("Target:");
+                    let target_text = self.model.ml_target.clone().unwrap_or_else(|| "Select...".to_string());
+                    egui::ComboBox::from_id_salt("ml_target")
+                        .selected_text(target_text)
+                        .show_ui(ui, |ui| {
+                            for col in &self.model.summary {
+                                let is_active = self.model.cleaning_configs.get(&col.name).map(|c| c.active).unwrap_or(true);
+                                if is_active && self.model.ml_model_kind.is_suitable_target(col.kind) {
+                                    // Classification needs at least 2 classes
+                                    let is_classification = matches!(self.model.ml_model_kind, super::logic::MlModelKind::LogisticRegression | super::logic::MlModelKind::DecisionTree);
+                                    if is_classification && col.stats.n_distinct() < 2 {
+                                        continue;
+                                    }
+
+                                    ui.selectable_value(&mut self.model.ml_target, Some(col.name.clone()), &col.name);
+                                }
                             }
                         });
-                    });
-            }
-        }
+
+                    ui.separator();
+
+                    // 3. Train Button
+                    if self.controller.is_training {
+                        ui.spinner();
+                        ui.label("Training...");
+                    } else {
+                        let n_features = self.model.summary.iter()
+                            .filter(|c| {
+                                let is_active = self.model.cleaning_configs.get(&c.name).map(|conf| conf.active).unwrap_or(true);
+                                is_active && matches!(c.kind, super::logic::types::ColumnKind::Numeric | super::logic::types::ColumnKind::Boolean)
+                            })
+                            .filter(|c| Some(&c.name) != self.model.ml_target.as_ref())
+                            .count();
+
+                        let can_train = self.model.df.is_some() && self.model.ml_target.is_some() && n_features > 0;
+                        
+                        ui.horizontal(|ui| {
+                            let btn = ui.add_enabled(can_train, egui::Button::new("🚀 Train Model"));
+                            if btn.clicked() {
+                                if let (Some(df), Some(target)) = (self.model.df.clone(), self.model.ml_target.clone()) {
+                                    // Filter out inactive columns before training
+                                    let mut filtered_df = df;
+                                    for (name, config) in &self.model.cleaning_configs {
+                                        if !config.active && filtered_df.column(name).is_ok() {
+                                            let _ = filtered_df.drop_in_place(name);
+                                        }
+                                    }
+                                    self.controller.start_training(ctx.clone(), filtered_df, target, self.model.ml_model_kind);
+                                }
+                            }
+                            
+                            if n_features == 0 && self.model.ml_target.is_some() {
+                                ui.label(egui::RichText::new("⚠ No features").color(egui::Color32::RED))
+                                    .on_hover_text("No numeric or boolean columns found to use as features. Try using 'Apply Cleaning' to convert categories to One-Hot encoding first.");
+                            } else {
+                                ui.label(format!("({} features)", n_features))
+                                    .on_hover_text("Number of numeric/boolean columns that will be used to predict the target.");
+                            }
+                        });
+                    }
+
+                    // 4. Show Results if any
+                    if let Some(res) = &self.model.ml_results {
+                        ui.separator();
+                        ui.label("Last Result:");
+                        if let Some(r2) = res.r2_score {
+                            ui.label(format!("R²: {:.4}", r2)).on_hover_text("Coefficient of Determination: 1.0 is perfect prediction.");
+                        }
+                        if let Some(acc) = res.accuracy {
+                            ui.label(format!("Acc: {:.2}%", acc * 100.0));
+                        }
+                        if let Some(mse) = res.mse {
+                            ui.label(format!("MSE: {:.4}", mse)).on_hover_text("Mean Squared Error: Lower is better.");
+                        }
+                        
+                        if ui.button("📊 View Details").clicked() {
+                            self.show_ml_details = true;
+                        }
+                    }
+                });
+            });
+        });
     }
+
+    fn render_ml_details_window(&mut self, ctx: &egui::Context) {
+        let Some(res) = &self.model.ml_results else { return };
+        
+        egui::Window::new("🧠 ML Model Details")
+            .open(&mut self.show_ml_details)
+            .resizable(true)
+            .default_width(400.0)
+            .show(ctx, |ui| {
+                ui.vertical(|ui| {
+                    ui.heading(format!("Model: {}", res.model_kind.as_str()));
+                    ui.label(format!("Target Column: {}", res.target_column));
+                    ui.label(format!("Training Duration: {:.2}s", res.duration.as_secs_f32()));
+                    
+                    ui.separator();
+                    ui.strong("Metrics:");
+                    if let Some(r2) = res.r2_score {
+                        ui.label(format!("• R² Score: {:.6}", r2));
+                    }
+                    if let Some(acc) = res.accuracy {
+                        ui.label(format!("• Accuracy: {:.2}%", acc * 100.0));
+                    }
+                    if let Some(mse) = res.mse {
+                        ui.label(format!("• Mean Squared Error: {:.6}", mse));
+                    }
+
+                    if !res.interpretation.is_empty() {
+                        ui.separator();
+                        ui.strong("Interpretation:");
+                        for line in &res.interpretation {
+                            ui.label(format!("• {line}"));
+                        }
+                    }
+
+                    ui.separator();
+                    ui.strong("Features:");
+                    ui.label(res.feature_columns.join(", "));
+
+                    if let Some(coeffs) = &res.coefficients {
+                        ui.separator();
+                        ui.strong("Coefficients:");
+                        egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                            egui::Grid::new("coeffs_grid").striped(true).show(ui, |ui| {
+                                let mut sorted_coeffs: Vec<_> = coeffs.iter().collect();
+                                sorted_coeffs.sort_by(|a, b| b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal));
+                                
+                                for (name, val) in sorted_coeffs {
+                                    ui.label(name);
+                                    ui.label(format!("{:.6}", val));
+                                    ui.end_row();
+                                }
+                            });
+                        });
+                        if let Some(intercept) = res.intercept {
+                            ui.label(format!("Intercept: {:.6}", intercept));
+                        }
+                    }
+                });
+            });
+    }
+
 
     fn render_summary_table(&mut self, ui: &mut egui::Ui) {
         let mut scroll_area = egui::ScrollArea::horizontal();
@@ -337,6 +598,7 @@ impl App {
                 .resizable(true)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Min))
                 .column(Column::auto().at_least(30.0)) // Expand
+                .column(Column::auto().at_least(30.0)) // Active/Exclude
                 .column(Column::initial(120.0).at_least(100.0)) // Name
                 .column(Column::initial(100.0).at_least(80.0)) // Type
                 .column(Column::auto().at_least(80.0)) // Nulls
@@ -356,6 +618,9 @@ impl App {
             table
                 .header(25.0, |mut header| {
                     header.col(|_| {}); // Expand
+                    header.col(|ui| {
+                        ui.strong("👁").on_hover_text("Include column in analysis and output");
+                    });
                     header.col(|ui| {
                         let header_color = if ui.visuals().dark_mode {
                             egui::Color32::WHITE
@@ -388,7 +653,7 @@ impl App {
                     header.col(|_| {}); // Spacer
                 })
                 .body(|mut body| {
-                    let summary = self.summary.clone();
+                    let summary = self.model.summary.clone();
                     for col in &summary {
                         let is_expanded = self.expanded_rows.contains(&col.name);
                         let row_height = if is_expanded {
@@ -411,6 +676,8 @@ impl App {
     }
 
     fn render_column_row(&mut self, mut row: egui_extras::TableRow<'_, '_>, col: &ColumnSummary, is_expanded: bool) {
+        let is_active = self.model.cleaning_configs.get(&col.name).map(|c| c.active).unwrap_or(true);
+
         row.col(|ui| {
             let icon = if is_expanded { "⏷" } else { "⏵" };
             if ui.add(egui::Button::new(icon).frame(false)).clicked() {
@@ -422,87 +689,112 @@ impl App {
             }
         });
         row.col(|ui| {
-            self.render_name_editor(ui, col);
-        });
-        row.col(|ui| {
-            self.render_type_editor(ui, col);
-        });
-        row.col(|ui| {
-            let null_pct = (col.nulls as f64 / col.count as f64) * 100.0;
-            ui.label(format!("{} ({null_pct:.1}%)", col.nulls));
-        });
-        row.col(|ui| {
-            if col.has_special {
-                ui.colored_label(egui::Color32::RED, "⚠ Yes");
-            } else {
-                ui.label("No");
+            if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
+                ui.checkbox(&mut config.active, "").on_hover_text("If unchecked, this column will be excluded from cleaning, analysis, and export.");
             }
         });
         row.col(|ui| {
-            ui.vertical(|ui| {
-                // 1. Core Stats
-                ui.scope(|ui| {
-                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-                    match &col.stats {
-                        ColumnStats::Numeric(s) => self.render_numeric_stats_info(ui, s),
-                        ColumnStats::Text(s) => Self::render_text_stats_info(ui, s),
-                        ColumnStats::Categorical(freq) => {
-                            Self::render_categorical_stats_info(ui, freq, is_expanded, col.count);
+            ui.add_enabled_ui(is_active, |ui| {
+                self.render_name_editor(ui, col);
+            });
+        });
+        row.col(|ui| {
+            ui.add_enabled_ui(is_active, |ui| {
+                self.render_type_editor(ui, col);
+            });
+        });
+        row.col(|ui| {
+            ui.add_enabled_ui(is_active, |ui| {
+                let null_pct = if col.count > 0 {
+                    (col.nulls as f64 / col.count as f64) * 100.0
+                } else {
+                    0.0
+                };
+                ui.label(format!("{} ({null_pct:.1}%)", col.nulls));
+            });
+        });
+        row.col(|ui| {
+            ui.add_enabled_ui(is_active, |ui| {
+                if col.has_special {
+                    ui.colored_label(egui::Color32::RED, "⚠ Yes");
+                } else {
+                    ui.label("No");
+                }
+            });
+        });
+        row.col(|ui| {
+            ui.add_enabled_ui(is_active, |ui| {
+                ui.vertical(|ui| {
+                    // 1. Core Stats
+                    ui.scope(|ui| {
+                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                        match &col.stats {
+                            ColumnStats::Numeric(s) => self.render_numeric_stats_info(ui, s),
+                            ColumnStats::Text(s) => Self::render_text_stats_info(ui, s),
+                            ColumnStats::Categorical(freq) => {
+                                Self::render_categorical_stats_info(ui, freq, is_expanded, col.count);
+                            }
+                            ColumnStats::Temporal(s) => Self::render_temporal_stats_info(ui, s),
+                            ColumnStats::Boolean(s) => Self::render_boolean_stats_info(ui, s, col.count),
                         }
-                        ColumnStats::Temporal(s) => Self::render_temporal_stats_info(ui, s),
-                        ColumnStats::Boolean(s) => Self::render_boolean_stats_info(ui, s, col.count),
+                    });
+
+                    // 2. Sample Values (Now always shown under stats)
+                    if !col.samples.is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(egui::RichText::new("Samples:").strong().size(11.0));
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(col.samples.join(", "))
+                                    .italics()
+                                    .size(11.0),
+                            )
+                            .wrap_mode(egui::TextWrapMode::Wrap),
+                        );
+                    }
+
+                    // 3. Advanced Metrics
+                    Self::render_advanced_metrics(ui, &col.stats);
+
+                    // 4. Advanced Cleaning (Only shown when expanded)
+                    if is_expanded {
+                        self.render_cleaning_controls(ui, col);
                     }
                 });
-
-                // 2. Sample Values (Now always shown under stats)
-                if !col.samples.is_empty() {
-                    ui.add_space(4.0);
-                    ui.label(egui::RichText::new("Samples:").strong().size(11.0));
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(col.samples.join(", "))
-                                .italics()
-                                .size(11.0),
-                        )
-                        .wrap_mode(egui::TextWrapMode::Wrap),
-                    );
-                }
-
-                // 3. Advanced Metrics
-                Self::render_advanced_metrics(ui, &col.stats);
-
-                // 4. Advanced Cleaning (Only shown when expanded)
-                if is_expanded {
-                    self.render_cleaning_controls(ui, col);
-                }
             });
         });
         row.col(|ui| {
-            // Technical Summary Column
-            ui.vertical(|ui| {
-                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-                for line in &col.interpretation {
-                    ui.label(format!("• {line}"));
-                }
+            ui.add_enabled_ui(is_active, |ui| {
+                // Technical Summary Column
+                ui.vertical(|ui| {
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                    for line in &col.interpretation {
+                        ui.label(format!("• {line}"));
+                    }
+                });
             });
         });
         row.col(|ui| {
-            // Stakeholder Insight Column
-            ui.vertical(|ui| {
-                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-                for line in &col.business_summary {
-                    ui.label(format!("• {line}"));
-                }
+            ui.add_enabled_ui(is_active, |ui| {
+                // Stakeholder Insight Column
+                ui.vertical(|ui| {
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                    for line in &col.business_summary {
+                        ui.label(format!("• {line}"));
+                    }
+                });
             });
         });
         row.col(|ui| {
-            render_distribution(
-                ui,
-                &col.name,
-                &col.stats,
-                self.show_full_range,
-                is_expanded,
-            );
+            ui.add_enabled_ui(is_active, |ui| {
+                render_distribution(
+                    ui,
+                    &col.name,
+                    &col.stats,
+                    self.model.show_full_range,
+                    is_expanded,
+                );
+            });
         });
         row.col(|_| {}); // Spacer
     }
@@ -511,7 +803,7 @@ impl App {
         ui.add_space(8.0);
         ui.separator();
         ui.strong("🧽 Advanced Cleaning:");
-        if let Some(config) = self.cleaning_configs.get_mut(&col.name) {
+        if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut config.trim_whitespace, "Trim Whitespace");
                 ui.checkbox(&mut config.remove_special_chars, "Remove Special Chars");
@@ -595,7 +887,7 @@ impl App {
             egui::Color32::BLACK
         };
 
-        if let Some(config) = self.cleaning_configs.get_mut(&col.name) {
+        if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
             ui.add(
                 egui::TextEdit::singleline(&mut config.new_name)
                     .hint_text(egui::RichText::new(&col.name).strong().color(text_color))
@@ -607,7 +899,7 @@ impl App {
     }
 
     fn render_type_editor(&mut self, ui: &mut egui::Ui, col: &ColumnSummary) {
-        if let Some(config) = self.cleaning_configs.get_mut(&col.name) {
+        if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
             egui::ComboBox::from_id_salt(format!("row_dtype_{}", col.name))
                 .selected_text(
                     config
@@ -658,7 +950,7 @@ impl App {
                 }
             });
             ui.horizontal(|ui| {
-                let pct = self.trim_pct * 100.0;
+                let pct = self.model.trim_pct * 100.0;
                 ui.label(format!("Trimmed Mean ({pct:.0}%):"))
                     .on_hover_text("The mean after removing the top and bottom X% of values. Helps reduce the influence of outliers.");
                 ui.label(fmt_opt(s.trimmed_mean));
@@ -804,98 +1096,29 @@ impl App {
 
         let Some(path) = path else { return };
 
-        self.is_loading = true;
-        self.was_cleaning = false;
-        self.status = format!("Loading: {}", path.display());
-        self.progress_counter.store(0, Ordering::SeqCst);
-        self.start_time = Some(std::time::Instant::now());
         self.expanded_rows.clear();
-        self.cleaning_configs.clear();
-
-        let (tx, rx) = crossbeam_channel::unbounded();
-        self.receiver = Some(rx);
-
-        let progress = Arc::clone(&self.progress_counter);
-        let path_str = path.to_string_lossy().to_string();
-        let trim_pct = self.trim_pct;
-
-        std::thread::spawn(move || {
-            let start = std::time::Instant::now();
-            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration, DataFrame)> {
-                let df = super::logic::load_df(&path, &progress)?;
-                let file_size = std::fs::metadata(&path)?.len();
-                let summary = super::logic::analyse_df(&df, trim_pct)?;
-                let health = super::logic::calculate_file_health(&summary);
-                Ok((path_str, file_size, summary, health, start.elapsed(), df))
-            })();
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send analysis result");
-            }
-            ctx.request_repaint();
-        });
+        self.model.cleaning_configs.clear();
+        self.status = format!("Loading: {}", path.display());
+        self.controller.start_analysis(ctx, path, self.model.trim_pct);
     }
 
     pub fn trigger_reanalysis(&mut self, ctx: egui::Context) {
-        let Some(df) = self.df.clone() else { return };
-        let Some(path_str) = self.file_path.clone() else { return };
-        let file_size = self.file_size;
-        let trim_pct = self.trim_pct;
-
-        self.is_loading = true;
-        self.was_cleaning = false;
-        self.status = format!("Re-analysing with {:.0}% trim...", trim_pct * 100.0);
-        self.progress_counter.store(0, Ordering::SeqCst);
-        self.start_time = Some(std::time::Instant::now());
-
-        let (tx, rx) = crossbeam_channel::unbounded();
-        self.receiver = Some(rx);
-
-        std::thread::spawn(move || {
-            let start = std::time::Instant::now();
-            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration, DataFrame)> {
-                let summary = super::logic::analyse_df(&df, trim_pct)?;
-                let health = super::logic::calculate_file_health(&summary);
-                Ok((path_str, file_size, summary, health, start.elapsed(), df))
-            })();
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send re-analysis result");
-            }
-            ctx.request_repaint();
-        });
+        let Some(df) = self.model.df.clone() else { return };
+        let Some(path_str) = self.model.file_path.clone() else { return };
+        
+        self.status = format!("Re-analysing with {:.0}% trim...", self.model.trim_pct * 100.0);
+        self.controller.trigger_reanalysis(ctx, df, path_str, self.model.file_size, self.model.trim_pct);
     }
 
     pub fn start_cleaning(&mut self, ctx: egui::Context) {
-        let Some(df) = self.df.clone() else { return };
-        let configs = self.cleaning_configs.clone();
-        let trim_pct = self.trim_pct;
-        let path_str = self.file_path.clone().unwrap_or_else(|| "cleaned_file".to_owned());
-        let file_size = self.file_size;
+        let Some(df) = self.model.df.clone() else { return };
+        let configs = self.model.cleaning_configs.clone();
+        let trim_pct = self.model.trim_pct;
+        let path_str = self.model.file_path.clone();
+        let file_size = self.model.file_size;
 
-        self.is_loading = true;
-        self.was_cleaning = true;
         self.status = "Applying cleaning steps...".to_owned();
-        self.progress_counter.store(0, Ordering::SeqCst);
-        self.start_time = Some(std::time::Instant::now());
-
-        let (tx, rx) = crossbeam_channel::unbounded();
-        self.receiver = Some(rx);
-
-        std::thread::spawn(move || {
-            let start = std::time::Instant::now();
-            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration, DataFrame)> {
-                let cleaned_df = super::logic::analysis::clean_df(df, &configs)?;
-                let summary = super::logic::analyse_df(&cleaned_df, trim_pct)?;
-                let health = super::logic::calculate_file_health(&summary);
-                Ok((path_str, file_size, summary, health, start.elapsed(), cleaned_df))
-            })();
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send cleaning result");
-            }
-            ctx.request_repaint();
-        });
+        self.controller.start_cleaning(ctx, df, configs, trim_pct, path_str, file_size);
     }
 
     pub fn start_push_to_db(
@@ -907,49 +1130,53 @@ impl App {
         summary: Vec<ColumnSummary>,
         df: DataFrame,
     ) {
-        let pg_url = self.pg_url.clone();
-        let pg_schema = self.pg_schema.clone();
-        let pg_table = self.pg_table.clone();
-        if pg_url.is_empty() {
-            self.status = "Error: PostgreSQL URL is required".to_owned();
+        use secrecy::ExposeSecret;
+        use sqlx::postgres::PgConnectOptions;
+
+        if self.model.pg_host.is_empty() || self.model.pg_database.is_empty() {
+            self.status = "Error: Database connection not configured".to_owned();
             return;
         }
 
-        self.is_pushing = true;
+        let port: u16 = self.model.pg_port.parse().unwrap_or(5432);
+        let pg_options = PgConnectOptions::new()
+            .host(&self.model.pg_host)
+            .port(port)
+            .username(&self.model.pg_user)
+            .password(self.model.pg_password.expose_secret())
+            .database(&self.model.pg_database);
+
+        let pg_schema = self.model.pg_schema.clone();
+        let pg_table = self.model.pg_table.clone();
+        
         self.status = "Connecting to PostgreSQL...".to_owned();
-        self.push_start_time = Some(std::time::Instant::now());
+        self.controller.start_push_to_db(
+            ctx,
+            file_path,
+            file_size,
+            health,
+            summary,
+            df,
+            pg_options,
+            pg_schema,
+            pg_table,
+        );
+    }
 
-        let (tx, rx) = crossbeam_channel::unbounded();
-        self.push_receiver = Some(rx);
+    pub fn start_test_connection(&mut self, ctx: egui::Context) {
+        use secrecy::ExposeSecret;
+        use sqlx::postgres::PgConnectOptions;
 
-        std::thread::spawn(move || {
-            let result = (|| -> Result<()> {
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(async {
-                    let client = super::db::DbClient::connect(&pg_url).await?;
-                    client.init_schema().await?;
-                    
-                    let schema_opt = if pg_schema.is_empty() { None } else { Some(pg_schema.as_str()) };
-                    let table_opt = if pg_table.is_empty() { None } else { Some(pg_table.as_str()) };
+        let port: u16 = self.model.pg_port.parse().unwrap_or(5432);
+        let pg_options = PgConnectOptions::new()
+            .host(&self.model.pg_host)
+            .port(port)
+            .username(&self.model.pg_user)
+            .password(self.model.pg_password.expose_secret())
+            .database(&self.model.pg_database);
 
-                    client.push_analysis(super::db::AnalysisPush {
-                        file_path: &file_path,
-                        file_size,
-                        health: &health,
-                        summaries: &summary,
-                        df: &df,
-                        schema_name: schema_opt,
-                        table_name: table_opt,
-                    }).await?;
-                    Ok(())
-                })
-            })();
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send push result");
-            }
-            ctx.request_repaint();
-        });
+        self.status = "Testing database connection...".to_owned();
+        self.controller.start_test_connection(ctx, pg_options);
     }
 }
 

@@ -5,3 +5,20 @@ pub fn fmt_opt(v: Option<f64>) -> String {
         _ => "—".to_owned(),
     }
 }
+
+/// Formats bytes into a human-readable string (KB, MB, GB).
+pub fn fmt_bytes(bytes: u64) -> String {
+    let kb = bytes as f64 / 1024.0;
+    let mb = kb / 1024.0;
+    let gb = mb / 1024.0;
+
+    if gb >= 1.0 {
+        format!("{gb:.2} GB")
+    } else if mb >= 1.0 {
+        format!("{mb:.2} MB")
+    } else if kb >= 1.0 {
+        format!("{kb:.2} KB")
+    } else {
+        format!("{bytes} B")
+    }
+}

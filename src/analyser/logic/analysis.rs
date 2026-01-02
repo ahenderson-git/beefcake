@@ -176,6 +176,11 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
     for old_name in sorted_keys {
         let config = configs.get(old_name).context("Missing configuration for column")?;
 
+        if !config.active {
+            lf = lf.select([col("*").exclude([old_name.as_str()])]);
+            continue;
+        }
+
         let mut expr = col(old_name);
 
         // 1. Imputation (Must happen early)
