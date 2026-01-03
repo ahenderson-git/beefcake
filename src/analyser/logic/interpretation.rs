@@ -1,4 +1,4 @@
-use super::types::{ColumnSummary, ColumnStats};
+use super::types::{ColumnStats, ColumnSummary};
 use std::f64::consts::PI;
 
 pub const MISSING_DATA_HIGH: f64 = 15.0;
@@ -105,7 +105,8 @@ impl ColumnSummary {
             }
         } else {
             // Fallback if skew is not available
-            let diff_ratio = (mean - median).abs() / iqr.max(s.std_dev.unwrap_or(0.0) * 0.1).max(1e-9);
+            let diff_ratio =
+                (mean - median).abs() / iqr.max(s.std_dev.unwrap_or(0.0) * 0.1).max(1e-9);
             if diff_ratio < SKEW_THRESHOLD {
                 signals.push("Symmetric distribution.");
             } else if mean > median {
@@ -181,9 +182,10 @@ impl ColumnSummary {
                 let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
                 let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
 
-                let has_tiny_bars = s.histogram.iter().any(|&(_, c)| {
-                    c > 0 && (c as f64) < max_count * TINY_BAR_THRESHOLD
-                });
+                let has_tiny_bars = s
+                    .histogram
+                    .iter()
+                    .any(|&(_, c)| c > 0 && (c as f64) < max_count * TINY_BAR_THRESHOLD);
                 if has_tiny_bars {
                     signals.push("Some bars are so short compared to the tallest one that they may be invisible.");
                 }
@@ -198,8 +200,7 @@ impl ColumnSummary {
         if let Some(sigma) = s.std_dev {
             if sigma > 0.0 && !s.histogram.is_empty() {
                 let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
-                let gauss_peak =
-                    (total_count as f64 * s.bin_width) / (sigma * (2.0 * PI).sqrt());
+                let gauss_peak = (total_count as f64 * s.bin_width) / (sigma * (2.0 * PI).sqrt());
                 let max_bar = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
 
                 if max_bar > gauss_peak * GAUSS_PEAK_CONCENTRATION {
@@ -209,7 +210,10 @@ impl ColumnSummary {
         }
     }
 
-    fn collect_categorical_signals(freq: &std::collections::HashMap<String, usize>, signals: &mut Vec<&'static str>) {
+    fn collect_categorical_signals(
+        freq: &std::collections::HashMap<String, usize>,
+        signals: &mut Vec<&'static str>,
+    ) {
         if freq.len() == 1 {
             signals.push("Constant value across all records.");
         }
@@ -273,16 +277,28 @@ impl ColumnSummary {
         } else if null_pct > MISSING_DATA_HIGH {
             insights.push("Caution: A significant amount of information is missing here, which may lead to incomplete insights.");
         } else if null_pct > MISSING_DATA_MEDIUM {
-            insights.push("Most of the data is present, but some records are missing specific details.");
+            insights.push(
+                "Most of the data is present, but some records are missing specific details.",
+            );
         }
 
         // 2. Business Meaning
         match &self.stats {
-            ColumnStats::Numeric(s) => Self::collect_numeric_insights(s, &mut insights),
-            ColumnStats::Categorical(freq) => Self::collect_categorical_insights(freq, &mut insights),
-            ColumnStats::Text(s) => self.collect_text_insights(s, &mut insights),
-            ColumnStats::Temporal(s) => Self::collect_temporal_insights(s, &mut insights),
-            ColumnStats::Boolean(_) => insights.push("This represents a simple toggle or true/false status."),
+            ColumnStats::Numeric(s) => {
+                Self::collect_numeric_insights(s, &mut insights);
+            }
+            ColumnStats::Categorical(freq) => {
+                Self::collect_categorical_insights(freq, &mut insights);
+            }
+            ColumnStats::Text(s) => {
+                self.collect_text_insights(s, &mut insights);
+            }
+            ColumnStats::Temporal(s) => {
+                Self::collect_temporal_insights(s, &mut insights);
+            }
+            ColumnStats::Boolean(_) => {
+                insights.push("This represents a simple toggle or true/false status.");
+            }
         }
 
         if insights.is_empty() {
@@ -295,7 +311,8 @@ impl ColumnSummary {
     fn collect_numeric_insights(s: &super::types::NumericStats, insights: &mut Vec<&'static str>) {
         if let (Some(mean), Some(median), Some(min), Some(max)) = (s.mean, s.median, s.min, s.max) {
             if min == max {
-                insights.push("Every record has the same value, providing no variety for analysis.");
+                insights
+                    .push("Every record has the same value, providing no variety for analysis.");
             }
 
             if s.is_sorted {
@@ -303,11 +320,15 @@ impl ColumnSummary {
             }
 
             if s.is_integer {
-                insights.push("This contains only whole numbers, typical for counts or discrete quantities.");
+                insights.push(
+                    "This contains only whole numbers, typical for counts or discrete quantities.",
+                );
             }
 
             if s.negative_count > 0 {
-                insights.push("Includes negative values, which may indicate refunds, adjustments, or errors.");
+                insights.push(
+                    "Includes negative values, which may indicate refunds, adjustments, or errors.",
+                );
             }
 
             if let Some(skew) = s.skew {
@@ -331,7 +352,10 @@ impl ColumnSummary {
         }
     }
 
-    fn collect_categorical_insights(freq: &std::collections::HashMap<String, usize>, insights: &mut Vec<&'static str>) {
+    fn collect_categorical_insights(
+        freq: &std::collections::HashMap<String, usize>,
+        insights: &mut Vec<&'static str>,
+    ) {
         if freq.len() == 1 {
             insights.push("This column is constant; every record has the same category.");
         } else if freq.len() == 2 {
@@ -341,13 +365,18 @@ impl ColumnSummary {
                 if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHOLD {
                     insights.push("The distribution is uneven, with some categories appearing much more frequently than others.");
                 } else {
-                    insights.push("The data is relatively well-distributed across different categories.");
+                    insights.push(
+                        "The data is relatively well-distributed across different categories.",
+                    );
                 }
             }
         }
     }
 
-    fn collect_temporal_insights(s: &super::types::TemporalStats, insights: &mut Vec<&'static str>) {
+    fn collect_temporal_insights(
+        s: &super::types::TemporalStats,
+        insights: &mut Vec<&'static str>,
+    ) {
         insights.push("This tracks when events occurred, allowing for time-based trend analysis.");
         if s.is_sorted {
             insights.push("Events are recorded in a perfect chronological sequence.");
@@ -360,7 +389,8 @@ impl ColumnSummary {
         }
 
         if s.distinct == self.count && self.nulls == 0 {
-            insights.push("This appears to be a unique tracking number or identifier for each record.");
+            insights
+                .push("This appears to be a unique tracking number or identifier for each record.");
         } else {
             insights.push("This is a standard text field containing descriptive information.");
         }

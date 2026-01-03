@@ -1,29 +1,38 @@
-pub mod types;
-pub mod interpretation;
-pub mod health;
 pub mod analysis;
+pub mod health;
+pub mod interpretation;
 pub mod ml;
+pub mod types;
 
-pub use types::{
-    BooleanStats, ColumnStats, ColumnSummary, FileHealth, NumericStats, TemporalStats, TextStats,
-    MlResults, MlModelKind,
-};
+pub use analysis::{AnalysisReceiver, analyse_df, load_df};
 pub use health::calculate_file_health;
-pub use analysis::{load_df, analyse_df, AnalysisReceiver};
 pub use ml::train_model;
+pub use types::{
+    BooleanStats, ColumnStats, ColumnSummary, FileHealth, MlModelKind, MlResults, NumericStats,
+    TemporalStats, TextStats,
+};
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::expect_used,
+        clippy::indexing_slicing
+    )]
     use super::*;
-    use polars::prelude::*;
     use anyhow::Result;
+    use polars::prelude::*;
 
     #[test]
     fn test_carriage_return_detection() -> Result<()> {
         let s = Series::new("col".into(), vec!["line1\r\nline2"]);
         let df = DataFrame::new(vec![Column::from(s)])?;
         let summaries = analyse_df(&df, 0.0)?;
-        assert!(summaries.first().unwrap().has_special, "Should detect \r as special");
+        assert!(
+            summaries.first().expect("Summary exists").has_special,
+            "Should detect \r as special"
+        );
         Ok(())
     }
 
@@ -86,7 +95,12 @@ mod tests {
         let df = DataFrame::new(vec![Column::from(s)])?;
         let summaries = analyse_df(&df, 0.0)?;
         assert!(
-            summaries.first().unwrap().interpretation.join(" ").contains("unique identifier"),
+            summaries
+                .first()
+                .unwrap()
+                .interpretation
+                .join(" ")
+                .contains("unique identifier"),
             "Should detect unique identifier"
         );
 
@@ -94,7 +108,12 @@ mod tests {
         let df2 = DataFrame::new(vec![Column::from(s2)])?;
         let summaries2 = analyse_df(&df2, 0.0)?;
         assert!(
-            summaries2.first().unwrap().interpretation.join(" ").contains("missing data"),
+            summaries2
+                .first()
+                .unwrap()
+                .interpretation
+                .join(" ")
+                .contains("missing data"),
             "Should detect nulls"
         );
 
@@ -118,7 +137,12 @@ mod tests {
             panic!("Expected BooleanStats");
         }
         assert!(
-            summaries.first().unwrap().interpretation.join(" ").contains("Binary field"),
+            summaries
+                .first()
+                .unwrap()
+                .interpretation
+                .join(" ")
+                .contains("Binary field"),
             "Should detect binary signal"
         );
         Ok(())
@@ -150,8 +174,19 @@ mod tests {
 
         if let types::ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
             assert!(stats.skew.unwrap() > 0.1, "Should detect right skew");
-            assert!(summaries.first().unwrap().interpretation.join(" ").contains("Right-skewed"), "Should report right skew");
-            assert!(stats.bin_width < 2.0, "Bin width should be small based on IQR, not large based on range");
+            assert!(
+                summaries
+                    .first()
+                    .unwrap()
+                    .interpretation
+                    .join(" ")
+                    .contains("Right-skewed"),
+                "Should report right skew"
+            );
+            assert!(
+                stats.bin_width < 2.0,
+                "Bin width should be small based on IQR, not large based on range"
+            );
             assert!(stats.histogram.len() > 2, "Should have more than 2 bins");
         } else {
             panic!("Expected NumericStats");
@@ -181,10 +216,16 @@ mod tests {
         let s = Series::new("col".into(), vals);
         let df = DataFrame::new(vec![Column::from(s)])?;
         let summaries = analyse_df(&df, 0.0)?;
-        
+
         let interp = summaries.first().unwrap().interpretation.join(" ");
-        assert!(interp.contains("concentrated"), "Should detect concentrated distribution");
-        assert!(interp.contains("extreme outliers"), "Should detect extreme outliers");
+        assert!(
+            interp.contains("concentrated"),
+            "Should detect concentrated distribution"
+        );
+        assert!(
+            interp.contains("extreme outliers"),
+            "Should detect extreme outliers"
+        );
         assert!(interp.contains("dominates"), "Should detect dominant bin");
         Ok(())
     }
@@ -199,8 +240,14 @@ mod tests {
         let summaries = analyse_df(&df, 0.0)?;
 
         let interp = summaries.first().unwrap().interpretation.join(" ");
-        assert!(interp.contains("may be invisible"), "Should warn about potentially invisible bars");
-        assert!(interp.contains("A single bin dominates"), "Should warn about dominant bin");
+        assert!(
+            interp.contains("may be invisible"),
+            "Should warn about potentially invisible bars"
+        );
+        assert!(
+            interp.contains("A single bin dominates"),
+            "Should warn about dominant bin"
+        );
         Ok(())
     }
 
@@ -217,12 +264,23 @@ mod tests {
             let max = stats.max.unwrap();
             let p05 = stats.p05.unwrap();
             let p95 = stats.p95.unwrap();
-            
+
             let full_range = max - min;
             let zoom_range = p95 - p05;
-            
-            assert!(full_range > 3.0 * zoom_range, "Threshold should be met for this distribution");
-            assert!(summaries.first().unwrap().interpretation.join(" ").contains("extreme outliers"), "Should report extreme outliers");
+
+            assert!(
+                full_range > 3.0 * zoom_range,
+                "Threshold should be met for this distribution"
+            );
+            assert!(
+                summaries
+                    .first()
+                    .unwrap()
+                    .interpretation
+                    .join(" ")
+                    .contains("extreme outliers"),
+                "Should report extreme outliers"
+            );
         }
         Ok(())
     }
@@ -236,7 +294,10 @@ mod tests {
         let summaries = analyse_df(&df, 0.0)?;
 
         let interp = summaries.first().unwrap().interpretation.join(" ");
-        assert!(interp.contains("Standard deviation may be less reliable"), "Should warn about unreliable std dev");
+        assert!(
+            interp.contains("Standard deviation may be less reliable"),
+            "Should warn about unreliable std dev"
+        );
         Ok(())
     }
 
@@ -245,22 +306,45 @@ mod tests {
         let s1 = Series::new("order_id".into(), vec!["ORD001", "ORD002", "ORD003"]);
         let s2 = Series::new("sales".into(), vec![10.0, 12.0, 500.0]); // Skewed
         let s3 = Series::new("status".into(), vec![Some("Paid"), Some("Paid"), None]); // Missing (1/3 = 33%)
-        
+
         let df = DataFrame::new(vec![Column::from(s1), Column::from(s2), Column::from(s3)])?;
         let summaries = analyse_df(&df, 0.0)?;
-        
-        assert!(summaries.get(0).unwrap().business_summary.join(" ").contains("unique tracking number"), "Should identify tracking ID");
-        assert!(summaries.get(1).unwrap().business_summary.join(" ").contains("distorted by extreme outliers"), "Should identify outlier distortion");
-        assert!(summaries.get(2).unwrap().business_summary.join(" ").contains("significant amount of information is missing"), "Should identify missing data");
+
+        assert!(
+            summaries
+                .first()
+                .unwrap()
+                .business_summary
+                .join(" ")
+                .contains("unique tracking number"),
+            "Should identify tracking ID"
+        );
+        assert!(
+            summaries[1]
+                .business_summary
+                .join(" ")
+                .contains("distorted by extreme outliers"),
+            "Should identify outlier distortion"
+        );
+        assert!(
+            summaries[2]
+                .business_summary
+                .join(" ")
+                .contains("significant amount of information is missing"),
+            "Should identify missing data"
+        );
         Ok(())
     }
 
     #[test]
     fn test_categorical_detection() -> Result<()> {
-        let s = Series::new("payment_method".into(), vec!["CARD", "CARD", "CASH", "CARD", "CASH"]);
+        let s = Series::new(
+            "payment_method".into(),
+            vec!["CARD", "CARD", "CASH", "CARD", "CASH"],
+        );
         let df = DataFrame::new(vec![Column::from(s)])?;
         let summaries = analyse_df(&df, 0.0)?;
-        
+
         let summary = summaries.first().unwrap();
         assert_eq!(summary.kind.as_str(), "Categorical");
         if let types::ColumnStats::Categorical(freq) = &summary.stats {
@@ -280,11 +364,13 @@ mod tests {
 
         let mut configs = std::collections::HashMap::new();
         configs.insert(
-            "name".to_string(),
+            "name".to_owned(),
             types::ColumnCleanConfig {
-                new_name: "full_name".to_string(),
+                new_name: "full_name".to_owned(),
                 target_dtype: None,
                 active: true,
+                advanced_cleaning: true,
+                ml_preprocessing: false,
                 trim_whitespace: true,
                 remove_special_chars: true,
                 normalization: types::NormalizationMethod::None,
@@ -293,11 +379,13 @@ mod tests {
             },
         );
         configs.insert(
-            "age".to_string(),
+            "age".to_owned(),
             types::ColumnCleanConfig {
-                new_name: "age_num".to_string(),
+                new_name: "age_num".to_owned(),
                 target_dtype: Some(types::ColumnKind::Numeric),
                 active: true,
+                advanced_cleaning: false,
+                ml_preprocessing: false,
                 trim_whitespace: false,
                 remove_special_chars: false,
                 normalization: types::NormalizationMethod::None,
@@ -312,7 +400,10 @@ mod tests {
         assert!(cleaned.column("full_name").is_ok());
         assert!(cleaned.column("age_num").is_ok());
 
-        let names = cleaned.column("full_name")?.as_materialized_series().cast(&DataType::String)?;
+        let names = cleaned
+            .column("full_name")?
+            .as_materialized_series()
+            .cast(&DataType::String)?;
         let names_ca = names.str()?;
         assert_eq!(names_ca.get(0).unwrap(), "Alice");
         assert_eq!(names_ca.get(1).unwrap(), "Bob");
@@ -335,7 +426,7 @@ mod tests {
 
         assert!(results.r2_score.unwrap() > 0.99);
         let coeffs = results.coefficients.unwrap();
-        assert!((coeffs.get("x").unwrap() - 2.0).abs() < 1e-6);
+        assert!((&coeffs["x"] - 2.0).abs() < 1e-6);
         assert!((results.intercept.unwrap() - 1.0).abs() < 1e-6);
 
         Ok(())
@@ -351,7 +442,7 @@ mod tests {
         let results = ml::train_model(&df, "y", types::MlModelKind::LogisticRegression)?;
 
         assert!(results.accuracy.unwrap() > 0.9);
-        
+
         Ok(())
     }
 
@@ -368,8 +459,13 @@ mod tests {
 
         let result_tree = ml::train_model(&df, "y", types::MlModelKind::DecisionTree);
         assert!(result_tree.is_err());
-        assert!(result_tree.unwrap_err().to_string().contains("at least two distinct classes"));
-        
+        assert!(
+            result_tree
+                .unwrap_err()
+                .to_string()
+                .contains("at least two distinct classes")
+        );
+
         Ok(())
     }
 
@@ -383,8 +479,11 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         // It should be our custom error message, not linfa's
-        assert!(err.contains("must have at least two distinct classes"), "Error was: {}", err);
-        
+        assert!(
+            err.contains("must have at least two distinct classes"),
+            "Error was: {err}"
+        );
+
         Ok(())
     }
 
@@ -395,34 +494,33 @@ mod tests {
         let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
 
         let results = ml::train_model(&df, "y", types::MlModelKind::LinearRegression)?;
-        
+
         assert!(!results.interpretation.is_empty());
         let joined = results.interpretation.join(" ");
         assert!(joined.contains("Strong predictive model"));
         assert!(joined.contains("Primary Driver"));
-        
-        Ok(())
-    }
 
-    #[test]
-    fn test_advanced_insights() -> Result<()> {
-        // ... (existing test code)
         Ok(())
     }
 
     #[test]
     fn test_ml_preprocessing_logic() -> Result<()> {
-        let s1 = Series::new("vals".into(), vec![Some(10.0), Some(20.0), None, Some(30.0)]);
+        let s1 = Series::new(
+            "vals".into(),
+            vec![Some(10.0), Some(20.0), None, Some(30.0)],
+        );
         let s2 = Series::new("cat".into(), vec!["A", "B", "A", "C"]);
         let df = DataFrame::new(vec![Column::from(s1), Column::from(s2)])?;
 
         let mut configs = std::collections::HashMap::new();
         configs.insert(
-            "vals".to_string(),
+            "vals".to_owned(),
             types::ColumnCleanConfig {
-                new_name: "vals_clean".to_string(),
+                new_name: "vals_clean".to_owned(),
                 target_dtype: None,
                 active: true,
+                advanced_cleaning: false,
+                ml_preprocessing: true,
                 trim_whitespace: false,
                 remove_special_chars: false,
                 impute_mode: types::ImputeMode::Mean,
@@ -431,11 +529,13 @@ mod tests {
             },
         );
         configs.insert(
-            "cat".to_string(),
+            "cat".to_owned(),
             types::ColumnCleanConfig {
-                new_name: "".to_string(),
+                new_name: String::new(),
                 target_dtype: None,
                 active: true,
+                advanced_cleaning: false,
+                ml_preprocessing: true,
                 trim_whitespace: false,
                 remove_special_chars: false,
                 impute_mode: types::ImputeMode::None,
@@ -452,10 +552,10 @@ mod tests {
         // MinMax: (x - 10) / (30 - 10) => 0.0, 0.5, 0.5, 1.0
         let vals = cleaned.column("vals_clean")?.as_materialized_series();
         let vals_ca = vals.f64()?;
-        assert_eq!(vals_ca.get(0).unwrap(), 0.0);
-        assert_eq!(vals_ca.get(1).unwrap(), 0.5);
-        assert_eq!(vals_ca.get(2).unwrap(), 0.5); // Imputed mean
-        assert_eq!(vals_ca.get(3).unwrap(), 1.0);
+        assert_eq!(vals_ca.get(0), Some(0.0));
+        assert_eq!(vals_ca.get(1), Some(0.5));
+        assert_eq!(vals_ca.get(2), Some(0.5)); // Imputed mean
+        assert_eq!(vals_ca.get(3), Some(1.0));
 
         // 2. Verify One-Hot Encoding
         // Should have columns cat_A, cat_B, cat_C (assuming "_" separator)
@@ -475,14 +575,14 @@ mod tests {
 
         let mut configs = std::collections::HashMap::new();
         configs.insert(
-            "keep".to_string(),
+            "keep".to_owned(),
             types::ColumnCleanConfig {
                 active: true,
                 ..Default::default()
             },
         );
         configs.insert(
-            "drop".to_string(),
+            "drop".to_owned(),
             types::ColumnCleanConfig {
                 active: false,
                 ..Default::default()
@@ -503,20 +603,26 @@ mod tests {
         let df = DataFrame::new(vec![Column::from(s1)])?;
         let summaries = analyse_df(&df, 0.0)?;
         let health = calculate_file_health(&summaries);
-        
+
         // Perfect health should be 1.0 (100%)
-        assert!(health.score <= 1.0, "Score should not exceed 1.0, got {}", health.score);
+        assert!(
+            health.score <= 1.0,
+            "Score should not exceed 1.0, got {}",
+            health.score
+        );
         assert_eq!(health.score, 1.0);
-        
+
         // Now create a summary with issues
         let mut summaries_bad = summaries.clone();
-        summaries_bad[0].nulls = 100; // 100% nulls
-        summaries_bad[0].count = 100;
-        
+        if let Some(s) = summaries_bad.first_mut() {
+            s.nulls = 100; // 100% nulls
+            s.count = 100;
+        }
+
         let health_bad = calculate_file_health(&summaries_bad);
         assert!(health_bad.score < 1.0, "Score should be reduced");
         assert!(health_bad.score >= 0.0, "Score should not be negative");
-        
+
         Ok(())
     }
 }

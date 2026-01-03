@@ -1,8 +1,8 @@
+pub mod controller;
+pub mod db;
 pub mod gui;
 pub mod logic;
-pub mod db;
 pub mod model;
-pub mod controller;
 
 pub use gui::App;
 

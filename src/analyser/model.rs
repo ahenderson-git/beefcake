@@ -1,8 +1,11 @@
-use serde::{Deserialize, Serialize};
+use super::logic::{
+    ColumnSummary, FileHealth,
+    types::{ColumnCleanConfig, MlModelKind, MlResults},
+};
 use polars::prelude::DataFrame;
 use secrecy::SecretString;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use super::logic::{ColumnSummary, FileHealth, types::{ColumnCleanConfig, MlResults, MlModelKind}};
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct AnalysisModel {

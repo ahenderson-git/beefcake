@@ -43,7 +43,10 @@ impl ColumnSummary {
                     ColumnKind::Temporal => {
                         // If it's not numeric and has no separators, it's likely not a date
                         freq.keys().all(|s| {
-                            s.parse::<f64>().is_ok() || s.contains('-') || s.contains('/') || s.contains(':')
+                            s.parse::<f64>().is_ok()
+                                || s.contains('-')
+                                || s.contains('/')
+                                || s.contains(':')
                         })
                     }
                     _ => true,
@@ -121,6 +124,8 @@ pub struct ColumnCleanConfig {
     pub new_name: String,
     pub target_dtype: Option<ColumnKind>,
     pub active: bool,
+    pub advanced_cleaning: bool,
+    pub ml_preprocessing: bool,
     pub trim_whitespace: bool,
     pub remove_special_chars: bool,
     pub normalization: NormalizationMethod,
@@ -134,6 +139,8 @@ impl Default for ColumnCleanConfig {
             new_name: String::new(),
             target_dtype: None,
             active: true,
+            advanced_cleaning: true,
+            ml_preprocessing: true,
             trim_whitespace: false,
             remove_special_chars: false,
             normalization: NormalizationMethod::None,
@@ -155,14 +162,17 @@ pub enum ColumnStats {
 impl ColumnStats {
     pub fn n_distinct(&self) -> usize {
         match self {
-            Self::Numeric(_) => 0, // Not tracked for numeric yet
+            Self::Numeric(_) | Self::Temporal(_) => 0, // Not tracked for these types yet
             Self::Text(s) => s.distinct,
             Self::Categorical(freq) => freq.len(),
-            Self::Temporal(_) => 0, // Not tracked
             Self::Boolean(s) => {
                 let mut count = 0;
-                if s.true_count > 0 { count += 1; }
-                if s.false_count > 0 { count += 1; }
+                if s.true_count > 0 {
+                    count += 1;
+                }
+                if s.false_count > 0 {
+                    count += 1;
+                }
                 count
             }
         }
@@ -240,28 +250,19 @@ impl ColumnKind {
         }
     }
 
-    pub fn is_compatible_with(&self, target: ColumnKind) -> bool {
+    pub fn is_compatible_with(&self, target: Self) -> bool {
         if *self == target {
             return true;
         }
 
         match (self, target) {
             // Everything can be converted to Text or Categorical
-            (_, ColumnKind::Text) | (_, ColumnKind::Categorical) => true,
+            (_, Self::Text | Self::Categorical)
+            | (Self::Numeric, Self::Boolean | Self::Temporal)
+            | (Self::Boolean | Self::Temporal, Self::Numeric) => true,
 
             // Text and Categorical can potentially be anything (parsing)
-            (ColumnKind::Text, _) => target != ColumnKind::Nested,
-            (ColumnKind::Categorical, _) => target != ColumnKind::Nested,
-
-            // Numeric can be Boolean (0/1) or Temporal (timestamp)
-            (ColumnKind::Numeric, ColumnKind::Boolean) => true,
-            (ColumnKind::Numeric, ColumnKind::Temporal) => true,
-
-            // Boolean can be Numeric (0/1)
-            (ColumnKind::Boolean, ColumnKind::Numeric) => true,
-
-            // Temporal can be Numeric (timestamp)
-            (ColumnKind::Temporal, ColumnKind::Numeric) => true,
+            (Self::Text | Self::Categorical, _) => target != Self::Nested,
 
             _ => false,
         }
@@ -314,11 +315,11 @@ mod tests {
     #[test]
     fn test_column_summary_compatibility() {
         let mut freq = HashMap::new();
-        freq.insert("SYD".to_string(), 10);
-        freq.insert("MEL".to_string(), 5);
+        freq.insert("SYD".to_owned(), 10);
+        freq.insert("MEL".to_owned(), 5);
 
         let summary = ColumnSummary {
-            name: "city".to_string(),
+            name: "city".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,
@@ -336,11 +337,11 @@ mod tests {
 
         // Now with numeric categories
         let mut freq_num = HashMap::new();
-        freq_num.insert("1".to_string(), 10);
-        freq_num.insert("2".to_string(), 5);
+        freq_num.insert("1".to_owned(), 10);
+        freq_num.insert("2".to_owned(), 5);
 
         let summary_num = ColumnSummary {
-            name: "id".to_string(),
+            name: "id".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,
@@ -357,10 +358,10 @@ mod tests {
 
         // Now with date-like categories
         let mut freq_date = HashMap::new();
-        freq_date.insert("2023-01-01".to_string(), 10);
-        
+        freq_date.insert("2023-01-01".to_owned(), 10);
+
         let summary_date = ColumnSummary {
-            name: "date".to_string(),
+            name: "date".to_owned(),
             kind: ColumnKind::Categorical,
             count: 10,
             nulls: 0,
@@ -374,11 +375,11 @@ mod tests {
 
         // Now with boolean categories
         let mut freq_bool = HashMap::new();
-        freq_bool.insert("1".to_string(), 10);
-        freq_bool.insert("0".to_string(), 5);
+        freq_bool.insert("1".to_owned(), 10);
+        freq_bool.insert("0".to_owned(), 5);
 
         let summary_bool = ColumnSummary {
-            name: "active".to_string(),
+            name: "active".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,

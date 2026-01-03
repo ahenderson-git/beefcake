@@ -1,4 +1,4 @@
-use super::types::{ColumnSummary, ColumnStats, FileHealth};
+use super::types::{ColumnStats, ColumnSummary, FileHealth};
 
 pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
     let mut risks = Vec::new();
@@ -47,8 +47,8 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
             }
         }
     }
-    FileHealth { 
+    FileHealth {
         score: (score.max(0.0) / 100.0) as f32,
-        risks 
+        risks,
     }
 }

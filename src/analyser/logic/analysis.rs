@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 use polars::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -30,7 +30,9 @@ pub fn load_df(path: &std::path::Path, progress: &Arc<AtomicU64>) -> Result<Data
     let mut df = match ext.as_str() {
         "json" => {
             let file = std::fs::File::open(path).context("Failed to open JSON file")?;
-            JsonReader::new(file).finish().context("Failed to parse JSON")?
+            JsonReader::new(file)
+                .finish()
+                .context("Failed to parse JSON")?
         }
         "jsonl" | "ndjson" => JsonLineReader::from_path(path)
             .context("Failed to open JSONL file")?
@@ -38,7 +40,9 @@ pub fn load_df(path: &std::path::Path, progress: &Arc<AtomicU64>) -> Result<Data
             .context("Failed to parse JSONL")?,
         "parquet" => {
             let file = std::fs::File::open(path).context("Failed to open Parquet file")?;
-            ParquetReader::new(file).finish().context("Failed to parse Parquet")?
+            ParquetReader::new(file)
+                .finish()
+                .context("Failed to parse Parquet")?
         }
         _ => LazyCsvReader::new(path)
             .with_try_parse_dates(true)
@@ -94,6 +98,32 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
     }
 }
 
+pub fn save_df(df: &mut DataFrame, path: &std::path::Path) -> Result<()> {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let file = std::fs::File::create(path).context("Failed to create export file")?;
+
+    match ext.as_str() {
+        "parquet" => {
+            ParquetWriter::new(file)
+                .finish(df)
+                .context("Failed to write Parquet file")?;
+        }
+        _ => {
+            CsvWriter::new(file)
+                .include_header(true)
+                .finish(df)
+                .context("Failed to write CSV file")?;
+        }
+    }
+
+    Ok(())
+}
+
 pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
     let row_count = df.height();
     let mut summaries = Vec::new();
@@ -121,29 +151,22 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
         };
 
         let dtype = col.dtype();
-        let mut has_special = false;
 
-        let (kind, stats) = if dtype.is_bool() {
-            analyse_boolean(col).context(format!("Analysis failed for boolean column '{name}'"))?
+        let (kind, stats, has_special) = if dtype.is_bool() {
+            let (k, s) = analyse_boolean(col).context(format!("Analysis failed for boolean column '{name}'"))?;
+            (k, s, false)
         } else if dtype.is_numeric() {
-            analyse_numeric(col, trim_pct).context(format!("Analysis failed for numeric column '{name}'"))?
+            let (k, s) = analyse_numeric(col, trim_pct)
+                .context(format!("Analysis failed for numeric column '{name}'"))?;
+            (k, s, false)
         } else if dtype.is_temporal() {
-            analyse_temporal(col).context(format!("Analysis failed for temporal column '{name}'"))?
+            let (k, s) = analyse_temporal(col)
+                .context(format!("Analysis failed for temporal column '{name}'"))?;
+            (k, s, false)
         } else {
-            analyse_text_or_fallback(&name, col).context(format!("Analysis failed for text column '{name}'"))?
+            analyse_text_or_fallback(&name, col)
+                .context(format!("Analysis failed for text column '{name}'"))?
         };
-
-        // Special character detection for strings
-        if dtype.is_string() {
-            let s = col.as_materialized_series();
-            let ca = s.str().context("Failed to access string data for special char detection")?;
-            for val in ca.into_iter().flatten() {
-                if val.chars().any(|c| c == '\r' || (c.is_control() && c != '\n' && c != '\t')) {
-                    has_special = true;
-                    break;
-                }
-            }
-        }
 
         let mut summary = ColumnSummary {
             name,
@@ -164,6 +187,7 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
     Ok(summaries)
 }
 
+#[expect(clippy::too_many_lines)]
 pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> Result<DataFrame> {
     let mut lf = df.lazy();
     let mut rename_map = Vec::new();
@@ -174,7 +198,9 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
     sorted_keys.sort();
 
     for old_name in sorted_keys {
-        let config = configs.get(old_name).context("Missing configuration for column")?;
+        let config = configs
+            .get(old_name)
+            .context("Missing configuration for column")?;
 
         if !config.active {
             lf = lf.select([col("*").exclude([old_name.as_str()])]);
@@ -184,29 +210,31 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         let mut expr = col(old_name);
 
         // 1. Imputation (Must happen early)
-        match config.impute_mode {
-            ImputeMode::None => {}
-            ImputeMode::Zero => {
-                expr = expr.fill_null(lit(0));
-            }
-            ImputeMode::Mean => {
-                expr = expr.clone().fill_null(expr.clone().mean());
-            }
-            ImputeMode::Median => {
-                expr = expr.clone().fill_null(expr.clone().median());
-            }
-            ImputeMode::Mode => {
-                expr = expr.clone().fill_null(expr.clone().mode().first());
+        if config.ml_preprocessing {
+            match config.impute_mode {
+                ImputeMode::None => {}
+                ImputeMode::Zero => {
+                    expr = expr.fill_null(lit(0));
+                }
+                ImputeMode::Mean => {
+                    expr = expr.clone().fill_null(expr.clone().mean());
+                }
+                ImputeMode::Median => {
+                    expr = expr.clone().fill_null(expr.clone().median());
+                }
+                ImputeMode::Mode => {
+                    expr = expr.clone().fill_null(expr.clone().mode().first());
+                }
             }
         }
 
         // 2. Trim whitespace and tabs
-        if config.trim_whitespace {
+        if config.advanced_cleaning && config.trim_whitespace {
             expr = expr.str().strip_chars(lit(Null {}));
         }
 
         // 3. Remove special characters (CR, Null, control chars)
-        if config.remove_special_chars {
+        if config.advanced_cleaning && config.remove_special_chars {
             // Regex for common non-printable/control characters
             expr = expr.str().replace_all(lit(r"[\r\x00-\x1F]"), lit(""), true);
         }
@@ -223,25 +251,25 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         }
 
         // 5. Normalization
-        match config.normalization {
-            NormalizationMethod::None => {}
-            NormalizationMethod::ZScore => {
-                let mean = expr.clone().mean();
-                let std = expr.clone().std(1);
-                expr = (expr - mean) / std;
-            }
-            NormalizationMethod::MinMax => {
-                let min = expr.clone().min();
-                let max = expr.clone().max();
-                expr = (expr.clone() - min.clone()) / (max - min);
+        if config.ml_preprocessing {
+            match config.normalization {
+                NormalizationMethod::None => {}
+                NormalizationMethod::ZScore => {
+                    let mean = expr.clone().mean();
+                    let std = expr.clone().std(1);
+                    expr = (expr - mean) / std;
+                }
+                NormalizationMethod::MinMax => {
+                    let min = expr.clone().min();
+                    let max = expr.clone().max();
+                    expr = (expr.clone() - min.clone()) / (max - min);
+                }
             }
         }
 
-        let needs_update = config.trim_whitespace
-            || config.remove_special_chars
+        let needs_update = (config.advanced_cleaning && (config.trim_whitespace || config.remove_special_chars))
             || config.target_dtype.is_some()
-            || config.impute_mode != ImputeMode::None
-            || config.normalization != NormalizationMethod::None;
+            || (config.ml_preprocessing && (config.impute_mode != ImputeMode::None || config.normalization != NormalizationMethod::None));
 
         if needs_update {
             lf = lf.with_column(expr.alias(old_name));
@@ -253,7 +281,7 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         }
 
         // Queue One-Hot encoding (will use the name AFTER rename if any)
-        if config.one_hot_encode {
+        if config.ml_preprocessing && config.one_hot_encode {
             let final_name = if !config.new_name.is_empty() {
                 config.new_name.clone()
             } else {
@@ -269,22 +297,41 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         lf = lf.rename(old_names, new_names, false);
     }
 
-    let mut result_df = lf.collect().context("Failed to apply cleaning steps to DataFrame")?;
+    let mut result_df = lf
+        .collect()
+        .context("Failed to apply cleaning steps to DataFrame")?;
 
     // 6. One-Hot Encoding (Manual Implementation)
     if !one_hot_cols.is_empty() {
         for col_name in one_hot_cols {
-            let column = result_df.column(&col_name).context("Failed to access column for One-Hot encoding")?.as_materialized_series();
-            let s_str = column.cast(&DataType::String).context("Failed to cast column to string for One-Hot encoding")?;
-            let s_str = s_str.str().context("Failed to access string data for One-Hot encoding")?;
-            let unique_values = s_str.unique().context("Failed to get unique values for One-Hot encoding")?;
+            let column = result_df
+                .column(&col_name)
+                .context("Failed to access column for One-Hot encoding")?
+                .as_materialized_series();
+            let s_str = column
+                .cast(&DataType::String)
+                .context("Failed to cast column to string for One-Hot encoding")?;
+            let s_str = s_str
+                .str()
+                .context("Failed to access string data for One-Hot encoding")?;
+            let unique_values = s_str
+                .unique()
+                .context("Failed to get unique values for One-Hot encoding")?;
 
             for val in unique_values.into_iter().flatten() {
                 let dummy_col_name = format!("{col_name}_{val}");
-                let dummy_series = s_str.equal(val).into_series().cast(&DataType::Int32).context("Failed to create binary series for One-Hot encoding")?;
-                result_df.with_column(Column::from(dummy_series).with_name(dummy_col_name.into())).context("Failed to add One-Hot column to DataFrame")?;
+                let dummy_series = s_str
+                    .equal(val)
+                    .into_series()
+                    .cast(&DataType::Int32)
+                    .context("Failed to create binary series for One-Hot encoding")?;
+                result_df
+                    .with_column(Column::from(dummy_series).with_name(dummy_col_name.into()))
+                    .context("Failed to add One-Hot column to DataFrame")?;
             }
-            result_df.drop_in_place(&col_name).context("Failed to drop original column after One-Hot encoding")?;
+            result_df
+                .drop_in_place(&col_name)
+                .context("Failed to drop original column after One-Hot encoding")?;
         }
     }
 
@@ -330,9 +377,20 @@ fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, ColumnSta
     let trimmed_mean = calculate_trimmed_mean(ca, mean, trim_pct);
     let (bin_width, histogram) = calculate_histogram(ca, min, max, q1, q3);
 
-    let zero_count = ca.into_iter().flatten().filter(|&v| v == 0.0).count();
-    let negative_count = ca.into_iter().flatten().filter(|&v| v < 0.0).count();
-    let is_integer = ca.into_iter().flatten().all(|v| v.fract() == 0.0);
+    let mut zero_count = 0;
+    let mut negative_count = 0;
+    let mut is_integer = true;
+    for v in ca.into_iter().flatten() {
+        if v == 0.0 {
+            zero_count += 1;
+        }
+        if v < 0.0 {
+            negative_count += 1;
+        }
+        if is_integer && v.fract() != 0.0 {
+            is_integer = false;
+        }
+    }
 
     // Sorting flags
     let is_sorted = series.is_sorted(SortOptions {
@@ -394,7 +452,11 @@ fn check_effective_boolean(
     };
 
     if is_effective_bool {
-        let true_count = ca.into_iter().flatten().filter(|&v| (v - 1.0).abs() < 1e-9).count();
+        let true_count = ca
+            .into_iter()
+            .flatten()
+            .filter(|&v| (v - 1.0).abs() < 1e-9)
+            .count();
         let false_count = ca.len() - ca.null_count() - true_count;
         return Ok(Some((
             ColumnKind::Boolean,
@@ -407,7 +469,13 @@ fn check_effective_boolean(
     Ok(None)
 }
 
-fn calculate_skew(mean: Option<f64>, median: Option<f64>, q1: Option<f64>, q3: Option<f64>, std_dev: Option<f64>) -> Option<f64> {
+fn calculate_skew(
+    mean: Option<f64>,
+    median: Option<f64>,
+    q1: Option<f64>,
+    q3: Option<f64>,
+    std_dev: Option<f64>,
+) -> Option<f64> {
     if let (Some(m), Some(md), Some(q1v), Some(q3v)) = (mean, median, q1, q3) {
         let iqr = q3v - q1v;
         if iqr > 0.0 {
@@ -442,7 +510,13 @@ fn calculate_trimmed_mean(ca: &Float64Chunked, mean: Option<f64>, trim_pct: f64)
     }
 }
 
-fn calculate_histogram(ca: &Float64Chunked, min: Option<f64>, max: Option<f64>, q1: Option<f64>, q3: Option<f64>) -> (f64, Vec<(f64, usize)>) {
+fn calculate_histogram(
+    ca: &Float64Chunked,
+    min: Option<f64>,
+    max: Option<f64>,
+    q1: Option<f64>,
+    q3: Option<f64>,
+) -> (f64, Vec<(f64, usize)>) {
     let mut histogram = Vec::new();
     let mut final_bin_width = 1.0;
     if let (Some(min_v), Some(max_v)) = (min, max) {
@@ -454,7 +528,9 @@ fn calculate_histogram(ca: &Float64Chunked, min: Option<f64>, max: Option<f64>, 
             } else {
                 (max_v - min_v) / 20.0
             };
-            if bin_width <= 0.0 { bin_width = 1.0; }
+            if bin_width <= 0.0 {
+                bin_width = 1.0;
+            }
 
             if min_v < max_v {
                 let mut bin_counts: HashMap<i64, usize> = HashMap::new();
@@ -480,7 +556,8 @@ fn calculate_histogram(ca: &Float64Chunked, min: Option<f64>, max: Option<f64>, 
                     let center = min_v + (b as f64 + 0.5) * bin_width;
                     histogram.push((center, count));
                 }
-                histogram.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                histogram
+                    .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
             } else {
                 final_bin_width = 1.0;
                 let center = min_v;
@@ -498,8 +575,18 @@ fn calculate_histogram(ca: &Float64Chunked, min: Option<f64>, max: Option<f64>, 
 
 fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
     let series = col.as_materialized_series();
-    let min_str = series.cast(&DataType::String)?.min_reduce()?.as_any_value().get_str().map(|s| s.to_owned());
-    let max_str = series.cast(&DataType::String)?.max_reduce()?.as_any_value().get_str().map(|s| s.to_owned());
+    let min_str = series
+        .cast(&DataType::String)?
+        .min_reduce()?
+        .as_any_value()
+        .get_str()
+        .map(|s| s.to_owned());
+    let max_str = series
+        .cast(&DataType::String)?
+        .max_reduce()?
+        .as_any_value()
+        .get_str()
+        .map(|s| s.to_owned());
 
     let ts_ca = series.cast(&DataType::Int64)?;
     let ts_ca = ts_ca.i64()?;
@@ -525,7 +612,9 @@ fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
         let n = ts_ca.len() - ts_ca.null_count();
         if n > 0 {
             let mut bin_width = (max_v - min_v) as f64 / 50.0;
-            if bin_width <= 0.0 { bin_width = 1.0; }
+            if bin_width <= 0.0 {
+                bin_width = 1.0;
+            }
 
             if min_v < max_v {
                 let mut bin_counts: HashMap<i64, usize> = HashMap::new();
@@ -551,7 +640,8 @@ fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
                     let center = min_v as f64 + (b as f64 + 0.5) * bin_width;
                     histogram.push((center, count));
                 }
-                histogram.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                histogram
+                    .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
             } else {
                 final_bin_width = 1.0;
                 histogram.push((min_v as f64, n));
@@ -574,7 +664,7 @@ fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
     ))
 }
 
-fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, ColumnStats)> {
+fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, ColumnStats, bool)> {
     let series = col.as_materialized_series();
     let dtype = col.dtype();
 
@@ -606,8 +696,29 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
         None
     };
 
+    let mut has_special = false;
+    if dtype.is_string() {
+        if let Some(vc) = &value_counts_df {
+            let values = vc.column(name)?.as_materialized_series();
+            let v_ca = values.cast(&DataType::String)?;
+            let v_ca = v_ca.str()?;
+            for v in v_ca.into_iter().flatten() {
+                if v.chars()
+                    .any(|c| c == '\r' || (c.is_control() && c != '\n' && c != '\t'))
+                {
+                    has_special = true;
+                    break;
+                }
+            }
+        }
+    }
+
     // Categorical detection
-    if kind == ColumnKind::Text && distinct > 0 && distinct <= 25 && (distinct < row_count || row_count == 1) {
+    if kind == ColumnKind::Text
+        && distinct > 0
+        && distinct <= 25
+        && (distinct < row_count || row_count == 1)
+    {
         if let Some(vc) = &value_counts_df {
             let values = vc.column(name)?.as_materialized_series();
             let counts = vc.column("counts")?.as_materialized_series();
@@ -623,7 +734,11 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
                 }
             }
 
-            return Ok((ColumnKind::Categorical, ColumnStats::Categorical(freq)));
+            return Ok((
+                ColumnKind::Categorical,
+                ColumnStats::Categorical(freq),
+                has_special,
+            ));
         }
     }
 
@@ -635,7 +750,10 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
             .cast(&DataType::String)
             .ok()
             .and_then(|s| s.str().ok().and_then(|ca| ca.get(0).map(|s| s.to_owned())));
-        let c = counts.u32().ok().and_then(|ca| ca.get(0).map(|c| c as usize));
+        let c = counts
+            .u32()
+            .ok()
+            .and_then(|ca| ca.get(0).map(|c| c as usize));
 
         if let (Some(v_str), Some(c_val)) = (v, c) {
             Some((v_str, c_val))
@@ -655,5 +773,6 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
             max_length,
             avg_length,
         }),
+        has_special,
     ))
 }

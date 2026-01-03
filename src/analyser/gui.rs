@@ -11,13 +11,12 @@ use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
 
-use super::model::AnalysisModel;
 use super::controller::AnalysisController;
 use super::logic::{
-    BooleanStats, ColumnStats, ColumnSummary, FileHealth,
-    NumericStats, TemporalStats, TextStats,
+    BooleanStats, ColumnStats, ColumnSummary, FileHealth, NumericStats, TemporalStats, TextStats,
 };
-use crate::utils::{fmt_bytes, fmt_opt};
+use super::model::AnalysisModel;
+use crate::utils::{fmt_bytes, fmt_num_human, fmt_opt};
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct App {
@@ -26,15 +25,22 @@ pub struct App {
     pub controller: AnalysisController,
     pub status: String,
     pub load_summary: Option<String>,
+    pub summary_minimized: bool,
     #[serde(skip)]
     pub expanded_rows: std::collections::HashSet<String>,
     #[serde(skip)]
     pub should_scroll_to_top: bool,
     #[serde(skip)]
     pub show_ml_details: bool,
+    #[serde(skip)]
+    pub audit_log: Vec<crate::utils::AuditEntry>,
 }
 
 impl App {
+    pub fn log_action(&mut self, action: &str, details: &str) {
+        crate::utils::push_audit_log(&mut self.audit_log, action, details);
+    }
+
     pub fn update(&mut self, ctx: &egui::Context) -> bool {
         self.handle_receivers();
 
@@ -64,7 +70,6 @@ impl App {
             ui.add_space(4.0);
             self.render_ml_panel(ui, ctx);
 
-            let mut dismiss = false;
             if let Some(summary) = &self.load_summary {
                 ui.add_space(8.0);
                 egui::Frame::group(ui.style())
@@ -74,27 +79,26 @@ impl App {
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
                                 ui.label(egui::RichText::new("📋 File Summary").strong());
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    if ui.button("Dismiss").clicked() {
-                                        dismiss = true;
-                                    }
-                                });
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        let btn_text = if self.summary_minimized { "Expand" } else { "Minimise" };
+                                        if ui.button(btn_text).clicked() {
+                                            self.summary_minimized = !self.summary_minimized;
+                                        }
+                                    },
+                                );
                             });
-                            ui.separator();
-                            ui.label(summary);
+                            if !self.summary_minimized {
+                                ui.separator();
+                                ui.label(summary);
+                            }
                         });
                     });
             }
-            if dismiss {
-                self.load_summary = None;
-            }
 
             ui.add_space(4.0);
-            if self.status.starts_with("Error") || self.status.contains("failed") {
-                ui.label(egui::RichText::new(&self.status).color(egui::Color32::RED).strong());
-            } else {
-                ui.label(&self.status);
-            }
+            crate::utils::render_status_message(ui, &self.status);
 
             if !self.model.summary.is_empty() {
                 ui.separator();
@@ -106,106 +110,185 @@ impl App {
     }
 
     fn handle_receivers(&mut self) {
-        if let Some(rx) = &self.controller.receiver {
-            if let Ok(result) = rx.try_recv() {
-                self.controller.is_loading = false;
-                self.controller.receiver = None;
-                self.controller.start_time = None; // Reset timer
-                match result {
-                    Ok((path, size, summary, health, duration, df)) => {
-                        self.model.file_path = Some(path);
-                        self.model.file_size = size;
-                        self.model.summary = summary;
-                        self.model.health = Some(health);
-                        self.model.last_duration = Some(duration);
-                        self.model.df = Some(df);
-                        self.should_scroll_to_top = true;
+        self.handle_analysis_receiver();
+        self.handle_push_receiver();
+        self.handle_test_receiver();
+        self.handle_training_receiver();
+        self.handle_export_receiver();
+    }
 
-                        // Reset cleaning configs if we just applied them, otherwise preserve (for trim changes)
-                        if self.controller.was_cleaning {
-                            self.model.cleaning_configs.clear();
-                        }
-                        for col in &self.model.summary {
-                            self.model.cleaning_configs
-                                .entry(col.name.clone())
-                                .or_default();
-                        }
+    fn handle_analysis_receiver(&mut self) {
+        let result = self
+            .controller
+            .receiver
+            .as_ref()
+            .and_then(|rx| rx.try_recv().ok());
 
-                        let path_display = self.model.file_path.as_deref().unwrap_or("file");
-                        let secs = duration.as_secs_f32();
-                        self.status = format!("Loaded {path_display} in {secs:.2}s");
+        if let Some(result) = result {
+            self.controller.is_loading = false;
+            self.controller.receiver = None;
+            self.controller.start_time = None; // Reset timer
+            match result {
+                Ok((path, size, summary, health, duration, df)) => {
+                    self.model.file_path = Some(path);
+                    self.model.file_size = size;
+                    self.model.summary = summary;
+                    self.model.health = Some(health);
+                    self.model.last_duration = Some(duration);
+                    self.model.df = Some(df);
+                    self.should_scroll_to_top = true;
 
-                        // Generate load summary
-                        let mut breakdown = std::collections::HashMap::new();
-                        for col in &self.model.summary {
-                            *breakdown.entry(col.kind.as_str()).or_insert(0) += 1;
-                        }
+                    // Reset cleaning configs if we just applied them, otherwise preserve (for trim changes)
+                    if self.controller.was_cleaning {
+                        self.model.cleaning_configs.clear();
+                    }
+                    for col in &self.model.summary {
+                        self.model
+                            .cleaning_configs
+                            .entry(col.name.clone())
+                            .or_default();
+                    }
 
-                        let mut breakdown_str = String::new();
-                        let mut keys: Vec<_> = breakdown.keys().collect();
-                        keys.sort();
-                        for key in keys {
-                            breakdown_str.push_str(&format!("\n - {}: {}", key, breakdown[key]));
-                        }
+                    let path_display = self.model.file_path.as_deref().unwrap_or("file").to_owned();
+                    let secs = duration.as_secs_f32();
+                    self.status = format!("Loaded {path_display} in {secs:.2}s");
 
-                        let row_count = self.model.summary.first().map(|c| c.count).unwrap_or(0);
-                        let col_count = self.model.summary.len();
-                        let size_fmt = fmt_bytes(size);
+                    // Generate load summary
+                    let mut breakdown = std::collections::HashMap::new();
+                    for col in &self.model.summary {
+                        *breakdown.entry(col.kind.as_str()).or_insert(0) += 1;
+                    }
 
-                        let mut msg = format!(
-                            "{} rows\n{} columns\nBreakdown by Type:{}",
-                            row_count, col_count, breakdown_str
-                        );
-                        msg.push_str(&format!("\n\nFile Size: {}", size_fmt));
-                        
-                        if let Some(h) = &self.model.health {
-                            msg.push_str(&format!("\nHealth Score: {:.0}%", h.score * 100.0));
+                    let mut breakdown_str = String::new();
+                    let mut keys: Vec<_> = breakdown.keys().collect();
+                    keys.sort();
+                    for key in keys {
+                        let count = breakdown.get(key).unwrap_or(&0);
+                        breakdown_str.push_str(&format!("\n - {key}: {count}"));
+                    }
 
-                            if !h.risks.is_empty() {
-                                msg.push_str("\n\nTop Risks:");
-                                for risk in h.risks.iter().take(3) {
-                                    msg.push_str(&format!("\n • {}", risk));
-                                }
+                    let row_count = self.model.summary.first().map(|c| c.count).unwrap_or(0);
+                    let row_count_fmt = fmt_num_human(row_count);
+                    let col_count = self.model.summary.len();
+                    let size_fmt = fmt_bytes(size);
+
+                    let mut msg = format!(
+                        "{row_count} ({row_count_fmt}) rows\n{col_count} columns\nBreakdown by Type:{breakdown_str}"
+                    );
+                    msg.push_str(&format!("\n\nFile Size: {size_fmt}"));
+
+                    if let Some(h) = &self.model.health {
+                        msg.push_str(&format!("\nHealth Score: {:.0}%", h.score * 100.0));
+
+                        if !h.risks.is_empty() {
+                            msg.push_str("\n\nTop Risks:");
+                            for risk in h.risks.iter().take(3) {
+                                msg.push_str(&format!("\n • {risk}"));
                             }
                         }
-                        self.load_summary = Some(msg);
                     }
-                    Err(e) => {
-                        self.status = format!("Error: {e}");
-                    }
+                    self.load_summary = Some(msg);
+                    self.summary_minimized = false;
+                    self.log_action("File Analysed", &path_display);
+                }
+                Err(e) => {
+                    self.status = format!("Error: {e}");
+                    self.log_action("Analysis Failed", &e.to_string());
                 }
             }
         }
+    }
 
-        if let Some(rx) = &self.controller.push_receiver {
-            if let Ok(result) = rx.try_recv() {
-                let duration = self.controller.push_start_time.take().map(|s| s.elapsed());
-                self.model.push_last_duration = duration;
-                self.controller.is_pushing = false;
-                self.controller.push_receiver = None;
-                match result {
-                    Ok(_) => {
-                        let secs = duration.map(|d| d.as_secs_f32()).unwrap_or(0.0);
-                        self.status = format!("Successfully pushed to PostgreSQL in {secs:.2}s");
-                    }
-                    Err(e) => {
-                        self.status = format!("PostgreSQL Push Error: {e}");
-                    }
+    fn handle_push_receiver(&mut self) {
+        let result = self
+            .controller
+            .push_receiver
+            .as_ref()
+            .and_then(|rx| rx.try_recv().ok());
+        if let Some(result) = result {
+            let duration = self.controller.push_start_time.take().map(|s| s.elapsed());
+            self.model.push_last_duration = duration;
+            self.controller.is_pushing = false;
+            self.controller.push_receiver = None;
+            match result {
+                Ok(_) => {
+                    let secs = duration.map(|d| d.as_secs_f32()).unwrap_or(0.0);
+                    self.status = format!("Successfully pushed to PostgreSQL in {secs:.2}s");
+                    let table = self.model.pg_table.clone();
+                    self.log_action("Export Successful", &format!("Table: {table}"));
+                }
+                Err(e) => {
+                    self.status = format!("PostgreSQL Push Error: {e}");
+                    self.log_action("Export Failed", &e.to_string());
                 }
             }
         }
+    }
 
-        if let Some(rx) = &self.controller.test_receiver {
-            if let Ok(result) = rx.try_recv() {
-                self.controller.is_testing = false;
-                self.controller.test_receiver = None;
-                match result {
-                    Ok(_) => {
-                        self.status = "✅ Database connection test successful!".to_owned();
-                    }
-                    Err(e) => {
-                        self.status = format!("❌ Database connection test failed: {}", e);
-                    }
+    fn handle_test_receiver(&mut self) {
+        let result = self
+            .controller
+            .test_receiver
+            .as_ref()
+            .and_then(|rx| rx.try_recv().ok());
+        if let Some(result) = result {
+            self.controller.is_testing = false;
+            self.controller.test_receiver = None;
+            let host = self.model.pg_host.clone();
+            match result {
+                Ok(_) => {
+                    self.status = "✅ Database connection test successful!".to_owned();
+                    self.log_action("DB Test Success", &host);
+                }
+                Err(e) => {
+                    self.status = format!("❌ Database connection test failed: {e}");
+                    self.log_action("DB Test Failed", &host);
+                }
+            }
+        }
+    }
+
+    fn handle_training_receiver(&mut self) {
+        let result = self
+            .controller
+            .training_receiver
+            .as_ref()
+            .and_then(|rx| rx.try_recv().ok());
+        if let Some(result) = result {
+            self.controller.is_training = false;
+            self.controller.training_receiver = None;
+            match result {
+                Ok(res) => {
+                    let target = res.target_column.clone();
+                    self.model.ml_results = Some(res);
+                    self.status = "✅ ML Training successful!".to_owned();
+                    self.log_action("ML Training Success", &format!("Target: {target}"));
+                }
+                Err(e) => {
+                    self.status = format!("❌ ML Training failed: {e}");
+                    self.log_action("ML Training Failed", &e.to_string());
+                }
+            }
+        }
+    }
+
+    fn handle_export_receiver(&mut self) {
+        let result = self
+            .controller
+            .export_receiver
+            .as_ref()
+            .and_then(|rx| rx.try_recv().ok());
+        if let Some(result) = result {
+            self.controller.is_exporting = false;
+            self.controller.export_receiver = None;
+            match result {
+                Ok(_) => {
+                    self.status = "✅ File exported successfully!".to_owned();
+                    self.log_action("File Exported", "Cleaned data saved to disk");
+                }
+                Err(e) => {
+                    self.status = format!("❌ Export failed: {e}");
+                    self.log_action("Export Failed", &e.to_string());
                 }
             }
         }
@@ -275,6 +358,16 @@ impl App {
                     {
                         self.start_cleaning(ctx.clone());
                     }
+
+                    if ui
+                        .button("💾 Export to File")
+                        .on_hover_text("Export the currently cleaned and preprocessed data to CSV or Parquet.")
+                        .clicked()
+                        && !self.controller.is_exporting
+                        && self.model.df.is_some()
+                    {
+                        self.start_export(ctx.clone());
+                    }
                 });
             });
 
@@ -296,6 +389,12 @@ impl App {
                         ui.label(format!("({elapsed:.1}s)"));
                     }
                 });
+            } else if self.controller.is_exporting {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Exporting...");
+                });
             } else if let Some(duration) = self.model.last_duration {
                 ui.add_space(4.0);
                 let secs = duration.as_secs_f32();
@@ -314,30 +413,34 @@ impl App {
                     ui.label("🚀 Database Export:");
 
                     if self.model.pg_host.is_empty() || self.model.pg_database.is_empty() {
-                        ui.label(egui::RichText::new("⚠ Connection not set").color(egui::Color32::RED))
-                            .on_hover_text("Configure the database connection in Main Menu -> Database Settings");
+                        ui.label(
+                            egui::RichText::new("⚠ Connection not set").color(egui::Color32::RED),
+                        )
+                        .on_hover_text(
+                            "Configure the database connection in Main Menu -> Database Settings",
+                        );
                     } else {
-                        ui.label(egui::RichText::new("✅ Configured").color(egui::Color32::from_rgb(0, 150, 0)))
-                            .on_hover_text("Database connection is configured in Settings.");
-                        
+                        let port_part = if self.model.pg_port.is_empty() {
+                            String::new()
+                        } else {
+                            format!(":{}", self.model.pg_port)
+                        };
+                        let details = format!("{}{}/{}", self.model.pg_host, port_part, self.model.pg_database);
+
+                        ui.label(
+                            egui::RichText::new(format!("✅ Configured ({details})"))
+                                .color(egui::Color32::from_rgb(0, 150, 0)),
+                        )
+                        .on_hover_text(format!(
+                            "Host: {}\nDatabase: {}\nConfigure in Main Menu -> Database Settings",
+                            self.model.pg_host, self.model.pg_database
+                        ));
+
                         if self.controller.is_testing {
                             ui.spinner();
                             ui.label("Testing...");
-                        } else {
-                            if ui.button("🔌 Test").clicked() {
-                                self.start_test_connection(ctx.clone());
-                            }
-
-                            if self.status.contains("connection test") {
-                                let color = if self.status.contains("failed") || self.status.contains("Error") {
-                                    egui::Color32::RED
-                                } else if self.status.contains("successful") {
-                                    egui::Color32::from_rgb(0, 150, 0)
-                                } else {
-                                    ui.visuals().text_color()
-                                };
-                                ui.label(egui::RichText::new(&self.status).color(color));
-                            }
+                        } else if ui.button("🔌 Test").clicked() {
+                            self.start_test_connection(ctx.clone());
                         }
                     }
 
@@ -372,21 +475,10 @@ impl App {
                         )
                         .clicked()
                     {
-                        if let (Some(df), Some(health), Some(path)) =
-                            (self.model.df.as_ref(), self.model.health.as_ref(), self.model.file_path.as_ref())
+                        if let (Some(health), Some(path)) =
+                            (self.model.health.as_ref(), self.model.file_path.as_ref())
                         {
-                            // Filter out inactive columns before pushing
-                            let mut filtered_df = df.clone();
-                            let mut filtered_summary = self.model.summary.clone();
-                            
-                            for (name, config) in &self.model.cleaning_configs {
-                                if !config.active {
-                                    if filtered_df.column(name).is_ok() {
-                                        let _ = filtered_df.drop_in_place(name);
-                                    }
-                                    filtered_summary.retain(|c| &c.name != name);
-                                }
-                            }
+                            let (filtered_df, filtered_summary) = self.get_filtered_data();
 
                             self.start_push_to_db(
                                 ctx.clone(),
@@ -442,7 +534,7 @@ impl App {
 
                     // 2. Target Column Selection
                     ui.label("Target:");
-                    let target_text = self.model.ml_target.clone().unwrap_or_else(|| "Select...".to_string());
+                    let target_text = self.model.ml_target.clone().unwrap_or_else(|| "Select...".to_owned());
                     egui::ComboBox::from_id_salt("ml_target")
                         .selected_text(target_text)
                         .show_ui(ui, |ui| {
@@ -476,27 +568,22 @@ impl App {
                             .count();
 
                         let can_train = self.model.df.is_some() && self.model.ml_target.is_some() && n_features > 0;
-                        
+
                         ui.horizontal(|ui| {
                             let btn = ui.add_enabled(can_train, egui::Button::new("🚀 Train Model"));
                             if btn.clicked() {
-                                if let (Some(df), Some(target)) = (self.model.df.clone(), self.model.ml_target.clone()) {
-                                    // Filter out inactive columns before training
-                                    let mut filtered_df = df;
-                                    for (name, config) in &self.model.cleaning_configs {
-                                        if !config.active && filtered_df.column(name).is_ok() {
-                                            let _ = filtered_df.drop_in_place(name);
-                                        }
-                                    }
-                                    self.controller.start_training(ctx.clone(), filtered_df, target, self.model.ml_model_kind);
+                                if let Some(target) = self.model.ml_target.clone() {
+                                    let (filtered_df, _) = self.get_filtered_data();
+                                    self.controller.start_training(ctx.clone(), filtered_df, target.clone(), self.model.ml_model_kind);
+                                    self.log_action("ML Training Started", &format!("Target: {target}"));
                                 }
                             }
-                            
+
                             if n_features == 0 && self.model.ml_target.is_some() {
                                 ui.label(egui::RichText::new("⚠ No features").color(egui::Color32::RED))
                                     .on_hover_text("No numeric or boolean columns found to use as features. Try using 'Apply Cleaning' to convert categories to One-Hot encoding first.");
                             } else {
-                                ui.label(format!("({} features)", n_features))
+                                ui.label(format!("({n_features} features)"))
                                     .on_hover_text("Number of numeric/boolean columns that will be used to predict the target.");
                             }
                         });
@@ -507,15 +594,15 @@ impl App {
                         ui.separator();
                         ui.label("Last Result:");
                         if let Some(r2) = res.r2_score {
-                            ui.label(format!("R²: {:.4}", r2)).on_hover_text("Coefficient of Determination: 1.0 is perfect prediction.");
+                            ui.label(format!("R²: {r2:.4}")).on_hover_text("Coefficient of Determination: 1.0 is perfect prediction.");
                         }
                         if let Some(acc) = res.accuracy {
                             ui.label(format!("Acc: {:.2}%", acc * 100.0));
                         }
                         if let Some(mse) = res.mse {
-                            ui.label(format!("MSE: {:.4}", mse)).on_hover_text("Mean Squared Error: Lower is better.");
+                            ui.label(format!("MSE: {mse:.4}")).on_hover_text("Mean Squared Error: Lower is better.");
                         }
-                        
+
                         if ui.button("📊 View Details").clicked() {
                             self.show_ml_details = true;
                         }
@@ -526,8 +613,10 @@ impl App {
     }
 
     fn render_ml_details_window(&mut self, ctx: &egui::Context) {
-        let Some(res) = &self.model.ml_results else { return };
-        
+        let Some(res) = &self.model.ml_results else {
+            return;
+        };
+
         egui::Window::new("🧠 ML Model Details")
             .open(&mut self.show_ml_details)
             .resizable(true)
@@ -536,18 +625,21 @@ impl App {
                 ui.vertical(|ui| {
                     ui.heading(format!("Model: {}", res.model_kind.as_str()));
                     ui.label(format!("Target Column: {}", res.target_column));
-                    ui.label(format!("Training Duration: {:.2}s", res.duration.as_secs_f32()));
-                    
+                    ui.label(format!(
+                        "Training Duration: {:.2}s",
+                        res.duration.as_secs_f32()
+                    ));
+
                     ui.separator();
                     ui.strong("Metrics:");
                     if let Some(r2) = res.r2_score {
-                        ui.label(format!("• R² Score: {:.6}", r2));
+                        ui.label(format!("• R² Score: {r2:.6}"));
                     }
                     if let Some(acc) = res.accuracy {
                         ui.label(format!("• Accuracy: {:.2}%", acc * 100.0));
                     }
                     if let Some(mse) = res.mse {
-                        ui.label(format!("• Mean Squared Error: {:.6}", mse));
+                        ui.label(format!("• Mean Squared Error: {mse:.6}"));
                     }
 
                     if !res.interpretation.is_empty() {
@@ -565,26 +657,31 @@ impl App {
                     if let Some(coeffs) = &res.coefficients {
                         ui.separator();
                         ui.strong("Coefficients:");
-                        egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                            egui::Grid::new("coeffs_grid").striped(true).show(ui, |ui| {
-                                let mut sorted_coeffs: Vec<_> = coeffs.iter().collect();
-                                sorted_coeffs.sort_by(|a, b| b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal));
-                                
-                                for (name, val) in sorted_coeffs {
-                                    ui.label(name);
-                                    ui.label(format!("{:.6}", val));
-                                    ui.end_row();
-                                }
+                        egui::ScrollArea::vertical()
+                            .max_height(200.0)
+                            .show(ui, |ui| {
+                                egui::Grid::new("coeffs_grid").striped(true).show(ui, |ui| {
+                                    let mut sorted_coeffs: Vec<_> = coeffs.iter().collect();
+                                    sorted_coeffs.sort_by(|a, b| {
+                                        b.1.abs()
+                                            .partial_cmp(&a.1.abs())
+                                            .unwrap_or(std::cmp::Ordering::Equal)
+                                    });
+
+                                    for (name, val) in sorted_coeffs {
+                                        ui.label(name);
+                                        ui.label(format!("{val:.6}"));
+                                        ui.end_row();
+                                    }
+                                });
                             });
-                        });
                         if let Some(intercept) = res.intercept {
-                            ui.label(format!("Intercept: {:.6}", intercept));
+                            ui.label(format!("Intercept: {intercept:.6}"));
                         }
                     }
                 });
             });
     }
-
 
     fn render_summary_table(&mut self, ui: &mut egui::Ui) {
         let mut scroll_area = egui::ScrollArea::horizontal();
@@ -619,7 +716,8 @@ impl App {
                 .header(25.0, |mut header| {
                     header.col(|_| {}); // Expand
                     header.col(|ui| {
-                        ui.strong("👁").on_hover_text("Include column in analysis and output");
+                        ui.strong("👁")
+                            .on_hover_text("Include column in analysis and output");
                     });
                     header.col(|ui| {
                         let header_color = if ui.visuals().dark_mode {
@@ -639,13 +737,18 @@ impl App {
                         ui.strong("Special");
                     });
                     header.col(|ui| {
-                        ui.strong("Stats & Samples").on_hover_text("Core technical stats and a small selection of sample values.");
+                        ui.strong("Stats & Samples").on_hover_text(
+                            "Core technical stats and a small selection of sample values.",
+                        );
                     });
                     header.col(|ui| {
-                        ui.strong("Technical Summary").on_hover_text("Detailed technical interpretation of the data patterns.");
+                        ui.strong("Technical Summary").on_hover_text(
+                            "Detailed technical interpretation of the data patterns.",
+                        );
                     });
                     header.col(|ui| {
-                        ui.strong("Stakeholder Insight").on_hover_text("Business-friendly explanation of what the data means.");
+                        ui.strong("Stakeholder Insight")
+                            .on_hover_text("Business-friendly explanation of what the data means.");
                     });
                     header.col(|ui| {
                         ui.strong("Histogram");
@@ -675,8 +778,63 @@ impl App {
         });
     }
 
-    fn render_column_row(&mut self, mut row: egui_extras::TableRow<'_, '_>, col: &ColumnSummary, is_expanded: bool) {
-        let is_active = self.model.cleaning_configs.get(&col.name).map(|c| c.active).unwrap_or(true);
+    fn render_column_stats_cell(
+        &mut self,
+        ui: &mut egui::Ui,
+        col: &ColumnSummary,
+        is_expanded: bool,
+    ) {
+        ui.vertical(|ui| {
+            // 1. Core Stats
+            ui.scope(|ui| {
+                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                match &col.stats {
+                    ColumnStats::Numeric(s) => self.render_numeric_stats_info(ui, s),
+                    ColumnStats::Text(s) => Self::render_text_stats_info(ui, s),
+                    ColumnStats::Categorical(freq) => {
+                        Self::render_categorical_stats_info(ui, freq, is_expanded, col.count);
+                    }
+                    ColumnStats::Temporal(s) => Self::render_temporal_stats_info(ui, s),
+                    ColumnStats::Boolean(s) => Self::render_boolean_stats_info(ui, s, col.count),
+                }
+            });
+
+            // 2. Sample Values (Now always shown under stats)
+            if !col.samples.is_empty() {
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new("Samples:").strong().size(11.0));
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(col.samples.join(", "))
+                            .italics()
+                            .size(11.0),
+                    )
+                    .wrap_mode(egui::TextWrapMode::Wrap),
+                );
+            }
+
+            // 3. Advanced Metrics
+            Self::render_advanced_metrics(ui, &col.stats);
+
+            // 4. Advanced Cleaning (Only shown when expanded)
+            if is_expanded {
+                self.render_cleaning_controls(ui, col);
+            }
+        });
+    }
+
+    fn render_column_row(
+        &mut self,
+        mut row: egui_extras::TableRow<'_, '_>,
+        col: &ColumnSummary,
+        is_expanded: bool,
+    ) {
+        let is_active = self
+            .model
+            .cleaning_configs
+            .get(&col.name)
+            .map(|c| c.active)
+            .unwrap_or(true);
 
         row.col(|ui| {
             let icon = if is_expanded { "⏷" } else { "⏵" };
@@ -724,43 +882,7 @@ impl App {
         });
         row.col(|ui| {
             ui.add_enabled_ui(is_active, |ui| {
-                ui.vertical(|ui| {
-                    // 1. Core Stats
-                    ui.scope(|ui| {
-                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-                        match &col.stats {
-                            ColumnStats::Numeric(s) => self.render_numeric_stats_info(ui, s),
-                            ColumnStats::Text(s) => Self::render_text_stats_info(ui, s),
-                            ColumnStats::Categorical(freq) => {
-                                Self::render_categorical_stats_info(ui, freq, is_expanded, col.count);
-                            }
-                            ColumnStats::Temporal(s) => Self::render_temporal_stats_info(ui, s),
-                            ColumnStats::Boolean(s) => Self::render_boolean_stats_info(ui, s, col.count),
-                        }
-                    });
-
-                    // 2. Sample Values (Now always shown under stats)
-                    if !col.samples.is_empty() {
-                        ui.add_space(4.0);
-                        ui.label(egui::RichText::new("Samples:").strong().size(11.0));
-                        ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(col.samples.join(", "))
-                                    .italics()
-                                    .size(11.0),
-                            )
-                            .wrap_mode(egui::TextWrapMode::Wrap),
-                        );
-                    }
-
-                    // 3. Advanced Metrics
-                    Self::render_advanced_metrics(ui, &col.stats);
-
-                    // 4. Advanced Cleaning (Only shown when expanded)
-                    if is_expanded {
-                        self.render_cleaning_controls(ui, col);
-                    }
-                });
+                self.render_column_stats_cell(ui, col, is_expanded);
             });
         });
         row.col(|ui| {
@@ -799,83 +921,134 @@ impl App {
         row.col(|_| {}); // Spacer
     }
 
+    #[expect(clippy::too_many_lines)]
     fn render_cleaning_controls(&mut self, ui: &mut egui::Ui, col: &ColumnSummary) {
         ui.add_space(8.0);
         ui.separator();
-        ui.strong("🧽 Advanced Cleaning:");
+
         if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
+            // --- 1. Advanced Cleaning Section ---
             ui.horizontal(|ui| {
-                ui.checkbox(&mut config.trim_whitespace, "Trim Whitespace");
-                ui.checkbox(&mut config.remove_special_chars, "Remove Special Chars");
+                ui.checkbox(&mut config.advanced_cleaning, "")
+                    .on_hover_text("Enable or disable all advanced cleaning steps for this column.");
+                ui.strong("🧽 Advanced Cleaning:");
+
+                ui.add_enabled_ui(config.advanced_cleaning, |ui| {
+                    ui.checkbox(&mut config.trim_whitespace, "Trim Whitespace");
+                    ui.checkbox(&mut config.remove_special_chars, "Remove Special Chars");
+                });
             });
 
             ui.add_space(4.0);
+
+            // --- 2. ML Preprocessing Section ---
             ui.horizontal(|ui| {
-                ui.label("🧪 ML Preprocessing:").on_hover_text("Prepare data for Machine Learning models.");
+                ui.checkbox(&mut config.ml_preprocessing, "")
+                    .on_hover_text("Enable or disable all ML preprocessing steps for this column.");
+                ui.strong("🧪 ML Preprocessing:");
 
-                let effective_kind = config.target_dtype.unwrap_or(col.kind);
+                ui.add_enabled_ui(config.ml_preprocessing, |ui| {
+                    let effective_kind = config.target_dtype.unwrap_or(col.kind);
 
-                // --- Imputation (Depends on ORIGINAL data type) ---
-                egui::ComboBox::from_id_salt(format!("impute_{}", col.name))
-                    .selected_text(match config.impute_mode {
-                        super::logic::types::ImputeMode::None => "No Imputation",
-                        super::logic::types::ImputeMode::Mean => "Fill with Mean",
-                        super::logic::types::ImputeMode::Median => "Fill with Median",
-                        super::logic::types::ImputeMode::Zero => "Fill with Zero",
-                        super::logic::types::ImputeMode::Mode => "Fill with Mode",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::None, "No Imputation");
-                        
-                        if col.kind == super::logic::types::ColumnKind::Numeric {
-                            ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Mean, "Fill with Mean");
-                            ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Median, "Fill with Median");
-                            ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Zero, "Fill with Zero");
-                        }
-                        
-                        if col.kind == super::logic::types::ColumnKind::Categorical {
-                            ui.selectable_value(&mut config.impute_mode, super::logic::types::ImputeMode::Mode, "Fill with Mode");
-                        }
-                    });
-
-                // Auto-reset invalid imputation modes
-                match config.impute_mode {
-                    super::logic::types::ImputeMode::Mean | super::logic::types::ImputeMode::Median | super::logic::types::ImputeMode::Zero 
-                        if col.kind != super::logic::types::ColumnKind::Numeric => {
-                            config.impute_mode = super::logic::types::ImputeMode::None;
-                        }
-                    super::logic::types::ImputeMode::Mode if col.kind != super::logic::types::ColumnKind::Categorical => {
-                         config.impute_mode = super::logic::types::ImputeMode::None;
-                    }
-                    _ => {}
-                }
-
-                // --- Normalization (Depends on EFFECTIVE data type) ---
-                if effective_kind == super::logic::types::ColumnKind::Numeric {
-                    ui.separator();
-                    egui::ComboBox::from_id_salt(format!("norm_{}", col.name))
-                        .selected_text(match config.normalization {
-                            super::logic::types::NormalizationMethod::None => "No Scaling",
-                            super::logic::types::NormalizationMethod::ZScore => "Z-Score (Std)",
-                            super::logic::types::NormalizationMethod::MinMax => "Min-Max (0-1)",
+                    // --- Imputation ---
+                    egui::ComboBox::from_id_salt(format!("impute_{}", col.name))
+                        .selected_text(match config.impute_mode {
+                            super::logic::types::ImputeMode::None => "No Imputation",
+                            super::logic::types::ImputeMode::Mean => "Fill with Mean",
+                            super::logic::types::ImputeMode::Median => "Fill with Median",
+                            super::logic::types::ImputeMode::Zero => "Fill with Zero",
+                            super::logic::types::ImputeMode::Mode => "Fill with Mode",
                         })
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::None, "No Scaling");
-                            ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::ZScore, "Z-Score (Std)");
-                            ui.selectable_value(&mut config.normalization, super::logic::types::NormalizationMethod::MinMax, "Min-Max (0-1)");
-                        });
-                } else {
-                    config.normalization = super::logic::types::NormalizationMethod::None;
-                }
+                            ui.selectable_value(
+                                &mut config.impute_mode,
+                                super::logic::types::ImputeMode::None,
+                                "No Imputation",
+                            );
 
-                // --- One-Hot Encoding (Depends on EFFECTIVE data type) ---
-                if effective_kind == super::logic::types::ColumnKind::Categorical {
-                    ui.separator();
-                    ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode")
-                        .on_hover_text("Convert categorical values into multiple binary columns.");
-                } else {
-                    config.one_hot_encode = false;
-                }
+                            if col.kind == super::logic::types::ColumnKind::Numeric {
+                                ui.selectable_value(
+                                    &mut config.impute_mode,
+                                    super::logic::types::ImputeMode::Mean,
+                                    "Fill with Mean",
+                                );
+                                ui.selectable_value(
+                                    &mut config.impute_mode,
+                                    super::logic::types::ImputeMode::Median,
+                                    "Fill with Median",
+                                );
+                                ui.selectable_value(
+                                    &mut config.impute_mode,
+                                    super::logic::types::ImputeMode::Zero,
+                                    "Fill with Zero",
+                                );
+                            }
+
+                            if col.kind == super::logic::types::ColumnKind::Categorical {
+                                ui.selectable_value(
+                                    &mut config.impute_mode,
+                                    super::logic::types::ImputeMode::Mode,
+                                    "Fill with Mode",
+                                );
+                            }
+                        });
+
+                    // Auto-reset invalid imputation modes
+                    match config.impute_mode {
+                        super::logic::types::ImputeMode::Mean
+                        | super::logic::types::ImputeMode::Median
+                        | super::logic::types::ImputeMode::Zero
+                            if col.kind != super::logic::types::ColumnKind::Numeric =>
+                        {
+                            config.impute_mode = super::logic::types::ImputeMode::None;
+                        }
+                        super::logic::types::ImputeMode::Mode
+                            if col.kind != super::logic::types::ColumnKind::Categorical =>
+                        {
+                            config.impute_mode = super::logic::types::ImputeMode::None;
+                        }
+                        _ => {}
+                    }
+
+                    // --- Normalization ---
+                    if effective_kind == super::logic::types::ColumnKind::Numeric {
+                        ui.separator();
+                        egui::ComboBox::from_id_salt(format!("norm_{}", col.name))
+                            .selected_text(match config.normalization {
+                                super::logic::types::NormalizationMethod::None => "No Scaling",
+                                super::logic::types::NormalizationMethod::ZScore => "Z-Score (Std)",
+                                super::logic::types::NormalizationMethod::MinMax => "Min-Max (0-1)",
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut config.normalization,
+                                    super::logic::types::NormalizationMethod::None,
+                                    "No Scaling",
+                                );
+                                ui.selectable_value(
+                                    &mut config.normalization,
+                                    super::logic::types::NormalizationMethod::ZScore,
+                                    "Z-Score (Std)",
+                                );
+                                ui.selectable_value(
+                                    &mut config.normalization,
+                                    super::logic::types::NormalizationMethod::MinMax,
+                                    "Min-Max (0-1)",
+                                );
+                            });
+                    } else {
+                        config.normalization = super::logic::types::NormalizationMethod::None;
+                    }
+
+                    // --- One-Hot Encoding ---
+                    if effective_kind == super::logic::types::ColumnKind::Categorical {
+                        ui.separator();
+                        ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode")
+                            .on_hover_text("Convert categorical values into multiple binary columns.");
+                    } else {
+                        config.one_hot_encode = false;
+                    }
+                });
             });
         }
     }
@@ -921,7 +1094,11 @@ impl App {
 
                     for target in targets {
                         if target != col.kind && col.is_compatible_with(target) {
-                            ui.selectable_value(&mut config.target_dtype, Some(target), target.as_str());
+                            ui.selectable_value(
+                                &mut config.target_dtype,
+                                Some(target),
+                                target.as_str(),
+                            );
                         }
                     }
                 });
@@ -978,7 +1155,8 @@ impl App {
     fn render_text_stats_info(ui: &mut egui::Ui, s: &TextStats) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.label("Distinct:").on_hover_text("The number of unique values in this column.");
+                ui.label("Distinct:")
+                    .on_hover_text("The number of unique values in this column.");
                 ui.label(s.distinct.to_string());
             });
             if let Some((val, count)) = &s.top_value {
@@ -996,7 +1174,8 @@ impl App {
         let total = total_count as f64;
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.label("Categories:").on_hover_text("The number of unique groups detected.");
+                ui.label("Categories:")
+                    .on_hover_text("The number of unique groups detected.");
                 ui.label(freq.len().to_string());
             });
             let mut sorted: Vec<_> = freq.iter().collect();
@@ -1047,46 +1226,104 @@ impl App {
                 ui.horizontal(|ui| {
                     let mut first = true;
                     if s.is_sorted {
-                        ui.label(egui::RichText::new("✓ Sorted").color(egui::Color32::from_rgb(0, 150, 0)))
-                            .on_hover_text("Values are strictly increasing.");
+                        ui.label(
+                            egui::RichText::new("✓ Sorted")
+                                .color(egui::Color32::from_rgb(0, 150, 0)),
+                        )
+                        .on_hover_text("Values are strictly increasing.");
                         first = false;
                     } else if s.is_sorted_rev {
-                        ui.label(egui::RichText::new("✓ Sorted (Rev)").color(egui::Color32::from_rgb(0, 150, 0)))
-                            .on_hover_text("Values are strictly decreasing.");
+                        ui.label(
+                            egui::RichText::new("✓ Sorted (Rev)")
+                                .color(egui::Color32::from_rgb(0, 150, 0)),
+                        )
+                        .on_hover_text("Values are strictly decreasing.");
                         first = false;
                     }
 
                     if s.is_integer {
-                        if !first { ui.label("|"); }
-                        ui.label("Integers").on_hover_text("All values are whole numbers.");
+                        if !first {
+                            ui.label("|");
+                        }
+                        ui.label("Integers")
+                            .on_hover_text("All values are whole numbers.");
                         first = false;
                     }
 
                     if s.zero_count > 0 {
-                        if !first { ui.label("|"); }
+                        if !first {
+                            ui.label("|");
+                        }
                         ui.label(format!("Zeros: {}", s.zero_count));
                         first = false;
                     }
 
                     if s.negative_count > 0 {
-                        if !first { ui.label("|"); }
+                        if !first {
+                            ui.label("|");
+                        }
                         ui.label(format!("Negatives: {}", s.negative_count));
                     }
                 });
             }
             ColumnStats::Text(s) => {
-                ui.label(format!("Lengths: {} / {} / {:.1}", s.min_length, s.max_length, s.avg_length))
-                    .on_hover_text("Character length of the text entries (Min / Max / Avg).");
+                ui.label(format!(
+                    "Lengths: {} / {} / {:.1}",
+                    s.min_length, s.max_length, s.avg_length
+                ))
+                .on_hover_text("Character length of the text entries (Min / Max / Avg).");
             }
             ColumnStats::Temporal(s) => {
                 if s.is_sorted {
-                    ui.label(egui::RichText::new("✓ Chronological").color(egui::Color32::from_rgb(0, 150, 0)));
+                    ui.label(
+                        egui::RichText::new("✓ Chronological")
+                            .color(egui::Color32::from_rgb(0, 150, 0)),
+                    );
                 } else if s.is_sorted_rev {
-                    ui.label(egui::RichText::new("✓ Reverse Chronological").color(egui::Color32::from_rgb(0, 150, 0)));
+                    ui.label(
+                        egui::RichText::new("✓ Reverse Chronological")
+                            .color(egui::Color32::from_rgb(0, 150, 0)),
+                    );
                 }
             }
             _ => {}
         }
+    }
+
+    fn get_filtered_data(&self) -> (DataFrame, Vec<ColumnSummary>) {
+        let Some(df) = &self.model.df else {
+            return (DataFrame::default(), Vec::new());
+        };
+
+        let mut inactive_names: Vec<_> = self
+            .model
+            .cleaning_configs
+            .iter()
+            .filter(|(_, c)| !c.active)
+            .map(|(n, _)| n)
+            .collect();
+        inactive_names.sort();
+
+        if inactive_names.is_empty() {
+            return (df.clone(), self.model.summary.clone());
+        }
+
+        let mut filtered_df = df.clone();
+        for name in &inactive_names {
+            if filtered_df.column(name).is_ok() {
+                let _res = filtered_df.drop_in_place(name);
+            }
+        }
+
+        let filtered_summary = self
+            .model
+            .summary
+            .iter()
+            .filter(|c| !inactive_names.contains(&&c.name))
+            .cloned()
+            .collect();
+
+        (filtered_df, filtered_summary)
     }
 
     pub fn start_analysis(&mut self, ctx: egui::Context) {
@@ -1099,26 +1336,49 @@ impl App {
         self.expanded_rows.clear();
         self.model.cleaning_configs.clear();
         self.status = format!("Loading: {}", path.display());
-        self.controller.start_analysis(ctx, path, self.model.trim_pct);
+        self.log_action("Analysis Started", &path.display().to_string());
+        self.controller
+            .start_analysis(ctx, path, self.model.trim_pct);
     }
 
     pub fn trigger_reanalysis(&mut self, ctx: egui::Context) {
-        let Some(df) = self.model.df.clone() else { return };
-        let Some(path_str) = self.model.file_path.clone() else { return };
-        
-        self.status = format!("Re-analysing with {:.0}% trim...", self.model.trim_pct * 100.0);
-        self.controller.trigger_reanalysis(ctx, df, path_str, self.model.file_size, self.model.trim_pct);
+        let Some(df) = self.model.df.clone() else {
+            return;
+        };
+        let Some(path_str) = self.model.file_path.clone() else {
+            return;
+        };
+
+        self.status = format!(
+            "Re-analysing with {:.0}% trim...",
+            self.model.trim_pct * 100.0
+        );
+        self.log_action(
+            "Re-analysis Started",
+            &format!("{:.0}% trim", self.model.trim_pct * 100.0),
+        );
+        self.controller.trigger_reanalysis(
+            ctx,
+            df,
+            path_str,
+            self.model.file_size,
+            self.model.trim_pct,
+        );
     }
 
     pub fn start_cleaning(&mut self, ctx: egui::Context) {
-        let Some(df) = self.model.df.clone() else { return };
+        let Some(df) = self.model.df.clone() else {
+            return;
+        };
         let configs = self.model.cleaning_configs.clone();
         let trim_pct = self.model.trim_pct;
         let path_str = self.model.file_path.clone();
         let file_size = self.model.file_size;
 
         self.status = "Applying cleaning steps...".to_owned();
-        self.controller.start_cleaning(ctx, df, configs, trim_pct, path_str, file_size);
+        self.log_action("Cleaning Started", "Applying custom rules");
+        self.controller
+            .start_cleaning(ctx, df, configs, trim_pct, path_str, file_size);
     }
 
     pub fn start_push_to_db(
@@ -1130,7 +1390,7 @@ impl App {
         summary: Vec<ColumnSummary>,
         df: DataFrame,
     ) {
-        use secrecy::ExposeSecret;
+        use secrecy::ExposeSecret as _;
         use sqlx::postgres::PgConnectOptions;
 
         if self.model.pg_host.is_empty() || self.model.pg_database.is_empty() {
@@ -1148,23 +1408,16 @@ impl App {
 
         let pg_schema = self.model.pg_schema.clone();
         let pg_table = self.model.pg_table.clone();
-        
+
         self.status = "Connecting to PostgreSQL...".to_owned();
+        self.log_action("Export Started", &format!("Table: {pg_table}"));
         self.controller.start_push_to_db(
-            ctx,
-            file_path,
-            file_size,
-            health,
-            summary,
-            df,
-            pg_options,
-            pg_schema,
-            pg_table,
+            ctx, file_path, file_size, health, summary, df, pg_options, pg_schema, pg_table,
         );
     }
 
     pub fn start_test_connection(&mut self, ctx: egui::Context) {
-        use secrecy::ExposeSecret;
+        use secrecy::ExposeSecret as _;
         use sqlx::postgres::PgConnectOptions;
 
         let port: u16 = self.model.pg_port.parse().unwrap_or(5432);
@@ -1176,7 +1429,25 @@ impl App {
             .database(&self.model.pg_database);
 
         self.status = "Testing database connection...".to_owned();
+        let host = self.model.pg_host.clone();
+        self.log_action("DB Test Started", &host);
         self.controller.start_test_connection(ctx, pg_options);
+    }
+
+    pub fn start_export(&mut self, ctx: egui::Context) {
+        let path = FileDialog::new()
+            .add_filter("CSV File", &["csv"])
+            .add_filter("Parquet File", &["parquet"])
+            .set_file_name("cleaned_data")
+            .save_file();
+
+        let Some(path) = path else { return };
+
+        let (df, _) = self.get_filtered_data();
+
+        self.status = format!("Exporting to: {}", path.display());
+        self.log_action("Export Started", &path.display().to_string());
+        self.controller.start_export(ctx, df, path);
     }
 }
 
@@ -1196,16 +1467,32 @@ fn render_distribution(
         let plot_height = if is_expanded { 220.0 } else { 80.0 };
 
         match stats {
-            ColumnStats::Numeric(s) => render_numeric_plot(ui, name, s, show_full_range, plot_height),
-            ColumnStats::Categorical(freq) => render_categorical_plot(ui, name, freq, plot_height),
-            ColumnStats::Temporal(s) => render_temporal_plot(ui, name, s, show_full_range, plot_height),
-            ColumnStats::Text(_) => { ui.label("—"); }
-            ColumnStats::Boolean(s) => render_boolean_plot(ui, name, s, plot_height),
+            ColumnStats::Numeric(s) => {
+                render_numeric_plot(ui, name, s, show_full_range, plot_height);
+            }
+            ColumnStats::Categorical(freq) => {
+                render_categorical_plot(ui, name, freq, plot_height);
+            }
+            ColumnStats::Temporal(s) => {
+                render_temporal_plot(ui, name, s, show_full_range, plot_height);
+            }
+            ColumnStats::Text(_) => {
+                ui.label("—");
+            }
+            ColumnStats::Boolean(s) => {
+                render_boolean_plot(ui, name, s, plot_height);
+            }
         }
     });
 }
 
-fn render_numeric_plot(ui: &mut egui::Ui, name: &str, s: &NumericStats, show_full_range: bool, plot_height: f32) {
+fn render_numeric_plot(
+    ui: &mut egui::Ui,
+    name: &str,
+    s: &NumericStats,
+    show_full_range: bool,
+    plot_height: f32,
+) {
     if s.histogram.is_empty() {
         ui.label("—");
         return;
@@ -1216,11 +1503,14 @@ fn render_numeric_plot(ui: &mut egui::Ui, name: &str, s: &NumericStats, show_ful
     let margin = if range > 0.0 { range * 0.05 } else { 1.0 };
     let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(1) as f64;
 
-    let chart = BarChart::new("Histogram", create_histogram_bars(s, view_min, view_max, margin, show_full_range))
-        .color(egui::Color32::from_rgb(140, 180, 240))
-        .element_formatter(Box::new(|bar, _| {
-            format!("Value: {:.4}\nCount: {}", bar.argument, bar.value)
-        }));
+    let chart = BarChart::new(
+        "Histogram",
+        create_histogram_bars(s, view_min, view_max, margin, show_full_range),
+    )
+    .color(egui::Color32::from_rgb(140, 180, 240))
+    .element_formatter(Box::new(|bar, _| {
+        format!("Value: {:.4}\nCount: {}", bar.argument, bar.value)
+    }));
 
     let curve_points = create_gaussian_points(s, view_min, view_max, margin);
     let has_curve = !curve_points.is_empty();
@@ -1228,7 +1518,8 @@ fn render_numeric_plot(ui: &mut egui::Ui, name: &str, s: &NumericStats, show_ful
         .color(egui::Color32::from_rgb(250, 150, 100))
         .width(1.5);
 
-    let box_lines = create_box_plot_lines(s, max_count, view_min, view_max, margin, show_full_range);
+    let box_lines =
+        create_box_plot_lines(s, max_count, view_min, view_max, margin, show_full_range);
 
     ui.vertical(|ui| {
         Plot::new(format!("plot_num_{name}"))
@@ -1284,7 +1575,13 @@ fn calculate_view_bounds(s: &NumericStats, show_full_range: bool) -> (f64, f64) 
     }
 }
 
-fn create_histogram_bars(s: &NumericStats, view_min: f64, view_max: f64, margin: f64, show_full_range: bool) -> Vec<Bar> {
+fn create_histogram_bars(
+    s: &NumericStats,
+    view_min: f64,
+    view_max: f64,
+    margin: f64,
+    show_full_range: bool,
+) -> Vec<Bar> {
     s.histogram
         .iter()
         .filter(|&&(val, _)| {
@@ -1293,12 +1590,20 @@ fn create_histogram_bars(s: &NumericStats, view_min: f64, view_max: f64, margin:
         .map(|&(val, count)| {
             Bar::new(val, count as f64)
                 .width(s.bin_width)
-                .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(100, 140, 240)))
+                .stroke(egui::Stroke::new(
+                    0.5,
+                    egui::Color32::from_rgb(100, 140, 240),
+                ))
         })
         .collect()
 }
 
-fn create_gaussian_points(s: &NumericStats, view_min: f64, view_max: f64, margin: f64) -> Vec<[f64; 2]> {
+fn create_gaussian_points(
+    s: &NumericStats,
+    view_min: f64,
+    view_max: f64,
+    margin: f64,
+) -> Vec<[f64; 2]> {
     let mut curve_points = Vec::new();
     if let (Some(mu), Some(sigma)) = (s.mean, s.std_dev) {
         if sigma > 0.0 {
@@ -1322,7 +1627,14 @@ fn create_gaussian_points(s: &NumericStats, view_min: f64, view_max: f64, margin
     curve_points
 }
 
-fn create_box_plot_lines(s: &NumericStats, max_count: f64, view_min: f64, view_max: f64, margin: f64, show_full_range: bool) -> Vec<Line<'_>> {
+fn create_box_plot_lines(
+    s: &NumericStats,
+    max_count: f64,
+    view_min: f64,
+    view_max: f64,
+    margin: f64,
+    show_full_range: bool,
+) -> Vec<Line<'_>> {
     let mut box_lines = Vec::new();
     if let (Some(q1), Some(median), Some(q3), Some(min), Some(max)) =
         (s.q1, s.median, s.q3, s.min, s.max)
@@ -1330,12 +1642,36 @@ fn create_box_plot_lines(s: &NumericStats, max_count: f64, view_min: f64, view_m
         if max > min {
             let y_pos = -max_count * 0.15;
             let y_h = max_count * 0.08;
-            box_lines.push(Line::new("Box", vec![[q1, y_pos - y_h], [q3, y_pos - y_h], [q3, y_pos + y_h], [q1, y_pos + y_h], [q1, y_pos - y_h]]));
-            box_lines.push(Line::new("Median", vec![[median, y_pos - y_h], [median, y_pos + y_h]]));
-            let w_min = if show_full_range { min } else { min.max(view_min - margin) };
-            let w_max = if show_full_range { max } else { max.min(view_max + margin) };
-            if w_min < q1 { box_lines.push(Line::new("Whisker1", vec![[w_min, y_pos], [q1, y_pos]])); }
-            if w_max > q3 { box_lines.push(Line::new("Whisker2", vec![[q3, y_pos], [w_max, y_pos]])); }
+            box_lines.push(Line::new(
+                "Box",
+                vec![
+                    [q1, y_pos - y_h],
+                    [q3, y_pos - y_h],
+                    [q3, y_pos + y_h],
+                    [q1, y_pos + y_h],
+                    [q1, y_pos - y_h],
+                ],
+            ));
+            box_lines.push(Line::new(
+                "Median",
+                vec![[median, y_pos - y_h], [median, y_pos + y_h]],
+            ));
+            let w_min = if show_full_range {
+                min
+            } else {
+                min.max(view_min - margin)
+            };
+            let w_max = if show_full_range {
+                max
+            } else {
+                max.min(view_max + margin)
+            };
+            if w_min < q1 {
+                box_lines.push(Line::new("Whisker1", vec![[w_min, y_pos], [q1, y_pos]]));
+            }
+            if w_max > q3 {
+                box_lines.push(Line::new("Whisker2", vec![[q3, y_pos], [w_max, y_pos]]));
+            }
         }
     }
     box_lines
@@ -1343,17 +1679,28 @@ fn create_box_plot_lines(s: &NumericStats, max_count: f64, view_min: f64, view_m
 
 fn render_zoom_info(ui: &mut egui::Ui, s: &NumericStats, view_min: f64, view_max: f64) {
     let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
-    let in_view_count: usize = s.histogram.iter()
-            .filter(|&&(v, _)| v >= view_min - s.bin_width/2.0 && v <= view_max + s.bin_width/2.0)
-            .map(|&(_, c)| c)
-            .sum();
+    let in_view_count: usize = s
+        .histogram
+        .iter()
+        .filter(|&&(v, _)| v >= view_min - s.bin_width / 2.0 && v <= view_max + s.bin_width / 2.0)
+        .map(|&(_, c)| c)
+        .sum();
     let out_pct = (1.0 - (in_view_count as f64 / total_count as f64)) * 100.0;
     if out_pct > 0.5 {
-        ui.label(egui::RichText::new(format!("Zoomed to 5th-95th ({out_pct:.1}% hidden)")).size(9.0).color(egui::Color32::GRAY));
+        ui.label(
+            egui::RichText::new(format!("Zoomed to 5th-95th ({out_pct:.1}% hidden)"))
+                .size(9.0)
+                .color(egui::Color32::GRAY),
+        );
     }
 }
 
-fn render_categorical_plot(ui: &mut egui::Ui, name: &str, freq: &std::collections::HashMap<String, usize>, plot_height: f32) {
+fn render_categorical_plot(
+    ui: &mut egui::Ui,
+    name: &str,
+    freq: &std::collections::HashMap<String, usize>,
+    plot_height: f32,
+) {
     if freq.is_empty() {
         ui.label("—");
         return;
@@ -1392,7 +1739,13 @@ fn render_categorical_plot(ui: &mut egui::Ui, name: &str, freq: &std::collection
         });
 }
 
-fn render_temporal_plot(ui: &mut egui::Ui, name: &str, s: &TemporalStats, show_full_range: bool, plot_height: f32) {
+fn render_temporal_plot(
+    ui: &mut egui::Ui,
+    name: &str,
+    s: &TemporalStats,
+    show_full_range: bool,
+    plot_height: f32,
+) {
     if s.histogram.is_empty() {
         ui.label("—");
         return;
@@ -1424,13 +1777,14 @@ fn render_temporal_plot(ui: &mut egui::Ui, name: &str, s: &TemporalStats, show_f
     let bars: Vec<egui_plot::Bar> = s
         .histogram
         .iter()
-        .filter(|&&(ts, _)| {
-            show_full_range || (ts >= view_min - margin && ts <= view_max + margin)
-        })
+        .filter(|&&(ts, _)| show_full_range || (ts >= view_min - margin && ts <= view_max + margin))
         .map(|&(ts, count)| {
             Bar::new(ts, count as f64)
                 .width(s.bin_width)
-                .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(160, 110, 60)))
+                .stroke(egui::Stroke::new(
+                    0.5,
+                    egui::Color32::from_rgb(160, 110, 60),
+                ))
         })
         .collect();
 
@@ -1463,7 +1817,8 @@ fn render_temporal_plot(ui: &mut egui::Ui, name: &str, s: &TemporalStats, show_f
 
         if !show_full_range {
             let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
-            let in_view_count: usize = s.histogram
+            let in_view_count: usize = s
+                .histogram
                 .iter()
                 .filter(|&&(v, _)| {
                     v >= view_min - s.bin_width / 2.0 && v <= view_max + s.bin_width / 2.0
@@ -1473,11 +1828,9 @@ fn render_temporal_plot(ui: &mut egui::Ui, name: &str, s: &TemporalStats, show_f
             let out_pct = (1.0 - (in_view_count as f64 / total_count as f64)) * 100.0;
             if out_pct > 0.5 {
                 ui.label(
-                    egui::RichText::new(format!(
-                        "Zoomed to 5th-95th ({out_pct:.1}% hidden)"
-                    ))
-                    .size(9.0)
-                    .color(egui::Color32::GRAY),
+                    egui::RichText::new(format!("Zoomed to 5th-95th ({out_pct:.1}% hidden)"))
+                        .size(9.0)
+                        .color(egui::Color32::GRAY),
                 );
             }
         }
@@ -1488,10 +1841,8 @@ fn render_boolean_plot(ui: &mut egui::Ui, name: &str, s: &BooleanStats, plot_hei
     let chart = BarChart::new(
         "Boolean",
         vec![
-            Bar::new(0.0, s.true_count as f64)
-                .fill(egui::Color32::from_rgb(100, 200, 100)),
-            Bar::new(1.0, s.false_count as f64)
-                .fill(egui::Color32::from_rgb(200, 100, 100)),
+            Bar::new(0.0, s.true_count as f64).fill(egui::Color32::from_rgb(100, 200, 100)),
+            Bar::new(1.0, s.false_count as f64).fill(egui::Color32::from_rgb(200, 100, 100)),
         ],
     )
     .width(0.75);

@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::path::PathBuf;
+use crate::analyser::logic::{AnalysisReceiver, ColumnSummary, FileHealth, MlModelKind, MlResults};
+use anyhow::Result;
 use eframe::egui;
 use polars::prelude::DataFrame;
-use anyhow::Result;
-use crate::analyser::logic::{AnalysisReceiver, ColumnSummary, FileHealth, MlResults, MlModelKind};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct AnalysisController {
     pub is_loading: bool,
@@ -19,6 +19,8 @@ pub struct AnalysisController {
     pub training_receiver: Option<crossbeam_channel::Receiver<Result<MlResults>>>,
     pub is_testing: bool,
     pub test_receiver: Option<crossbeam_channel::Receiver<Result<()>>>,
+    pub is_exporting: bool,
+    pub export_receiver: Option<crossbeam_channel::Receiver<Result<()>>>,
 }
 
 impl Default for AnalysisController {
@@ -36,6 +38,8 @@ impl Default for AnalysisController {
             training_receiver: None,
             is_testing: false,
             test_receiver: None,
+            is_exporting: false,
+            export_receiver: None,
         }
     }
 }
@@ -70,7 +74,14 @@ impl AnalysisController {
         });
     }
 
-    pub fn trigger_reanalysis(&mut self, ctx: egui::Context, df: DataFrame, file_path: String, file_size: u64, trim_pct: f64) {
+    pub fn trigger_reanalysis(
+        &mut self,
+        ctx: egui::Context,
+        df: DataFrame,
+        file_path: String,
+        file_size: u64,
+        trim_pct: f64,
+    ) {
         self.is_loading = true;
         self.was_cleaning = false;
         self.progress_counter.store(0, Ordering::SeqCst);
@@ -129,6 +140,7 @@ impl AnalysisController {
         });
     }
 
+    #[expect(clippy::too_many_arguments)]
     pub fn start_push_to_db(
         &mut self,
         ctx: egui::Context,
@@ -153,19 +165,29 @@ impl AnalysisController {
                 rt.block_on(async {
                     let client = super::db::DbClient::connect(pg_options).await?;
                     client.init_schema().await?;
-                    
-                    let schema_opt = if pg_schema.is_empty() { None } else { Some(pg_schema.as_str()) };
-                    let table_opt = if pg_table.is_empty() { None } else { Some(pg_table.as_str()) };
 
-                    client.push_analysis(super::db::AnalysisPush {
-                        file_path: &file_path,
-                        file_size,
-                        health: &health,
-                        summaries: &summary,
-                        df: &df,
-                        schema_name: schema_opt,
-                        table_name: table_opt,
-                    }).await?;
+                    let schema_opt = if pg_schema.is_empty() {
+                        None
+                    } else {
+                        Some(pg_schema.as_str())
+                    };
+                    let table_opt = if pg_table.is_empty() {
+                        None
+                    } else {
+                        Some(pg_table.as_str())
+                    };
+
+                    client
+                        .push_analysis(super::db::AnalysisPush {
+                            file_path: &file_path,
+                            file_size,
+                            health: &health,
+                            summaries: &summary,
+                            df: &df,
+                            schema_name: schema_opt,
+                            table_name: table_opt,
+                        })
+                        .await?;
                     Ok(())
                 })
             })();
@@ -217,6 +239,20 @@ impl AnalysisController {
 
             if tx.send(result).is_err() {
                 log::error!("Failed to send test connection result");
+            }
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn start_export(&mut self, ctx: egui::Context, mut df: DataFrame, path: PathBuf) {
+        self.is_exporting = true;
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.export_receiver = Some(rx);
+
+        std::thread::spawn(move || {
+            let result = super::logic::analysis::save_df(&mut df, &path);
+            if tx.send(result).is_err() {
+                log::error!("Failed to send export result");
             }
             ctx.request_repaint();
         });
