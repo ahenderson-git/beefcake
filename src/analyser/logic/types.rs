@@ -1,5 +1,22 @@
+use polars::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct CorrelationMatrix {
+    pub columns: Vec<String>,
+    pub data: Vec<Vec<f64>>,
+}
+
+pub struct AnalysisResponse {
+    pub file_path: String,
+    pub file_size: u64,
+    pub summary: Vec<ColumnSummary>,
+    pub health: FileHealth,
+    pub duration: std::time::Duration,
+    pub df: DataFrame,
+    pub correlation_matrix: Option<CorrelationMatrix>,
+}
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct ColumnSummary {
@@ -11,6 +28,7 @@ pub struct ColumnSummary {
     pub stats: ColumnStats,
     pub interpretation: Vec<String>,
     pub business_summary: Vec<String>,
+    pub ml_advice: Vec<String>,
     pub samples: Vec<String>,
 }
 
@@ -56,6 +74,23 @@ impl ColumnSummary {
             }
         } else {
             true
+        }
+    }
+
+    pub fn apply_advice_to_config(&self, config: &mut ColumnCleanConfig) {
+        for advice in &self.ml_advice {
+            if advice.contains("Outlier Clipping") {
+                config.clip_outliers = true;
+            }
+            if advice.contains("Normalization") {
+                config.normalization = NormalizationMethod::ZScore;
+            }
+            if advice.contains("Mean or Median Imputation") {
+                config.impute_mode = ImputeMode::Mean;
+            }
+            if advice.contains("Recommend One-Hot encoding") {
+                config.one_hot_encode = true;
+            }
         }
     }
 }
@@ -119,6 +154,15 @@ pub struct MlResults {
     pub interpretation: Vec<String>,
 }
 
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub enum TextCase {
+    #[default]
+    None,
+    Lowercase,
+    Uppercase,
+    TitleCase,
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ColumnCleanConfig {
     pub new_name: String,
@@ -128,6 +172,17 @@ pub struct ColumnCleanConfig {
     pub ml_preprocessing: bool,
     pub trim_whitespace: bool,
     pub remove_special_chars: bool,
+    pub text_case: TextCase,
+    pub standardize_nulls: bool,
+    pub remove_non_ascii: bool,
+    pub regex_find: String,
+    pub regex_replace: String,
+    pub rounding: Option<u32>,
+    pub extract_numbers: bool,
+    pub clip_outliers: bool,
+    pub temporal_format: String,
+    pub timezone_utc: bool,
+    pub freq_threshold: Option<usize>,
     pub normalization: NormalizationMethod,
     pub one_hot_encode: bool,
     pub impute_mode: ImputeMode,
@@ -143,6 +198,17 @@ impl Default for ColumnCleanConfig {
             ml_preprocessing: true,
             trim_whitespace: false,
             remove_special_chars: false,
+            text_case: TextCase::None,
+            standardize_nulls: false,
+            remove_non_ascii: false,
+            regex_find: String::new(),
+            regex_replace: String::new(),
+            rounding: None,
+            extract_numbers: false,
+            clip_outliers: false,
+            temporal_format: String::new(),
+            timezone_utc: false,
+            freq_threshold: None,
             normalization: NormalizationMethod::None,
             one_hot_encode: false,
             impute_mode: ImputeMode::None,
@@ -162,7 +228,8 @@ pub enum ColumnStats {
 impl ColumnStats {
     pub fn n_distinct(&self) -> usize {
         match self {
-            Self::Numeric(_) | Self::Temporal(_) => 0, // Not tracked for these types yet
+            Self::Numeric(s) => s.distinct_count,
+            Self::Temporal(s) => s.distinct_count,
             Self::Text(s) => s.distinct,
             Self::Categorical(freq) => freq.len(),
             Self::Boolean(s) => {
@@ -179,16 +246,17 @@ impl ColumnStats {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
+#[derive(Clone, Deserialize, Serialize, Debug, Default)]
 pub struct BooleanStats {
     pub true_count: usize,
     pub false_count: usize,
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
+#[derive(Clone, Deserialize, Serialize, Debug, Default)]
 pub struct TemporalStats {
     pub min: Option<String>,
     pub max: Option<String>,
+    pub distinct_count: usize,
     pub p05: Option<f64>,
     pub p95: Option<f64>,
     pub is_sorted: bool,
@@ -197,9 +265,10 @@ pub struct TemporalStats {
     pub histogram: Vec<(f64, usize)>, // timestamp (ms) and count
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
+#[derive(Clone, Deserialize, Serialize, Debug, Default)]
 pub struct NumericStats {
     pub min: Option<f64>,
+    pub distinct_count: usize,
     pub p05: Option<f64>,
     pub q1: Option<f64>,
     pub median: Option<f64>,
@@ -219,7 +288,7 @@ pub struct NumericStats {
     pub histogram: Vec<(f64, usize)>, // bin center and count
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
+#[derive(Clone, Deserialize, Serialize, Debug, Default)]
 pub struct TextStats {
     pub distinct: usize,
     pub top_value: Option<(String, usize)>,
@@ -327,6 +396,7 @@ mod tests {
             stats: ColumnStats::Categorical(freq),
             interpretation: vec![],
             business_summary: vec![],
+            ml_advice: vec![],
             samples: vec![],
         };
 
@@ -349,6 +419,7 @@ mod tests {
             stats: ColumnStats::Categorical(freq_num),
             interpretation: vec![],
             business_summary: vec![],
+            ml_advice: vec![],
             samples: vec![],
         };
 
@@ -369,6 +440,7 @@ mod tests {
             stats: ColumnStats::Categorical(freq_date),
             interpretation: vec![],
             business_summary: vec![],
+            ml_advice: vec![],
             samples: vec![],
         };
         assert!(summary_date.is_compatible_with(ColumnKind::Temporal));
@@ -387,6 +459,7 @@ mod tests {
             stats: ColumnStats::Categorical(freq_bool),
             interpretation: vec![],
             business_summary: vec![],
+            ml_advice: vec![],
             samples: vec![],
         };
 

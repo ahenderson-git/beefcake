@@ -2,6 +2,7 @@
 
 mod analyser;
 mod gui;
+mod theme;
 mod utils;
 
 pub use gui::TemplateApp;

@@ -55,6 +55,7 @@ impl DbClient {
                 null_count BIGINT NOT NULL,
                 interpretation TEXT,
                 business_summary TEXT,
+                ml_advice TEXT,
                 stats JSONB
             );
             "#,
@@ -72,6 +73,10 @@ impl DbClient {
             .execute(&self.pool)
             .await
             .context("Failed to add 'business_summary' column to 'column_summaries'")?;
+        sqlx::query("ALTER TABLE column_summaries ADD COLUMN IF NOT EXISTS ml_advice TEXT")
+            .execute(&self.pool)
+            .await
+            .context("Failed to add 'ml_advice' column to 'column_summaries'")?;
 
         Ok(())
     }
@@ -92,9 +97,9 @@ impl DbClient {
         for col in params.summaries {
             sqlx::query(
                 r#"
-                INSERT INTO column_summaries 
-                (analysis_id, column_name, kind, row_count, null_count, interpretation, business_summary, stats)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                INSERT INTO column_summaries
+                (analysis_id, column_name, kind, row_count, null_count, interpretation, business_summary, ml_advice, stats)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 "#
             )
             .bind(analysis_id)
@@ -104,6 +109,7 @@ impl DbClient {
             .bind(col.nulls as i64)
             .bind(col.interpretation.join(" "))
             .bind(col.business_summary.join(" "))
+            .bind(col.ml_advice.join(" "))
             .bind(serde_json::to_value(&col.stats)?)
             .execute(&self.pool)
             .await

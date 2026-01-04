@@ -1,4 +1,20 @@
 use eframe::egui;
+use egui_phosphor::regular as icons;
+use regex::Regex;
+use std::sync::LazyLock;
+use tokio::runtime::Runtime;
+
+pub static TOKIO_RUNTIME: LazyLock<Runtime> =
+    LazyLock::new(|| Runtime::new().expect("Failed to create Tokio runtime"));
+
+static ANSI_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"[\x1b\x9b]\[[()#;?]*[0-9.;?]*[a-zA-Z]").expect("ANSI stripping regex is valid")
+});
+
+/// Strips ANSI escape codes from a string.
+pub fn strip_ansi(input: &str) -> String {
+    ANSI_RE.replace_all(input, "").into_owned()
+}
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct AuditEntry {
@@ -52,11 +68,16 @@ pub fn render_status_message(ui: &mut egui::Ui, status: &str) {
         return;
     }
 
-    let color = if status.contains("failed") || status.contains("Error") || status.contains("❌") {
+    let color = if status.contains("failed")
+        || status.contains("Error")
+        || status.contains("❌")
+        || status.contains(icons::X_CIRCLE)
+    {
         egui::Color32::RED
     } else if status.contains("successful")
         || status.contains("Successfully")
         || status.contains("✅")
+        || status.contains(icons::CHECK_CIRCLE)
         || status.contains("saved")
         || status.contains("loaded")
         || status.contains("deleted")
@@ -93,5 +114,14 @@ mod tests {
         assert_eq!(fmt_num_human(1_500_000), "1.5M");
         assert_eq!(fmt_num_human(1_000_000_000), "1.0B");
         assert_eq!(fmt_num_human(2_100_000_000), "2.1B");
+    }
+
+    #[test]
+    fn test_strip_ansi() {
+        let input = "\x1b[1;38;5;9merror[internal]\x1b[0m";
+        assert_eq!(strip_ansi(input), "error[internal]");
+
+        let input2 = "Normal text \x1b[32mGreen\x1b[0m and \x1b[1mBold\x1b[0m";
+        assert_eq!(strip_ansi(input2), "Normal text Green and Bold");
     }
 }

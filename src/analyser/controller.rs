@@ -1,4 +1,6 @@
-use crate::analyser::logic::{AnalysisReceiver, ColumnSummary, FileHealth, MlModelKind, MlResults};
+use crate::analyser::logic::{
+    AnalysisReceiver, AnalysisResponse, ColumnSummary, FileHealth, MlModelKind, MlResults,
+};
 use anyhow::Result;
 use eframe::egui;
 use polars::prelude::DataFrame;
@@ -11,6 +13,7 @@ pub struct AnalysisController {
     pub progress_counter: Arc<AtomicU64>,
     pub receiver: Option<AnalysisReceiver>,
     pub start_time: Option<std::time::Instant>,
+    pub secondary_receiver: Option<AnalysisReceiver>,
     pub is_pushing: bool,
     pub push_start_time: Option<std::time::Instant>,
     pub push_receiver: Option<crossbeam_channel::Receiver<Result<()>>>,
@@ -21,6 +24,8 @@ pub struct AnalysisController {
     pub test_receiver: Option<crossbeam_channel::Receiver<Result<()>>>,
     pub is_exporting: bool,
     pub export_receiver: Option<crossbeam_channel::Receiver<Result<()>>>,
+    pub training_start_time: Option<std::time::Instant>,
+    pub training_progress: Arc<AtomicU64>,
 }
 
 impl Default for AnalysisController {
@@ -30,6 +35,7 @@ impl Default for AnalysisController {
             progress_counter: Arc::new(AtomicU64::new(0)),
             receiver: None,
             start_time: None,
+            secondary_receiver: None,
             is_pushing: false,
             push_start_time: None,
             push_receiver: None,
@@ -40,6 +46,8 @@ impl Default for AnalysisController {
             test_receiver: None,
             is_exporting: false,
             export_receiver: None,
+            training_start_time: None,
+            training_progress: Arc::new(AtomicU64::new(0)),
         }
     }
 }
@@ -59,12 +67,10 @@ impl AnalysisController {
 
         std::thread::spawn(move || {
             let start = std::time::Instant::now();
-            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration, DataFrame)> {
+            let result = (|| -> Result<AnalysisResponse> {
                 let df = super::logic::load_df(&path, &progress)?;
                 let file_size = std::fs::metadata(&path)?.len();
-                let summary = super::logic::analyse_df(&df, trim_pct)?;
-                let health = super::logic::calculate_file_health(&summary);
-                Ok((path_str, file_size, summary, health, start.elapsed(), df))
+                Self::run_full_analysis(df, path_str, file_size, trim_pct, start)
             })();
 
             if tx.send(result).is_err() {
@@ -92,11 +98,7 @@ impl AnalysisController {
 
         std::thread::spawn(move || {
             let start = std::time::Instant::now();
-            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration, DataFrame)> {
-                let summary = super::logic::analyse_df(&df, trim_pct)?;
-                let health = super::logic::calculate_file_health(&summary);
-                Ok((file_path, file_size, summary, health, start.elapsed(), df))
-            })();
+            let result = Self::run_full_analysis(df, file_path, file_size, trim_pct, start);
 
             if tx.send(result).is_err() {
                 log::error!("Failed to send re-analysis result");
@@ -126,11 +128,9 @@ impl AnalysisController {
 
         std::thread::spawn(move || {
             let start = std::time::Instant::now();
-            let result = (|| -> Result<(String, u64, Vec<ColumnSummary>, FileHealth, std::time::Duration, DataFrame)> {
+            let result = (|| -> Result<AnalysisResponse> {
                 let cleaned_df = super::logic::analysis::clean_df(df, &configs)?;
-                let summary = super::logic::analyse_df(&cleaned_df, trim_pct)?;
-                let health = super::logic::calculate_file_health(&summary);
-                Ok((path_str, file_size, summary, health, start.elapsed(), cleaned_df))
+                Self::run_full_analysis(cleaned_df, path_str, file_size, trim_pct, start)
             })();
 
             if tx.send(result).is_err() {
@@ -160,37 +160,34 @@ impl AnalysisController {
         self.push_receiver = Some(rx);
 
         std::thread::spawn(move || {
-            let result = (|| -> Result<()> {
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(async {
-                    let client = super::db::DbClient::connect(pg_options).await?;
-                    client.init_schema().await?;
+            let result = crate::utils::TOKIO_RUNTIME.block_on(async {
+                let client = super::db::DbClient::connect(pg_options).await?;
+                client.init_schema().await?;
 
-                    let schema_opt = if pg_schema.is_empty() {
-                        None
-                    } else {
-                        Some(pg_schema.as_str())
-                    };
-                    let table_opt = if pg_table.is_empty() {
-                        None
-                    } else {
-                        Some(pg_table.as_str())
-                    };
+                let schema_opt = if pg_schema.is_empty() {
+                    None
+                } else {
+                    Some(pg_schema.as_str())
+                };
+                let table_opt = if pg_table.is_empty() {
+                    None
+                } else {
+                    Some(pg_table.as_str())
+                };
 
-                    client
-                        .push_analysis(super::db::AnalysisPush {
-                            file_path: &file_path,
-                            file_size,
-                            health: &health,
-                            summaries: &summary,
-                            df: &df,
-                            schema_name: schema_opt,
-                            table_name: table_opt,
-                        })
-                        .await?;
-                    Ok(())
-                })
-            })();
+                client
+                    .push_analysis(super::db::AnalysisPush {
+                        file_path: &file_path,
+                        file_size,
+                        health: &health,
+                        summaries: &summary,
+                        df: &df,
+                        schema_name: schema_opt,
+                        table_name: table_opt,
+                    })
+                    .await?;
+                Ok(())
+            });
 
             if tx.send(result).is_err() {
                 log::error!("Failed to send push result");
@@ -207,11 +204,15 @@ impl AnalysisController {
         model_kind: MlModelKind,
     ) {
         self.is_training = true;
+        self.training_start_time = Some(std::time::Instant::now());
+        self.training_progress.store(0, Ordering::SeqCst);
+
         let (tx, rx) = crossbeam_channel::unbounded();
         self.training_receiver = Some(rx);
 
+        let progress = Arc::clone(&self.training_progress);
         std::thread::spawn(move || {
-            let result = super::logic::train_model(&df, &target_col, model_kind);
+            let result = super::logic::train_model(&df, &target_col, model_kind, &progress);
             if tx.send(result).is_err() {
                 log::error!("Failed to send training result");
             }
@@ -229,13 +230,10 @@ impl AnalysisController {
         self.test_receiver = Some(rx);
 
         std::thread::spawn(move || {
-            let result = (|| -> Result<()> {
-                let rt = tokio::runtime::Runtime::new()?;
-                rt.block_on(async {
-                    super::db::DbClient::connect(pg_options).await?;
-                    Ok(())
-                })
-            })();
+            let result = crate::utils::TOKIO_RUNTIME.block_on(async {
+                super::db::DbClient::connect(pg_options).await?;
+                Ok(())
+            });
 
             if tx.send(result).is_err() {
                 log::error!("Failed to send test connection result");
@@ -256,5 +254,48 @@ impl AnalysisController {
             }
             ctx.request_repaint();
         });
+    }
+
+    pub fn start_secondary_analysis(&mut self, ctx: egui::Context, path: PathBuf, trim_pct: f64) {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.secondary_receiver = Some(rx);
+
+        let progress = Arc::clone(&self.progress_counter);
+        let path_str = path.to_string_lossy().to_string();
+
+        std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            let result = (|| -> Result<AnalysisResponse> {
+                let df = super::logic::load_df(&path, &progress)?;
+                let file_size = std::fs::metadata(&path)?.len();
+                Self::run_full_analysis(df, path_str, file_size, trim_pct, start)
+            })();
+
+            if tx.send(result).is_err() {
+                log::error!("Failed to send secondary analysis result");
+            }
+            ctx.request_repaint();
+        });
+    }
+
+    fn run_full_analysis(
+        df: DataFrame,
+        file_path: String,
+        file_size: u64,
+        trim_pct: f64,
+        start_time: std::time::Instant,
+    ) -> Result<AnalysisResponse> {
+        let summary = super::logic::analyse_df(&df, trim_pct)?;
+        let health = super::logic::calculate_file_health(&summary);
+        let correlation_matrix = super::logic::calculate_correlation_matrix(&df)?;
+        Ok(AnalysisResponse {
+            file_path,
+            file_size,
+            summary,
+            health,
+            duration: start_time.elapsed(),
+            df,
+            correlation_matrix,
+        })
     }
 }

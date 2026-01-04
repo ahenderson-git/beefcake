@@ -1,4 +1,4 @@
-use super::types::{ColumnStats, ColumnSummary};
+use super::types::{ColumnKind, ColumnStats, ColumnSummary};
 use std::f64::consts::PI;
 
 pub const MISSING_DATA_HIGH: f64 = 15.0;
@@ -51,6 +51,147 @@ impl ColumnSummary {
             vec!["No significant patterns detected.".to_owned()]
         } else {
             signals.into_iter().map(|s| s.to_owned()).collect()
+        }
+    }
+
+    pub fn generate_ml_advice(&self) -> Vec<String> {
+        let mut advice = Vec::new();
+        let name_lower = self.name.to_lowercase();
+        let is_id_name = name_lower == "id"
+            || name_lower.ends_with("_id")
+            || name_lower.starts_with("id_")
+            || name_lower.contains("_id_")
+            || name_lower == "uuid"
+            || name_lower.ends_with("_uuid")
+            || name_lower.starts_with("uuid_")
+            || name_lower == "pk"
+            || name_lower.ends_with("_pk")
+            || name_lower.starts_with("pk_")
+            || name_lower == "key"
+            || name_lower.ends_with("_key")
+            || name_lower.starts_with("key_")
+            || name_lower == "code"
+            || name_lower.ends_with("_code")
+            || name_lower.starts_with("code_");
+
+        let n_distinct = self.stats.n_distinct();
+        let uniqueness_ratio = if self.count > 0 {
+            n_distinct as f64 / self.count as f64
+        } else {
+            0.0
+        };
+
+        // 1. ID Detection (Cross-type)
+        let is_likely_id = if (n_distinct == self.count && self.nulls == 0)
+            || (is_id_name && uniqueness_ratio > 0.3)
+        {
+            true // Perfectly unique OR ID name with moderate cardinality
+        } else if matches!(self.kind, ColumnKind::Numeric) {
+            if let ColumnStats::Numeric(s) = &self.stats {
+                s.is_integer && s.is_sorted && uniqueness_ratio > 0.5
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if is_likely_id {
+            advice.push(
+                "Recommend excluding this identifier from ML features to prevent overfitting."
+                    .to_owned(),
+            );
+            if is_id_name {
+                advice.push(
+                    "Likely an identifier column based on name and variety of values.".to_owned(),
+                );
+            }
+        }
+
+        self.collect_ml_routine_advice(is_likely_id, &mut advice);
+        self.collect_preprocessing_advice(is_likely_id, &mut advice);
+
+        if advice.is_empty() {
+            advice
+                .push("Ensure data is cleaned and correctly typed before ML training.".to_owned());
+        }
+
+        advice
+    }
+
+    fn collect_ml_routine_advice(&self, is_likely_id: bool, advice: &mut Vec<String>) {
+        match self.kind {
+            ColumnKind::Numeric => {
+                if is_likely_id {
+                    advice.push("Warning: Numeric IDs should NOT be used as predictive features in linear models.".to_owned());
+                } else {
+                    advice
+                        .push("Suitable for Linear Regression (as target or feature).".to_owned());
+                }
+                if let ColumnStats::Numeric(s) = &self.stats {
+                    if let Some(skew) = s.skew {
+                        if skew.abs() > SKEW_THRESHOLD {
+                            advice.push(
+                                "Consider Outlier Clipping (Winsorization) to improve model stability."
+                                    .to_owned(),
+                            );
+                        }
+                    }
+                }
+            }
+            ColumnKind::Categorical | ColumnKind::Boolean => {
+                advice.push(
+                    "Suitable for Logistic Regression or Decision Trees (as target).".to_owned(),
+                );
+                advice.push(
+                    "Recommend One-Hot encoding to use as a feature in ML models.".to_owned(),
+                );
+
+                if let ColumnStats::Categorical(freq) = &self.stats {
+                    if freq.len() > 20 {
+                        advice.push("High cardinality detected. Use Frequency Capping to group rare values before encoding.".to_owned());
+                    }
+                }
+            }
+            ColumnKind::Text => {
+                if !is_likely_id {
+                    advice.push("Standard text field. Consider extracting features or converting to Categorical if finite classes exist.".to_owned());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_preprocessing_advice(&self, is_likely_id: bool, advice: &mut Vec<String>) {
+        let null_pct = if self.count > 0 {
+            (self.nulls as f64 / self.count as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        if self.nulls > 0 {
+            if null_pct > 40.0 {
+                advice.push(
+                    "Very high missing data (>40%). Consider excluding this column from ML routines."
+                        .to_owned(),
+                );
+            } else {
+                match self.kind {
+                    ColumnKind::Numeric => {
+                        advice.push(
+                            "Suggest Mean or Median Imputation for missing values.".to_owned(),
+                        );
+                    }
+                    ColumnKind::Categorical | ColumnKind::Boolean => advice.push(
+                        "Suggest Mode Imputation (most frequent) for missing values.".to_owned(),
+                    ),
+                    _ => {}
+                }
+            }
+        }
+
+        if self.kind == ColumnKind::Numeric && !is_likely_id {
+            advice.push("Recommend Z-Score or Min-Max Normalization if other numeric features have different scales.".to_owned());
         }
     }
 

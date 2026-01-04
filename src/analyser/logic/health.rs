@@ -13,7 +13,7 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
 
         if null_pct > 15.0 {
             risks.push(format!(
-                "⚠️ Column '{}' has significant missing data ({:.1}%).",
+                "Column '{}' has significant missing data ({:.1}%).",
                 col.name, null_pct
             ));
             score -= 10.0;
@@ -23,7 +23,7 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
 
         if col.has_special {
             risks.push(format!(
-                "🔍 Hidden/special characters detected in '{}'.",
+                "Hidden/special characters detected in '{}'.",
                 col.name
             ));
             score -= 5.0;
@@ -38,7 +38,7 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
                     let diff_ratio = (mean - median).abs() / range;
                     if diff_ratio > 0.1 {
                         risks.push(format!(
-                            "📈 Column '{}' is heavily skewed; averages may be misleading.",
+                            "Column '{}' is heavily skewed; averages may be misleading.",
                             col.name
                         ));
                         score -= 5.0;

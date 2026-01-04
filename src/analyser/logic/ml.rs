@@ -6,13 +6,21 @@ use linfa_trees::DecisionTree;
 use ndarray::{Array1, Array2};
 use polars::prelude::*;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use super::types::{MlModelKind, MlResults};
 
 #[expect(clippy::too_many_lines)]
-pub fn train_model(df: &DataFrame, target_col: &str, model_kind: MlModelKind) -> Result<MlResults> {
+pub fn train_model(
+    df: &DataFrame,
+    target_col: &str,
+    model_kind: MlModelKind,
+    progress: &Arc<AtomicU64>,
+) -> Result<MlResults> {
     let start = Instant::now();
+    progress.store(10, Ordering::SeqCst);
 
     // 0. Filter out rows where the target is null, as we cannot train on them
     let df = df.filter(
@@ -20,6 +28,7 @@ pub fn train_model(df: &DataFrame, target_col: &str, model_kind: MlModelKind) ->
             .context("Target column not found")?
             .is_not_null(),
     )?;
+    progress.store(20, Ordering::SeqCst);
 
     if df.height() == 0 {
         return Err(anyhow!(
@@ -38,6 +47,7 @@ pub fn train_model(df: &DataFrame, target_col: &str, model_kind: MlModelKind) ->
             col.dtype().is_numeric() || col.dtype().is_bool()
         })
         .collect();
+    progress.store(40, Ordering::SeqCst);
 
     if feature_cols.is_empty() {
         return Err(anyhow!(
@@ -65,6 +75,7 @@ pub fn train_model(df: &DataFrame, target_col: &str, model_kind: MlModelKind) ->
 
     let x = Array2::from_shape_vec((df.height(), feature_cols.len()), feature_data)
         .context("Failed to create feature matrix")?;
+    progress.store(60, Ordering::SeqCst);
 
     // 2. Prepare Target
     let target_series = df
@@ -160,6 +171,7 @@ pub fn train_model(df: &DataFrame, target_col: &str, model_kind: MlModelKind) ->
 
     results.duration = start.elapsed();
     generate_interpretation(&mut results);
+    progress.store(100, Ordering::SeqCst);
     Ok(results)
 }
 

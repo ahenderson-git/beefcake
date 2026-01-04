@@ -3,20 +3,23 @@
 //! It uses `egui` for the UI and manages the state of file analysis,
 //! data cleaning configurations, and database export workflows.
 
+use super::controller::AnalysisController;
+use super::logic::ColumnSummary;
+use super::model::AnalysisModel;
 use eframe::egui;
-use egui_extras::{Column, TableBuilder};
-use egui_plot::{Bar, BarChart, Line, Plot, PlotBounds};
-use polars::prelude::DataFrame;
+use egui_phosphor::regular as icons;
+use polars::prelude::*;
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::Ordering;
 
-use super::controller::AnalysisController;
-use super::logic::{
-    BooleanStats, ColumnStats, ColumnSummary, FileHealth, NumericStats, TemporalStats, TextStats,
-};
-use super::model::AnalysisModel;
-use crate::utils::{fmt_bytes, fmt_num_human, fmt_opt};
+mod controls;
+mod heatmap;
+mod plots;
+mod summary_table;
+
+pub use controls::{render_controls, render_db_config, render_ml_details_window, render_ml_panel};
+use heatmap::render_correlation_heatmap;
+use summary_table::render_summary_table;
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct App {
@@ -41,21 +44,21 @@ impl App {
         crate::utils::push_audit_log(&mut self.audit_log, action, details);
     }
 
-    pub fn update(&mut self, ctx: &egui::Context) -> bool {
-        self.handle_receivers();
+    pub fn update(&mut self, ctx: &egui::Context, toasts: &mut egui_notify::Toasts) -> bool {
+        self.handle_receivers(toasts);
 
         if self.show_ml_details {
-            self.render_ml_details_window(ctx);
+            render_ml_details_window(self, ctx);
         }
 
-        if self.controller.is_loading || self.controller.is_pushing {
+        if self.controller.is_loading || self.controller.is_pushing || self.controller.is_training {
             ctx.request_repaint();
         }
 
         let mut go_back = false;
         egui::TopBottomPanel::top("analyser_top").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("⬅ Back").clicked() {
+                if ui.button(format!("{} Back", icons::ARROW_LEFT)).clicked() {
                     go_back = true;
                 }
                 ui.separator();
@@ -64,11 +67,11 @@ impl App {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.render_controls(ui, ctx);
+            render_controls(self, ui, ctx);
             ui.add_space(4.0);
-            self.render_db_config(ui, ctx);
+            render_db_config(self, ui, ctx);
             ui.add_space(4.0);
-            self.render_ml_panel(ui, ctx);
+            render_ml_panel(self, ui, ctx);
 
             if let Some(summary) = &self.load_summary {
                 ui.add_space(8.0);
@@ -78,11 +81,21 @@ impl App {
                         ui.set_width(ui.available_width());
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("📋 File Summary").strong());
+                                ui.label(
+                                    egui::RichText::new(format!(
+                                        "{} File Summary",
+                                        icons::CLIPBOARD_TEXT
+                                    ))
+                                    .strong(),
+                                );
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        let btn_text = if self.summary_minimized { "Expand" } else { "Minimise" };
+                                        let btn_text = if self.summary_minimized {
+                                            "Expand"
+                                        } else {
+                                            "Minimise"
+                                        };
                                         if ui.button(btn_text).clicked() {
                                             self.summary_minimized = !self.summary_minimized;
                                         }
@@ -102,22 +115,55 @@ impl App {
 
             if !self.model.summary.is_empty() {
                 ui.separator();
-                self.render_summary_table(ui);
+                render_summary_table(self, ui);
+            }
+
+            if let Some(matrix) = &self.model.correlation_matrix {
+                ui.add_space(20.0);
+                ui.separator();
+                render_correlation_heatmap(ui, matrix);
             }
         });
 
         go_back
     }
 
-    fn handle_receivers(&mut self) {
-        self.handle_analysis_receiver();
-        self.handle_push_receiver();
-        self.handle_test_receiver();
-        self.handle_training_receiver();
-        self.handle_export_receiver();
+    fn handle_receivers(&mut self, toasts: &mut egui_notify::Toasts) {
+        self.handle_analysis_receiver(toasts);
+        self.handle_secondary_receiver(toasts);
+        self.handle_push_receiver(toasts);
+        self.handle_test_receiver(toasts);
+        self.handle_training_receiver(toasts);
+        self.handle_export_receiver(toasts);
     }
 
-    fn handle_analysis_receiver(&mut self) {
+    fn handle_secondary_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
+        let result = self
+            .controller
+            .secondary_receiver
+            .as_ref()
+            .and_then(|rx| rx.try_recv().ok());
+        if let Some(result) = result {
+            self.controller.secondary_receiver = None;
+            match result {
+                Ok(resp) => {
+                    self.model.secondary_df = Some(resp.df);
+                    self.model.secondary_summary = resp.summary;
+                    let name = resp.file_path;
+                    self.status = format!("Loaded secondary file: {name}");
+                    toasts.success(format!("Loaded secondary file: {name}"));
+                    self.log_action("Secondary File Loaded", &name);
+                }
+                Err(e) => {
+                    self.status = format!("Secondary Load Error: {e}");
+                    toasts.error(format!("Secondary Load Error: {e}"));
+                    self.log_action("Secondary Load Failed", &e.to_string());
+                }
+            }
+        }
+    }
+
+    fn handle_analysis_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
         let result = self
             .controller
             .receiver
@@ -129,13 +175,14 @@ impl App {
             self.controller.receiver = None;
             self.controller.start_time = None; // Reset timer
             match result {
-                Ok((path, size, summary, health, duration, df)) => {
-                    self.model.file_path = Some(path);
-                    self.model.file_size = size;
-                    self.model.summary = summary;
-                    self.model.health = Some(health);
-                    self.model.last_duration = Some(duration);
-                    self.model.df = Some(df);
+                Ok(resp) => {
+                    self.model.file_path = Some(resp.file_path);
+                    self.model.file_size = resp.file_size;
+                    self.model.summary = resp.summary;
+                    self.model.health = Some(resp.health);
+                    self.model.last_duration = Some(resp.duration);
+                    self.model.correlation_matrix = resp.correlation_matrix;
+                    self.model.df = Some(resp.df);
                     self.should_scroll_to_top = true;
 
                     // Reset cleaning configs if we just applied them, otherwise preserve (for trim changes)
@@ -143,15 +190,32 @@ impl App {
                         self.model.cleaning_configs.clear();
                     }
                     for col in &self.model.summary {
-                        self.model
+                        let is_new = !self.model.cleaning_configs.contains_key(&col.name);
+                        let config = self
+                            .model
                             .cleaning_configs
                             .entry(col.name.clone())
                             .or_default();
+
+                        if is_new {
+                            col.apply_advice_to_config(config);
+                        }
+                    }
+
+                    // Auto-select first suitable ML target if none set
+                    if self.model.ml_target.is_none() {
+                        self.model.ml_target = self
+                            .model
+                            .summary
+                            .iter()
+                            .find(|c| self.model.ml_model_kind.is_suitable_target(c.kind))
+                            .map(|c| c.name.clone());
                     }
 
                     let path_display = self.model.file_path.as_deref().unwrap_or("file").to_owned();
-                    let secs = duration.as_secs_f32();
+                    let secs = resp.duration.as_secs_f32();
                     self.status = format!("Loaded {path_display} in {secs:.2}s");
+                    toasts.success(format!("Analysed {path_display}"));
 
                     // Generate load summary
                     let mut breakdown = std::collections::HashMap::new();
@@ -168,9 +232,9 @@ impl App {
                     }
 
                     let row_count = self.model.summary.first().map(|c| c.count).unwrap_or(0);
-                    let row_count_fmt = fmt_num_human(row_count);
+                    let row_count_fmt = crate::utils::fmt_num_human(row_count);
                     let col_count = self.model.summary.len();
-                    let size_fmt = fmt_bytes(size);
+                    let size_fmt = crate::utils::fmt_bytes(resp.file_size);
 
                     let mut msg = format!(
                         "{row_count} ({row_count_fmt}) rows\n{col_count} columns\nBreakdown by Type:{breakdown_str}"
@@ -181,9 +245,12 @@ impl App {
                         msg.push_str(&format!("\nHealth Score: {:.0}%", h.score * 100.0));
 
                         if !h.risks.is_empty() {
-                            msg.push_str("\n\nTop Risks:");
-                            for risk in h.risks.iter().take(3) {
+                            msg.push_str("\n\nIdentified Risks:");
+                            for risk in h.risks.iter().take(15) {
                                 msg.push_str(&format!("\n • {risk}"));
+                            }
+                            if h.risks.len() > 15 {
+                                msg.push_str("\n ... and more");
                             }
                         }
                     }
@@ -193,13 +260,14 @@ impl App {
                 }
                 Err(e) => {
                     self.status = format!("Error: {e}");
+                    toasts.error(format!("Analysis failed: {e}"));
                     self.log_action("Analysis Failed", &e.to_string());
                 }
             }
         }
     }
 
-    fn handle_push_receiver(&mut self) {
+    fn handle_push_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
         let result = self
             .controller
             .push_receiver
@@ -214,18 +282,20 @@ impl App {
                 Ok(_) => {
                     let secs = duration.map(|d| d.as_secs_f32()).unwrap_or(0.0);
                     self.status = format!("Successfully pushed to PostgreSQL in {secs:.2}s");
+                    toasts.success("Successfully pushed to PostgreSQL");
                     let table = self.model.pg_table.clone();
                     self.log_action("Export Successful", &format!("Table: {table}"));
                 }
                 Err(e) => {
                     self.status = format!("PostgreSQL Push Error: {e}");
+                    toasts.error(format!("PostgreSQL Push Error: {e}"));
                     self.log_action("Export Failed", &e.to_string());
                 }
             }
         }
     }
 
-    fn handle_test_receiver(&mut self) {
+    fn handle_test_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
         let result = self
             .controller
             .test_receiver
@@ -237,18 +307,24 @@ impl App {
             let host = self.model.pg_host.clone();
             match result {
                 Ok(_) => {
-                    self.status = "✅ Database connection test successful!".to_owned();
+                    self.status = format!(
+                        "{} Database connection test successful!",
+                        icons::CHECK_CIRCLE
+                    );
+                    toasts.success("Database connection test successful!");
                     self.log_action("DB Test Success", &host);
                 }
                 Err(e) => {
-                    self.status = format!("❌ Database connection test failed: {e}");
+                    self.status =
+                        format!("{} Database connection test failed: {e}", icons::X_CIRCLE);
+                    toasts.error(format!("Database connection test failed: {e}"));
                     self.log_action("DB Test Failed", &host);
                 }
             }
         }
     }
 
-    fn handle_training_receiver(&mut self) {
+    fn handle_training_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
         let result = self
             .controller
             .training_receiver
@@ -256,23 +332,26 @@ impl App {
             .and_then(|rx| rx.try_recv().ok());
         if let Some(result) = result {
             self.controller.is_training = false;
+            self.controller.training_start_time = None;
             self.controller.training_receiver = None;
             match result {
                 Ok(res) => {
                     let target = res.target_column.clone();
                     self.model.ml_results = Some(res);
-                    self.status = "✅ ML Training successful!".to_owned();
+                    self.status = format!("{} ML Training successful!", icons::CHECK_CIRCLE);
+                    toasts.success("ML Training successful!");
                     self.log_action("ML Training Success", &format!("Target: {target}"));
                 }
                 Err(e) => {
-                    self.status = format!("❌ ML Training failed: {e}");
+                    self.status = format!("{} ML Training failed: {e}", icons::X_CIRCLE);
+                    toasts.error(format!("ML Training failed: {e}"));
                     self.log_action("ML Training Failed", &e.to_string());
                 }
             }
         }
     }
 
-    fn handle_export_receiver(&mut self) {
+    fn handle_export_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
         let result = self
             .controller
             .export_receiver
@@ -283,1010 +362,16 @@ impl App {
             self.controller.export_receiver = None;
             match result {
                 Ok(_) => {
-                    self.status = "✅ File exported successfully!".to_owned();
+                    self.status = format!("{} File exported successfully!", icons::CHECK_CIRCLE);
+                    toasts.success("File exported successfully!");
                     self.log_action("File Exported", "Cleaned data saved to disk");
                 }
                 Err(e) => {
-                    self.status = format!("❌ Export failed: {e}");
+                    self.status = format!("{} Export failed: {e}", icons::X_CIRCLE);
+                    toasts.error(format!("Export failed: {e}"));
                     self.log_action("Export Failed", &e.to_string());
                 }
             }
-        }
-    }
-
-    fn render_controls(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-
-            // --- Group: File ---
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("📁");
-                    if ui.button("Open File").clicked() && !self.controller.is_loading {
-                        self.start_analysis(ctx.clone());
-                    }
-                });
-            });
-
-            // --- Group: Analysis Settings ---
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("📊 Analysis:");
-                    ui.label("Trim %:").on_hover_text(
-                        "Percentage to trim from EACH end of the data for the Trimmed Mean calculation.",
-                    );
-                    let slider = ui.add(
-                        egui::Slider::new(&mut self.model.trim_pct, 0.0..=0.2)
-                            .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
-                    );
-
-                    if slider.changed() && !self.controller.is_loading && self.model.df.is_some() {
-                        self.trigger_reanalysis(ctx.clone());
-                    }
-
-                    ui.separator();
-                    ui.checkbox(&mut self.model.show_full_range, "Full Range")
-                        .on_hover_text("If unchecked, the histogram zooms into the 5th-95th percentile to avoid being 'crushed' by extreme outliers.");
-                });
-            });
-
-            // --- Group: View Controls ---
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("🗄 View:");
-                    if ui.button("Expand All").clicked() {
-                        for col in &self.model.summary {
-                            self.expanded_rows.insert(col.name.clone());
-                        }
-                    }
-                    if ui.button("Collapse All").clicked() {
-                        self.expanded_rows.clear();
-                    }
-                });
-            });
-
-            // --- Group: Data Cleaning ---
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("🧼 Cleaning:");
-                    if ui
-                        .button("Apply Cleaning")
-                        .on_hover_text("Apply the selected cleaning actions to the data and re-analyse.")
-                        .clicked()
-                        && !self.controller.is_loading
-                        && self.model.df.is_some()
-                    {
-                        self.start_cleaning(ctx.clone());
-                    }
-
-                    if ui
-                        .button("💾 Export to File")
-                        .on_hover_text("Export the currently cleaned and preprocessed data to CSV or Parquet.")
-                        .clicked()
-                        && !self.controller.is_exporting
-                        && self.model.df.is_some()
-                    {
-                        self.start_export(ctx.clone());
-                    }
-                });
-            });
-
-            // --- Status & Timing ---
-            if self.controller.is_loading {
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    let bytes = self.controller.progress_counter.load(Ordering::Relaxed);
-                    if bytes > 0 {
-                        let mb = bytes as f64 / 1_000_000.0;
-                        ui.label(format!("Loading... ({mb:.1} MB)"));
-                    } else {
-                        ui.label("Processing...");
-                    }
-
-                    if let Some(start) = self.controller.start_time {
-                        let elapsed = start.elapsed().as_secs_f32();
-                        ui.label(format!("({elapsed:.1}s)"));
-                    }
-                });
-            } else if self.controller.is_exporting {
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label("Exporting...");
-                });
-            } else if let Some(duration) = self.model.last_duration {
-                ui.add_space(4.0);
-                let secs = duration.as_secs_f32();
-                ui.label(egui::RichText::new(format!("⏱ {secs:.2}s")).weak());
-            }
-        });
-    }
-
-    fn render_db_config(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-
-            // --- Group: Database Export ---
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("🚀 Database Export:");
-
-                    if self.model.pg_host.is_empty() || self.model.pg_database.is_empty() {
-                        ui.label(
-                            egui::RichText::new("⚠ Connection not set").color(egui::Color32::RED),
-                        )
-                        .on_hover_text(
-                            "Configure the database connection in Main Menu -> Database Settings",
-                        );
-                    } else {
-                        let port_part = if self.model.pg_port.is_empty() {
-                            String::new()
-                        } else {
-                            format!(":{}", self.model.pg_port)
-                        };
-                        let details = format!("{}{}/{}", self.model.pg_host, port_part, self.model.pg_database);
-
-                        ui.label(
-                            egui::RichText::new(format!("✅ Configured ({details})"))
-                                .color(egui::Color32::from_rgb(0, 150, 0)),
-                        )
-                        .on_hover_text(format!(
-                            "Host: {}\nDatabase: {}\nConfigure in Main Menu -> Database Settings",
-                            self.model.pg_host, self.model.pg_database
-                        ));
-
-                        if self.controller.is_testing {
-                            ui.spinner();
-                            ui.label("Testing...");
-                        } else if ui.button("🔌 Test").clicked() {
-                            self.start_test_connection(ctx.clone());
-                        }
-                    }
-
-                    ui.separator();
-                    ui.label("Schema:");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.model.pg_schema)
-                            .hint_text("public")
-                            .desired_width(60.0),
-                    );
-
-                    ui.separator();
-                    ui.label("Table:");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.model.pg_table)
-                            .hint_text("data_123")
-                            .desired_width(100.0),
-                    );
-
-                    ui.separator();
-                    if self.controller.is_pushing {
-                        ui.spinner();
-                        let mut label = "Pushing...".to_owned();
-                        if let Some(start) = self.controller.push_start_time {
-                            label.push_str(&format!(" ({:.1}s)", start.elapsed().as_secs_f32()));
-                        }
-                        ui.label(label);
-                    } else if ui
-                        .button("Push to DB")
-                        .on_hover_text(
-                            "Initialize schema and push analysis results + data to PostgreSQL",
-                        )
-                        .clicked()
-                    {
-                        if let (Some(health), Some(path)) =
-                            (self.model.health.as_ref(), self.model.file_path.as_ref())
-                        {
-                            let (filtered_df, filtered_summary) = self.get_filtered_data();
-
-                            self.start_push_to_db(
-                                ctx.clone(),
-                                path.clone(),
-                                self.model.file_size,
-                                health.clone(),
-                                filtered_summary,
-                                filtered_df,
-                            );
-                        }
-                    }
-                });
-            });
-        });
-    }
-
-    fn render_ml_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-
-            // --- Group: Machine Learning ---
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("🧠 ML Training:");
-
-                    // 1. Model Selection
-                    egui::ComboBox::from_id_salt("ml_model")
-                        .selected_text(self.model.ml_model_kind.as_str())
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.model.ml_model_kind, super::logic::MlModelKind::LinearRegression, "Linear Regression");
-                            ui.selectable_value(&mut self.model.ml_model_kind, super::logic::MlModelKind::DecisionTree, "Decision Tree");
-                            ui.selectable_value(&mut self.model.ml_model_kind, super::logic::MlModelKind::LogisticRegression, "Logistic Regression");
-                        });
-
-                    // Validate current target is still active and suitable
-                    if let Some(target) = &self.model.ml_target {
-                        if let Some(col) = self.model.summary.iter().find(|c| &c.name == target) {
-                            let is_active = self.model.cleaning_configs.get(target).map(|c| c.active).unwrap_or(true);
-                            let is_suitable = self.model.ml_model_kind.is_suitable_target(col.kind);
-                            let is_classification = matches!(self.model.ml_model_kind, super::logic::MlModelKind::LogisticRegression | super::logic::MlModelKind::DecisionTree);
-                            let has_enough_classes = !is_classification || col.stats.n_distinct() >= 2;
-
-                            if !is_active || !is_suitable || !has_enough_classes {
-                                self.model.ml_target = None;
-                            }
-                        } else {
-                            // Column gone (e.g. after cleaning)
-                            self.model.ml_target = None;
-                        }
-                    }
-
-                    ui.separator();
-
-                    // 2. Target Column Selection
-                    ui.label("Target:");
-                    let target_text = self.model.ml_target.clone().unwrap_or_else(|| "Select...".to_owned());
-                    egui::ComboBox::from_id_salt("ml_target")
-                        .selected_text(target_text)
-                        .show_ui(ui, |ui| {
-                            for col in &self.model.summary {
-                                let is_active = self.model.cleaning_configs.get(&col.name).map(|c| c.active).unwrap_or(true);
-                                if is_active && self.model.ml_model_kind.is_suitable_target(col.kind) {
-                                    // Classification needs at least 2 classes
-                                    let is_classification = matches!(self.model.ml_model_kind, super::logic::MlModelKind::LogisticRegression | super::logic::MlModelKind::DecisionTree);
-                                    if is_classification && col.stats.n_distinct() < 2 {
-                                        continue;
-                                    }
-
-                                    ui.selectable_value(&mut self.model.ml_target, Some(col.name.clone()), &col.name);
-                                }
-                            }
-                        });
-
-                    ui.separator();
-
-                    // 3. Train Button
-                    if self.controller.is_training {
-                        ui.spinner();
-                        ui.label("Training...");
-                    } else {
-                        let n_features = self.model.summary.iter()
-                            .filter(|c| {
-                                let is_active = self.model.cleaning_configs.get(&c.name).map(|conf| conf.active).unwrap_or(true);
-                                is_active && matches!(c.kind, super::logic::types::ColumnKind::Numeric | super::logic::types::ColumnKind::Boolean)
-                            })
-                            .filter(|c| Some(&c.name) != self.model.ml_target.as_ref())
-                            .count();
-
-                        let can_train = self.model.df.is_some() && self.model.ml_target.is_some() && n_features > 0;
-
-                        ui.horizontal(|ui| {
-                            let btn = ui.add_enabled(can_train, egui::Button::new("🚀 Train Model"));
-                            if btn.clicked() {
-                                if let Some(target) = self.model.ml_target.clone() {
-                                    let (filtered_df, _) = self.get_filtered_data();
-                                    self.controller.start_training(ctx.clone(), filtered_df, target.clone(), self.model.ml_model_kind);
-                                    self.log_action("ML Training Started", &format!("Target: {target}"));
-                                }
-                            }
-
-                            if n_features == 0 && self.model.ml_target.is_some() {
-                                ui.label(egui::RichText::new("⚠ No features").color(egui::Color32::RED))
-                                    .on_hover_text("No numeric or boolean columns found to use as features. Try using 'Apply Cleaning' to convert categories to One-Hot encoding first.");
-                            } else {
-                                ui.label(format!("({n_features} features)"))
-                                    .on_hover_text("Number of numeric/boolean columns that will be used to predict the target.");
-                            }
-                        });
-                    }
-
-                    // 4. Show Results if any
-                    if let Some(res) = &self.model.ml_results {
-                        ui.separator();
-                        ui.label("Last Result:");
-                        if let Some(r2) = res.r2_score {
-                            ui.label(format!("R²: {r2:.4}")).on_hover_text("Coefficient of Determination: 1.0 is perfect prediction.");
-                        }
-                        if let Some(acc) = res.accuracy {
-                            ui.label(format!("Acc: {:.2}%", acc * 100.0));
-                        }
-                        if let Some(mse) = res.mse {
-                            ui.label(format!("MSE: {mse:.4}")).on_hover_text("Mean Squared Error: Lower is better.");
-                        }
-
-                        if ui.button("📊 View Details").clicked() {
-                            self.show_ml_details = true;
-                        }
-                    }
-                });
-            });
-        });
-    }
-
-    fn render_ml_details_window(&mut self, ctx: &egui::Context) {
-        let Some(res) = &self.model.ml_results else {
-            return;
-        };
-
-        egui::Window::new("🧠 ML Model Details")
-            .open(&mut self.show_ml_details)
-            .resizable(true)
-            .default_width(400.0)
-            .show(ctx, |ui| {
-                ui.vertical(|ui| {
-                    ui.heading(format!("Model: {}", res.model_kind.as_str()));
-                    ui.label(format!("Target Column: {}", res.target_column));
-                    ui.label(format!(
-                        "Training Duration: {:.2}s",
-                        res.duration.as_secs_f32()
-                    ));
-
-                    ui.separator();
-                    ui.strong("Metrics:");
-                    if let Some(r2) = res.r2_score {
-                        ui.label(format!("• R² Score: {r2:.6}"));
-                    }
-                    if let Some(acc) = res.accuracy {
-                        ui.label(format!("• Accuracy: {:.2}%", acc * 100.0));
-                    }
-                    if let Some(mse) = res.mse {
-                        ui.label(format!("• Mean Squared Error: {mse:.6}"));
-                    }
-
-                    if !res.interpretation.is_empty() {
-                        ui.separator();
-                        ui.strong("Interpretation:");
-                        for line in &res.interpretation {
-                            ui.label(format!("• {line}"));
-                        }
-                    }
-
-                    ui.separator();
-                    ui.strong("Features:");
-                    ui.label(res.feature_columns.join(", "));
-
-                    if let Some(coeffs) = &res.coefficients {
-                        ui.separator();
-                        ui.strong("Coefficients:");
-                        egui::ScrollArea::vertical()
-                            .max_height(200.0)
-                            .show(ui, |ui| {
-                                egui::Grid::new("coeffs_grid").striped(true).show(ui, |ui| {
-                                    let mut sorted_coeffs: Vec<_> = coeffs.iter().collect();
-                                    sorted_coeffs.sort_by(|a, b| {
-                                        b.1.abs()
-                                            .partial_cmp(&a.1.abs())
-                                            .unwrap_or(std::cmp::Ordering::Equal)
-                                    });
-
-                                    for (name, val) in sorted_coeffs {
-                                        ui.label(name);
-                                        ui.label(format!("{val:.6}"));
-                                        ui.end_row();
-                                    }
-                                });
-                            });
-                        if let Some(intercept) = res.intercept {
-                            ui.label(format!("Intercept: {intercept:.6}"));
-                        }
-                    }
-                });
-            });
-    }
-
-    fn render_summary_table(&mut self, ui: &mut egui::Ui) {
-        let mut scroll_area = egui::ScrollArea::horizontal();
-        if self.should_scroll_to_top {
-            scroll_area = scroll_area.scroll_offset(egui::Vec2::ZERO);
-        }
-
-        scroll_area.show(ui, |ui| {
-            let mut table = TableBuilder::new(ui)
-                .striped(true)
-                .resizable(true)
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Min))
-                .column(Column::auto().at_least(30.0)) // Expand
-                .column(Column::auto().at_least(30.0)) // Active/Exclude
-                .column(Column::initial(120.0).at_least(100.0)) // Name
-                .column(Column::initial(100.0).at_least(80.0)) // Type
-                .column(Column::auto().at_least(80.0)) // Nulls
-                .column(Column::auto().at_least(80.0)) // Special
-                .column(Column::initial(250.0).at_least(150.0)) // Stats & Samples
-                .column(Column::initial(250.0).at_least(150.0)) // Technical Summary
-                .column(Column::initial(250.0).at_least(150.0)) // Stakeholder Insight
-                .column(Column::initial(100.0).at_least(100.0)) // Histogram
-                .column(Column::remainder()) // Spacer
-                .min_scrolled_height(0.0);
-
-            if self.should_scroll_to_top {
-                table = table.scroll_to_row(0, None);
-                self.should_scroll_to_top = false;
-            }
-
-            table
-                .header(25.0, |mut header| {
-                    header.col(|_| {}); // Expand
-                    header.col(|ui| {
-                        ui.strong("👁")
-                            .on_hover_text("Include column in analysis and output");
-                    });
-                    header.col(|ui| {
-                        let header_color = if ui.visuals().dark_mode {
-                            egui::Color32::WHITE
-                        } else {
-                            egui::Color32::BLACK
-                        };
-                        ui.label(egui::RichText::new("Column").strong().color(header_color));
-                    });
-                    header.col(|ui| {
-                        ui.strong("Type");
-                    });
-                    header.col(|ui| {
-                        ui.strong("Nulls");
-                    });
-                    header.col(|ui| {
-                        ui.strong("Special");
-                    });
-                    header.col(|ui| {
-                        ui.strong("Stats & Samples").on_hover_text(
-                            "Core technical stats and a small selection of sample values.",
-                        );
-                    });
-                    header.col(|ui| {
-                        ui.strong("Technical Summary").on_hover_text(
-                            "Detailed technical interpretation of the data patterns.",
-                        );
-                    });
-                    header.col(|ui| {
-                        ui.strong("Stakeholder Insight")
-                            .on_hover_text("Business-friendly explanation of what the data means.");
-                    });
-                    header.col(|ui| {
-                        ui.strong("Histogram");
-                    });
-                    header.col(|_| {}); // Spacer
-                })
-                .body(|mut body| {
-                    let summary = self.model.summary.clone();
-                    for col in &summary {
-                        let is_expanded = self.expanded_rows.contains(&col.name);
-                        let row_height = if is_expanded {
-                            300.0f32
-                        } else {
-                            match &col.stats {
-                                ColumnStats::Numeric(_) => 200.0f32,
-                                ColumnStats::Text(_) | ColumnStats::Boolean(_) => 140.0f32,
-                                ColumnStats::Categorical(_) | ColumnStats::Temporal(_) => 180.0f32,
-                            }
-                        }
-                        .max(35.0);
-
-                        body.row(row_height, |row| {
-                            self.render_column_row(row, col, is_expanded);
-                        });
-                    }
-                });
-        });
-    }
-
-    fn render_column_stats_cell(
-        &mut self,
-        ui: &mut egui::Ui,
-        col: &ColumnSummary,
-        is_expanded: bool,
-    ) {
-        ui.vertical(|ui| {
-            // 1. Core Stats
-            ui.scope(|ui| {
-                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-                match &col.stats {
-                    ColumnStats::Numeric(s) => self.render_numeric_stats_info(ui, s),
-                    ColumnStats::Text(s) => Self::render_text_stats_info(ui, s),
-                    ColumnStats::Categorical(freq) => {
-                        Self::render_categorical_stats_info(ui, freq, is_expanded, col.count);
-                    }
-                    ColumnStats::Temporal(s) => Self::render_temporal_stats_info(ui, s),
-                    ColumnStats::Boolean(s) => Self::render_boolean_stats_info(ui, s, col.count),
-                }
-            });
-
-            // 2. Sample Values (Now always shown under stats)
-            if !col.samples.is_empty() {
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new("Samples:").strong().size(11.0));
-                ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(col.samples.join(", "))
-                            .italics()
-                            .size(11.0),
-                    )
-                    .wrap_mode(egui::TextWrapMode::Wrap),
-                );
-            }
-
-            // 3. Advanced Metrics
-            Self::render_advanced_metrics(ui, &col.stats);
-
-            // 4. Advanced Cleaning (Only shown when expanded)
-            if is_expanded {
-                self.render_cleaning_controls(ui, col);
-            }
-        });
-    }
-
-    fn render_column_row(
-        &mut self,
-        mut row: egui_extras::TableRow<'_, '_>,
-        col: &ColumnSummary,
-        is_expanded: bool,
-    ) {
-        let is_active = self
-            .model
-            .cleaning_configs
-            .get(&col.name)
-            .map(|c| c.active)
-            .unwrap_or(true);
-
-        row.col(|ui| {
-            let icon = if is_expanded { "⏷" } else { "⏵" };
-            if ui.add(egui::Button::new(icon).frame(false)).clicked() {
-                if is_expanded {
-                    self.expanded_rows.remove(&col.name);
-                } else {
-                    self.expanded_rows.insert(col.name.clone());
-                }
-            }
-        });
-        row.col(|ui| {
-            if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
-                ui.checkbox(&mut config.active, "").on_hover_text("If unchecked, this column will be excluded from cleaning, analysis, and export.");
-            }
-        });
-        row.col(|ui| {
-            ui.add_enabled_ui(is_active, |ui| {
-                self.render_name_editor(ui, col);
-            });
-        });
-        row.col(|ui| {
-            ui.add_enabled_ui(is_active, |ui| {
-                self.render_type_editor(ui, col);
-            });
-        });
-        row.col(|ui| {
-            ui.add_enabled_ui(is_active, |ui| {
-                let null_pct = if col.count > 0 {
-                    (col.nulls as f64 / col.count as f64) * 100.0
-                } else {
-                    0.0
-                };
-                ui.label(format!("{} ({null_pct:.1}%)", col.nulls));
-            });
-        });
-        row.col(|ui| {
-            ui.add_enabled_ui(is_active, |ui| {
-                if col.has_special {
-                    ui.colored_label(egui::Color32::RED, "⚠ Yes");
-                } else {
-                    ui.label("No");
-                }
-            });
-        });
-        row.col(|ui| {
-            ui.add_enabled_ui(is_active, |ui| {
-                self.render_column_stats_cell(ui, col, is_expanded);
-            });
-        });
-        row.col(|ui| {
-            ui.add_enabled_ui(is_active, |ui| {
-                // Technical Summary Column
-                ui.vertical(|ui| {
-                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-                    for line in &col.interpretation {
-                        ui.label(format!("• {line}"));
-                    }
-                });
-            });
-        });
-        row.col(|ui| {
-            ui.add_enabled_ui(is_active, |ui| {
-                // Stakeholder Insight Column
-                ui.vertical(|ui| {
-                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-                    for line in &col.business_summary {
-                        ui.label(format!("• {line}"));
-                    }
-                });
-            });
-        });
-        row.col(|ui| {
-            ui.add_enabled_ui(is_active, |ui| {
-                render_distribution(
-                    ui,
-                    &col.name,
-                    &col.stats,
-                    self.model.show_full_range,
-                    is_expanded,
-                );
-            });
-        });
-        row.col(|_| {}); // Spacer
-    }
-
-    #[expect(clippy::too_many_lines)]
-    fn render_cleaning_controls(&mut self, ui: &mut egui::Ui, col: &ColumnSummary) {
-        ui.add_space(8.0);
-        ui.separator();
-
-        if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
-            // --- 1. Advanced Cleaning Section ---
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut config.advanced_cleaning, "")
-                    .on_hover_text("Enable or disable all advanced cleaning steps for this column.");
-                ui.strong("🧽 Advanced Cleaning:");
-
-                ui.add_enabled_ui(config.advanced_cleaning, |ui| {
-                    ui.checkbox(&mut config.trim_whitespace, "Trim Whitespace");
-                    ui.checkbox(&mut config.remove_special_chars, "Remove Special Chars");
-                });
-            });
-
-            ui.add_space(4.0);
-
-            // --- 2. ML Preprocessing Section ---
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut config.ml_preprocessing, "")
-                    .on_hover_text("Enable or disable all ML preprocessing steps for this column.");
-                ui.strong("🧪 ML Preprocessing:");
-
-                ui.add_enabled_ui(config.ml_preprocessing, |ui| {
-                    let effective_kind = config.target_dtype.unwrap_or(col.kind);
-
-                    // --- Imputation ---
-                    egui::ComboBox::from_id_salt(format!("impute_{}", col.name))
-                        .selected_text(match config.impute_mode {
-                            super::logic::types::ImputeMode::None => "No Imputation",
-                            super::logic::types::ImputeMode::Mean => "Fill with Mean",
-                            super::logic::types::ImputeMode::Median => "Fill with Median",
-                            super::logic::types::ImputeMode::Zero => "Fill with Zero",
-                            super::logic::types::ImputeMode::Mode => "Fill with Mode",
-                        })
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut config.impute_mode,
-                                super::logic::types::ImputeMode::None,
-                                "No Imputation",
-                            );
-
-                            if col.kind == super::logic::types::ColumnKind::Numeric {
-                                ui.selectable_value(
-                                    &mut config.impute_mode,
-                                    super::logic::types::ImputeMode::Mean,
-                                    "Fill with Mean",
-                                );
-                                ui.selectable_value(
-                                    &mut config.impute_mode,
-                                    super::logic::types::ImputeMode::Median,
-                                    "Fill with Median",
-                                );
-                                ui.selectable_value(
-                                    &mut config.impute_mode,
-                                    super::logic::types::ImputeMode::Zero,
-                                    "Fill with Zero",
-                                );
-                            }
-
-                            if col.kind == super::logic::types::ColumnKind::Categorical {
-                                ui.selectable_value(
-                                    &mut config.impute_mode,
-                                    super::logic::types::ImputeMode::Mode,
-                                    "Fill with Mode",
-                                );
-                            }
-                        });
-
-                    // Auto-reset invalid imputation modes
-                    match config.impute_mode {
-                        super::logic::types::ImputeMode::Mean
-                        | super::logic::types::ImputeMode::Median
-                        | super::logic::types::ImputeMode::Zero
-                            if col.kind != super::logic::types::ColumnKind::Numeric =>
-                        {
-                            config.impute_mode = super::logic::types::ImputeMode::None;
-                        }
-                        super::logic::types::ImputeMode::Mode
-                            if col.kind != super::logic::types::ColumnKind::Categorical =>
-                        {
-                            config.impute_mode = super::logic::types::ImputeMode::None;
-                        }
-                        _ => {}
-                    }
-
-                    // --- Normalization ---
-                    if effective_kind == super::logic::types::ColumnKind::Numeric {
-                        ui.separator();
-                        egui::ComboBox::from_id_salt(format!("norm_{}", col.name))
-                            .selected_text(match config.normalization {
-                                super::logic::types::NormalizationMethod::None => "No Scaling",
-                                super::logic::types::NormalizationMethod::ZScore => "Z-Score (Std)",
-                                super::logic::types::NormalizationMethod::MinMax => "Min-Max (0-1)",
-                            })
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut config.normalization,
-                                    super::logic::types::NormalizationMethod::None,
-                                    "No Scaling",
-                                );
-                                ui.selectable_value(
-                                    &mut config.normalization,
-                                    super::logic::types::NormalizationMethod::ZScore,
-                                    "Z-Score (Std)",
-                                );
-                                ui.selectable_value(
-                                    &mut config.normalization,
-                                    super::logic::types::NormalizationMethod::MinMax,
-                                    "Min-Max (0-1)",
-                                );
-                            });
-                    } else {
-                        config.normalization = super::logic::types::NormalizationMethod::None;
-                    }
-
-                    // --- One-Hot Encoding ---
-                    if effective_kind == super::logic::types::ColumnKind::Categorical {
-                        ui.separator();
-                        ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode")
-                            .on_hover_text("Convert categorical values into multiple binary columns.");
-                    } else {
-                        config.one_hot_encode = false;
-                    }
-                });
-            });
-        }
-    }
-
-    fn render_name_editor(&mut self, ui: &mut egui::Ui, col: &ColumnSummary) {
-        let text_color = if ui.visuals().dark_mode {
-            egui::Color32::LIGHT_GRAY
-        } else {
-            egui::Color32::BLACK
-        };
-
-        if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
-            ui.add(
-                egui::TextEdit::singleline(&mut config.new_name)
-                    .hint_text(egui::RichText::new(&col.name).strong().color(text_color))
-                    .desired_width(f32::INFINITY),
-            );
-        } else {
-            ui.label(egui::RichText::new(&col.name).strong().color(text_color));
-        }
-    }
-
-    fn render_type_editor(&mut self, ui: &mut egui::Ui, col: &ColumnSummary) {
-        if let Some(config) = self.model.cleaning_configs.get_mut(&col.name) {
-            egui::ComboBox::from_id_salt(format!("row_dtype_{}", col.name))
-                .selected_text(
-                    config
-                        .target_dtype
-                        .map(|k| k.as_str())
-                        .unwrap_or(col.kind.as_str()),
-                )
-                .width(ui.available_width())
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut config.target_dtype, None, col.kind.as_str());
-
-                    let targets = [
-                        super::logic::types::ColumnKind::Numeric,
-                        super::logic::types::ColumnKind::Text,
-                        super::logic::types::ColumnKind::Boolean,
-                        super::logic::types::ColumnKind::Temporal,
-                        super::logic::types::ColumnKind::Categorical,
-                    ];
-
-                    for target in targets {
-                        if target != col.kind && col.is_compatible_with(target) {
-                            ui.selectable_value(
-                                &mut config.target_dtype,
-                                Some(target),
-                                target.as_str(),
-                            );
-                        }
-                    }
-                });
-        } else {
-            ui.label(col.kind.as_str());
-        }
-    }
-
-    fn render_numeric_stats_info(&self, ui: &mut egui::Ui, s: &NumericStats) {
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                ui.label("Range:").on_hover_text("The full spread of values from minimum to maximum.");
-                ui.label(format!("{} to {}", fmt_opt(s.min), fmt_opt(s.max)));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Mean:").on_hover_text("The mathematical average. If significantly different from the median, the data is skewed.");
-                ui.label(fmt_opt(s.mean));
-                ui.label("|");
-                ui.label("Median:").on_hover_text("The middle value. 50% of the data is above this, and 50% is below.");
-                ui.label(fmt_opt(s.median));
-
-                if let (Some(mean), Some(median)) = (s.mean, s.median) {
-                    if median.abs() > 1e-9 && (mean - median).abs() / median.abs() > 0.1 {
-                        ui.label("⚠").on_hover_text("Gap > 10%: Outliers likely influencing the average");
-                    }
-                }
-            });
-            ui.horizontal(|ui| {
-                let pct = self.model.trim_pct * 100.0;
-                ui.label(format!("Trimmed Mean ({pct:.0}%):"))
-                    .on_hover_text("The mean after removing the top and bottom X% of values. Helps reduce the influence of outliers.");
-                ui.label(fmt_opt(s.trimmed_mean));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Std Dev:").on_hover_text("Typical deviation from the average. High values mean the data is spread out.");
-                ui.label(fmt_opt(s.std_dev));
-
-                if let (Some(mean), Some(median), Some(std_dev)) = (s.mean, s.median, s.std_dev) {
-                    if std_dev > 0.0 {
-                        let nonparametric_skew = (mean - median).abs() / std_dev;
-                        if nonparametric_skew > 0.3 {
-                            ui.label("⚠").on_hover_text("Standard deviation may be less reliable because the mean is heavily influenced by outliers or skew.");
-                        }
-                    }
-                }
-
-                ui.label("|");
-                ui.label("IQR:").on_hover_text("Interquartile Range: The range of the middle 50% of your data.");
-                ui.label(format!("{}-{}", fmt_opt(s.q1), fmt_opt(s.q3)));
-            });
-        });
-    }
-
-    fn render_text_stats_info(ui: &mut egui::Ui, s: &TextStats) {
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                ui.label("Distinct:")
-                    .on_hover_text("The number of unique values in this column.");
-                ui.label(s.distinct.to_string());
-            });
-            if let Some((val, count)) = &s.top_value {
-                ui.label(format!("Top: \"{val}\" ({count})"));
-            }
-        });
-    }
-
-    fn render_categorical_stats_info(
-        ui: &mut egui::Ui,
-        freq: &std::collections::HashMap<String, usize>,
-        is_expanded: bool,
-        total_count: usize,
-    ) {
-        let total = total_count as f64;
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                ui.label("Categories:")
-                    .on_hover_text("The number of unique groups detected.");
-                ui.label(freq.len().to_string());
-            });
-            let mut sorted: Vec<_> = freq.iter().collect();
-            sorted.sort_by(|a, b| b.1.cmp(a.1));
-            let limit = if is_expanded { 10 } else { 3 };
-            for (val, count) in sorted.iter().take(limit) {
-                let pct = if total > 0.0 {
-                    (**count as f64 / total) * 100.0
-                } else {
-                    0.0
-                };
-                ui.label(format!("- {val}: {count} ({pct:.1}%)"));
-            }
-            if sorted.len() > limit {
-                ui.label("...");
-            }
-        });
-    }
-
-    fn render_temporal_stats_info(ui: &mut egui::Ui, s: &TemporalStats) {
-        ui.vertical(|ui| {
-            ui.label(format!("Min: {}", s.min.as_deref().unwrap_or("—")));
-            ui.label(format!("Max: {}", s.max.as_deref().unwrap_or("—")));
-        });
-    }
-
-    fn render_boolean_stats_info(ui: &mut egui::Ui, s: &BooleanStats, total_count: usize) {
-        let total = total_count as f64;
-        ui.vertical(|ui| {
-            let true_pct = if total > 0.0 {
-                (s.true_count as f64 / total) * 100.0
-            } else {
-                0.0
-            };
-            let false_pct = if total > 0.0 {
-                (s.false_count as f64 / total) * 100.0
-            } else {
-                0.0
-            };
-            ui.label(format!("True: {} ({true_pct:.1}%)", s.true_count));
-            ui.label(format!("False: {} ({false_pct:.1}%)", s.false_count));
-        });
-    }
-
-    fn render_advanced_metrics(ui: &mut egui::Ui, stats: &ColumnStats) {
-        match stats {
-            ColumnStats::Numeric(s) => {
-                ui.horizontal(|ui| {
-                    let mut first = true;
-                    if s.is_sorted {
-                        ui.label(
-                            egui::RichText::new("✓ Sorted")
-                                .color(egui::Color32::from_rgb(0, 150, 0)),
-                        )
-                        .on_hover_text("Values are strictly increasing.");
-                        first = false;
-                    } else if s.is_sorted_rev {
-                        ui.label(
-                            egui::RichText::new("✓ Sorted (Rev)")
-                                .color(egui::Color32::from_rgb(0, 150, 0)),
-                        )
-                        .on_hover_text("Values are strictly decreasing.");
-                        first = false;
-                    }
-
-                    if s.is_integer {
-                        if !first {
-                            ui.label("|");
-                        }
-                        ui.label("Integers")
-                            .on_hover_text("All values are whole numbers.");
-                        first = false;
-                    }
-
-                    if s.zero_count > 0 {
-                        if !first {
-                            ui.label("|");
-                        }
-                        ui.label(format!("Zeros: {}", s.zero_count));
-                        first = false;
-                    }
-
-                    if s.negative_count > 0 {
-                        if !first {
-                            ui.label("|");
-                        }
-                        ui.label(format!("Negatives: {}", s.negative_count));
-                    }
-                });
-            }
-            ColumnStats::Text(s) => {
-                ui.label(format!(
-                    "Lengths: {} / {} / {:.1}",
-                    s.min_length, s.max_length, s.avg_length
-                ))
-                .on_hover_text("Character length of the text entries (Min / Max / Avg).");
-            }
-            ColumnStats::Temporal(s) => {
-                if s.is_sorted {
-                    ui.label(
-                        egui::RichText::new("✓ Chronological")
-                            .color(egui::Color32::from_rgb(0, 150, 0)),
-                    );
-                } else if s.is_sorted_rev {
-                    ui.label(
-                        egui::RichText::new("✓ Reverse Chronological")
-                            .color(egui::Color32::from_rgb(0, 150, 0)),
-                    );
-                }
-            }
-            _ => {}
         }
     }
 
@@ -1381,17 +466,18 @@ impl App {
             .start_cleaning(ctx, df, configs, trim_pct, path_str, file_size);
     }
 
-    pub fn start_push_to_db(
-        &mut self,
-        ctx: egui::Context,
-        file_path: String,
-        file_size: u64,
-        health: FileHealth,
-        summary: Vec<ColumnSummary>,
-        df: DataFrame,
-    ) {
+    pub fn start_push_to_db(&mut self, ctx: egui::Context) {
         use secrecy::ExposeSecret as _;
         use sqlx::postgres::PgConnectOptions;
+
+        let Some(file_path) = self.model.file_path.clone() else {
+            return;
+        };
+        let file_size = self.model.file_size;
+        let Some(health) = self.model.health.clone() else {
+            return;
+        };
+        let (df, summary) = self.get_filtered_data();
 
         if self.model.pg_host.is_empty() || self.model.pg_database.is_empty() {
             self.status = "Error: Database connection not configured".to_owned();
@@ -1449,418 +535,64 @@ impl App {
         self.log_action("Export Started", &path.display().to_string());
         self.controller.start_export(ctx, df, path);
     }
-}
 
-fn render_distribution(
-    ui: &mut egui::Ui,
-    name: &str,
-    stats: &ColumnStats,
-    show_full_range: bool,
-    is_expanded: bool,
-) {
-    ui.scope(|ui| {
-        // Force light mode visuals for the distribution plots so they look the same in both themes
-        ui.style_mut().visuals = egui::Visuals::light();
-        // Set the plot background to match our light theme background
-        ui.style_mut().visuals.extreme_bg_color = egui::Color32::from_rgb(220, 220, 215);
+    pub fn start_secondary_analysis(&mut self, ctx: egui::Context) {
+        let path = FileDialog::new()
+            .add_filter("Data Files", &["csv", "json", "jsonl", "ndjson", "parquet"])
+            .pick_file();
 
-        let plot_height = if is_expanded { 220.0 } else { 80.0 };
+        let Some(path) = path else { return };
 
-        match stats {
-            ColumnStats::Numeric(s) => {
-                render_numeric_plot(ui, name, s, show_full_range, plot_height);
-            }
-            ColumnStats::Categorical(freq) => {
-                render_categorical_plot(ui, name, freq, plot_height);
-            }
-            ColumnStats::Temporal(s) => {
-                render_temporal_plot(ui, name, s, show_full_range, plot_height);
-            }
-            ColumnStats::Text(_) => {
-                ui.label("—");
-            }
-            ColumnStats::Boolean(s) => {
-                render_boolean_plot(ui, name, s, plot_height);
-            }
-        }
-    });
-}
-
-fn render_numeric_plot(
-    ui: &mut egui::Ui,
-    name: &str,
-    s: &NumericStats,
-    show_full_range: bool,
-    plot_height: f32,
-) {
-    if s.histogram.is_empty() {
-        ui.label("—");
-        return;
+        self.status = format!("Loading secondary: {}", path.display());
+        self.log_action("Secondary Load Started", &path.display().to_string());
+        self.controller
+            .start_secondary_analysis(ctx, path, self.model.trim_pct);
     }
 
-    let (view_min, view_max) = calculate_view_bounds(s, show_full_range);
-    let range = view_max - view_min;
-    let margin = if range > 0.0 { range * 0.05 } else { 1.0 };
-    let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(1) as f64;
+    pub fn perform_join(&mut self, ctx: egui::Context) {
+        let (df1, _) = self.get_filtered_data();
+        let Some(df2) = self.model.secondary_df.clone() else {
+            return;
+        };
 
-    let chart = BarChart::new(
-        "Histogram",
-        create_histogram_bars(s, view_min, view_max, margin, show_full_range),
-    )
-    .color(egui::Color32::from_rgb(140, 180, 240))
-    .element_formatter(Box::new(|bar, _| {
-        format!("Value: {:.4}\nCount: {}", bar.argument, bar.value)
-    }));
+        let primary_key = &self.model.join_key_primary;
+        let secondary_key = &self.model.join_key_secondary;
 
-    let curve_points = create_gaussian_points(s, view_min, view_max, margin);
-    let has_curve = !curve_points.is_empty();
-    let curve = Line::new("", curve_points)
-        .color(egui::Color32::from_rgb(250, 150, 100))
-        .width(1.5);
-
-    let box_lines =
-        create_box_plot_lines(s, max_count, view_min, view_max, margin, show_full_range);
-
-    ui.vertical(|ui| {
-        Plot::new(format!("plot_num_{name}"))
-            .show_axes([false, false])
-            .show_grid([false, false])
-            .show_x(false)
-            .show_y(false)
-            .allow_zoom(false)
-            .allow_drag(false)
-            .allow_scroll(false)
-            .include_y(max_count)
-            .include_y(-max_count * 0.3)
-            .include_x(view_min - margin)
-            .include_x(view_max + margin)
-            .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
-            .height(plot_height)
-            .show(ui, |plot_ui| {
-                plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                    [view_min - margin, -max_count * 0.3],
-                    [view_max + margin, max_count * 1.1],
-                ));
-                plot_ui.bar_chart(chart);
-                if has_curve {
-                    plot_ui.line(curve);
-                }
-                for line in box_lines {
-                    plot_ui.line(line.color(egui::Color32::from_gray(120)).width(1.0));
-                }
-            });
-
-        if !show_full_range {
-            render_zoom_info(ui, s, view_min, view_max);
+        if primary_key.is_empty() || secondary_key.is_empty() {
+            self.status = "Please select join keys for both files.".to_owned();
+            return;
         }
-    });
-}
 
-fn calculate_view_bounds(s: &NumericStats, show_full_range: bool) -> (f64, f64) {
-    let min = s.min.unwrap_or(0.0);
-    let max = s.max.unwrap_or(1.0);
-    let p05 = s.p05.unwrap_or(min);
-    let p95 = s.p95.unwrap_or(max);
+        self.status = "Joining dataframes...".to_owned();
 
-    if show_full_range {
-        (min, max)
-    } else {
-        let full_range = max - min;
-        let zoom_range = p95 - p05;
-        if full_range > 3.0 * zoom_range && zoom_range > 0.0 {
-            (p05, p95)
-        } else {
-            (min, max)
-        }
-    }
-}
+        let join_type = match self.model.join_type {
+            super::model::MyJoinType::Inner => polars::prelude::JoinType::Inner,
+            super::model::MyJoinType::Left => polars::prelude::JoinType::Left,
+            super::model::MyJoinType::Outer => polars::prelude::JoinType::Full,
+        };
 
-fn create_histogram_bars(
-    s: &NumericStats,
-    view_min: f64,
-    view_max: f64,
-    margin: f64,
-    show_full_range: bool,
-) -> Vec<Bar> {
-    s.histogram
-        .iter()
-        .filter(|&&(val, _)| {
-            show_full_range || (val >= view_min - margin && val <= view_max + margin)
-        })
-        .map(|&(val, count)| {
-            Bar::new(val, count as f64)
-                .width(s.bin_width)
-                .stroke(egui::Stroke::new(
-                    0.5,
-                    egui::Color32::from_rgb(100, 140, 240),
-                ))
-        })
-        .collect()
-}
-
-fn create_gaussian_points(
-    s: &NumericStats,
-    view_min: f64,
-    view_max: f64,
-    margin: f64,
-) -> Vec<[f64; 2]> {
-    let mut curve_points = Vec::new();
-    if let (Some(mu), Some(sigma)) = (s.mean, s.std_dev) {
-        if sigma > 0.0 {
-            let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
-            let scale = total_count as f64 * s.bin_width;
-            let plot_min = view_min - margin;
-            let plot_max = view_max + margin;
-            if plot_max > plot_min {
-                let step = (plot_max - plot_min) / 100.0;
-                for i in 0..=100 {
-                    let x = plot_min + i as f64 * step;
-                    let z = (x - mu) / sigma;
-                    let y = scale
-                        * (1.0 / (sigma * (2.0 * std::f64::consts::PI).sqrt()))
-                        * (-0.5 * z * z).exp();
-                    curve_points.push([x, y]);
-                }
-            }
-        }
-    }
-    curve_points
-}
-
-fn create_box_plot_lines(
-    s: &NumericStats,
-    max_count: f64,
-    view_min: f64,
-    view_max: f64,
-    margin: f64,
-    show_full_range: bool,
-) -> Vec<Line<'_>> {
-    let mut box_lines = Vec::new();
-    if let (Some(q1), Some(median), Some(q3), Some(min), Some(max)) =
-        (s.q1, s.median, s.q3, s.min, s.max)
-    {
-        if max > min {
-            let y_pos = -max_count * 0.15;
-            let y_h = max_count * 0.08;
-            box_lines.push(Line::new(
-                "Box",
-                vec![
-                    [q1, y_pos - y_h],
-                    [q3, y_pos - y_h],
-                    [q3, y_pos + y_h],
-                    [q1, y_pos + y_h],
-                    [q1, y_pos - y_h],
-                ],
-            ));
-            box_lines.push(Line::new(
-                "Median",
-                vec![[median, y_pos - y_h], [median, y_pos + y_h]],
-            ));
-            let w_min = if show_full_range {
-                min
-            } else {
-                min.max(view_min - margin)
-            };
-            let w_max = if show_full_range {
-                max
-            } else {
-                max.min(view_max + margin)
-            };
-            if w_min < q1 {
-                box_lines.push(Line::new("Whisker1", vec![[w_min, y_pos], [q1, y_pos]]));
-            }
-            if w_max > q3 {
-                box_lines.push(Line::new("Whisker2", vec![[q3, y_pos], [w_max, y_pos]]));
-            }
-        }
-    }
-    box_lines
-}
-
-fn render_zoom_info(ui: &mut egui::Ui, s: &NumericStats, view_min: f64, view_max: f64) {
-    let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
-    let in_view_count: usize = s
-        .histogram
-        .iter()
-        .filter(|&&(v, _)| v >= view_min - s.bin_width / 2.0 && v <= view_max + s.bin_width / 2.0)
-        .map(|&(_, c)| c)
-        .sum();
-    let out_pct = (1.0 - (in_view_count as f64 / total_count as f64)) * 100.0;
-    if out_pct > 0.5 {
-        ui.label(
-            egui::RichText::new(format!("Zoomed to 5th-95th ({out_pct:.1}% hidden)"))
-                .size(9.0)
-                .color(egui::Color32::GRAY),
+        let result = df1.join(
+            &df2,
+            [primary_key],
+            [secondary_key],
+            polars::prelude::JoinArgs::new(join_type),
         );
-    }
-}
 
-fn render_categorical_plot(
-    ui: &mut egui::Ui,
-    name: &str,
-    freq: &std::collections::HashMap<String, usize>,
-    plot_height: f32,
-) {
-    if freq.is_empty() {
-        ui.label("—");
-        return;
-    }
-    let mut sorted: Vec<_> = freq.iter().collect();
-    sorted.sort_by(|a, b| b.1.cmp(a.1));
-
-    let chart = BarChart::new(
-        "Categories",
-        sorted
-            .iter()
-            .take(10)
-            .enumerate()
-            .map(|(i, &(_val, &count))| Bar::new(i as f64, count as f64))
-            .collect(),
-    )
-    .width(0.75)
-    .color(egui::Color32::from_rgb(100, 200, 100));
-
-    let num_bars = sorted.len().min(10);
-    Plot::new(format!("plot_cat_{name}"))
-        .show_axes([false, false])
-        .show_grid([false, false])
-        .show_x(false)
-        .show_y(false)
-        .allow_zoom(false)
-        .allow_drag(false)
-        .allow_scroll(false)
-        .include_y(0.0)
-        .include_x(-0.5)
-        .include_x(num_bars as f64 - 0.5)
-        .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
-        .height(plot_height)
-        .show(ui, |plot_ui| {
-            plot_ui.bar_chart(chart);
-        });
-}
-
-fn render_temporal_plot(
-    ui: &mut egui::Ui,
-    name: &str,
-    s: &TemporalStats,
-    show_full_range: bool,
-    plot_height: f32,
-) {
-    if s.histogram.is_empty() {
-        ui.label("—");
-        return;
-    }
-
-    let (view_min, view_max) = {
-        let min = s.histogram.first().map(|h| h.0).unwrap_or(0.0);
-        let max = s.histogram.last().map(|h| h.0).unwrap_or(1.0);
-        let p05 = s.p05.unwrap_or(min);
-        let p95 = s.p95.unwrap_or(max);
-
-        if show_full_range {
-            (min, max)
-        } else {
-            let full_range = max - min;
-            let zoom_range = p95 - p05;
-
-            if full_range > 3.0 * zoom_range && zoom_range > 0.0 {
-                (p05, p95)
-            } else {
-                (min, max)
-            }
-        }
-    };
-
-    let range = view_max - view_min;
-    let margin = if range > 0.0 { range * 0.05 } else { 1.0 };
-
-    let bars: Vec<egui_plot::Bar> = s
-        .histogram
-        .iter()
-        .filter(|&&(ts, _)| show_full_range || (ts >= view_min - margin && ts <= view_max + margin))
-        .map(|&(ts, count)| {
-            Bar::new(ts, count as f64)
-                .width(s.bin_width)
-                .stroke(egui::Stroke::new(
-                    0.5,
-                    egui::Color32::from_rgb(160, 110, 60),
-                ))
-        })
-        .collect();
-
-    let chart = BarChart::new("Temporal", bars).color(egui::Color32::from_rgb(200, 150, 100));
-
-    let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(1) as f64;
-
-    ui.vertical(|ui| {
-        Plot::new(format!("plot_temp_{name}"))
-            .show_axes([false, false])
-            .show_grid([false, false])
-            .show_x(false)
-            .show_y(false)
-            .allow_zoom(false)
-            .allow_drag(false)
-            .allow_scroll(false)
-            .include_y(max_count)
-            .include_y(0.0)
-            .include_x(view_min - margin)
-            .include_x(view_max + margin)
-            .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
-            .height(plot_height)
-            .show(ui, |plot_ui| {
-                plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                    [view_min - margin, -max_count * 0.1],
-                    [view_max + margin, max_count * 1.1],
-                ));
-                plot_ui.bar_chart(chart);
-            });
-
-        if !show_full_range {
-            let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
-            let in_view_count: usize = s
-                .histogram
-                .iter()
-                .filter(|&&(v, _)| {
-                    v >= view_min - s.bin_width / 2.0 && v <= view_max + s.bin_width / 2.0
-                })
-                .map(|&(_, c)| c)
-                .sum();
-            let out_pct = (1.0 - (in_view_count as f64 / total_count as f64)) * 100.0;
-            if out_pct > 0.5 {
-                ui.label(
-                    egui::RichText::new(format!("Zoomed to 5th-95th ({out_pct:.1}% hidden)"))
-                        .size(9.0)
-                        .color(egui::Color32::GRAY),
+        match result {
+            Ok(joined_df) => {
+                self.model.df = Some(joined_df);
+                self.model.secondary_df = None;
+                self.status = "Successfully joined dataframes.".to_owned();
+                self.log_action(
+                    "Data Join Performed",
+                    &format!("Type: {:?}", self.model.join_type),
                 );
+                self.trigger_reanalysis(ctx);
+            }
+            Err(e) => {
+                self.status = format!("Join Error: {e}");
+                self.log_action("Join Failed", &e.to_string());
             }
         }
-    });
-}
-
-fn render_boolean_plot(ui: &mut egui::Ui, name: &str, s: &BooleanStats, plot_height: f32) {
-    let chart = BarChart::new(
-        "Boolean",
-        vec![
-            Bar::new(0.0, s.true_count as f64).fill(egui::Color32::from_rgb(100, 200, 100)),
-            Bar::new(1.0, s.false_count as f64).fill(egui::Color32::from_rgb(200, 100, 100)),
-        ],
-    )
-    .width(0.75);
-
-    Plot::new(format!("plot_bool_{name}"))
-        .show_axes([false, false])
-        .show_grid([false, false])
-        .show_x(false)
-        .show_y(false)
-        .allow_zoom(false)
-        .allow_drag(false)
-        .allow_scroll(false)
-        .include_y(0.0)
-        .include_x(-1.0)
-        .include_x(2.0)
-        .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
-        .height(plot_height)
-        .show(ui, |plot_ui| {
-            plot_ui.bar_chart(chart);
-        });
+    }
 }

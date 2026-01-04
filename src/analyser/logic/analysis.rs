@@ -1,24 +1,17 @@
 use anyhow::{Context as _, Result};
+use polars::prelude::NonExistent;
 use polars::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::types::{
-    BooleanStats, ColumnCleanConfig, ColumnKind, ColumnStats, ColumnSummary, ImputeMode,
-    NormalizationMethod, NumericStats, TemporalStats, TextStats,
+    AnalysisResponse, BooleanStats, ColumnCleanConfig, ColumnKind, ColumnStats, ColumnSummary,
+    CorrelationMatrix, ImputeMode, NormalizationMethod, NumericStats, TemporalStats, TextCase,
+    TextStats,
 };
 
-pub type AnalysisReceiver = crossbeam_channel::Receiver<
-    Result<(
-        String,
-        u64,
-        Vec<ColumnSummary>,
-        crate::analyser::logic::FileHealth,
-        std::time::Duration,
-        DataFrame,
-    )>,
->;
+pub type AnalysisReceiver = crossbeam_channel::Receiver<Result<AnalysisResponse>>;
 
 pub fn load_df(path: &std::path::Path, progress: &Arc<AtomicU64>) -> Result<DataFrame> {
     let ext = path
@@ -153,7 +146,8 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
         let dtype = col.dtype();
 
         let (kind, stats, has_special) = if dtype.is_bool() {
-            let (k, s) = analyse_boolean(col).context(format!("Analysis failed for boolean column '{name}'"))?;
+            let (k, s) = analyse_boolean(col)
+                .context(format!("Analysis failed for boolean column '{name}'"))?;
             (k, s, false)
         } else if dtype.is_numeric() {
             let (k, s) = analyse_numeric(col, trim_pct)
@@ -177,14 +171,66 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
             stats,
             interpretation: Vec::new(),
             business_summary: Vec::new(),
+            ml_advice: Vec::new(),
             samples,
         };
         summary.interpretation = summary.generate_interpretation();
         summary.business_summary = summary.generate_business_summary();
+        summary.ml_advice = summary.generate_ml_advice();
         summaries.push(summary);
     }
 
     Ok(summaries)
+}
+
+#[expect(clippy::indexing_slicing)]
+pub fn calculate_correlation_matrix(df: &DataFrame) -> Result<Option<CorrelationMatrix>> {
+    let numeric_cols: Vec<String> = df
+        .get_column_names()
+        .iter()
+        .filter(|&name| {
+            df.column(name)
+                .map(|c| c.dtype().is_numeric())
+                .unwrap_or(false)
+        })
+        .map(|s| s.to_string())
+        .collect();
+
+    if numeric_cols.len() < 2 {
+        return Ok(None);
+    }
+
+    let n = numeric_cols.len();
+    let mut exprs = Vec::with_capacity(n * (n - 1) / 2);
+
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let col_a = &numeric_cols[i];
+            let col_b = &numeric_cols[j];
+            exprs.push(pearson_corr(col(col_a), col(col_b)).alias(format!("{i}_{j}")));
+        }
+    }
+
+    let corr_df = df.clone().lazy().select(exprs).collect()?;
+
+    let mut data = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        data[i][i] = 1.0;
+        for j in (i + 1)..n {
+            let val = corr_df
+                .column(&format!("{i}_{j}"))?
+                .f64()?
+                .get(0)
+                .unwrap_or(0.0);
+            data[i][j] = val;
+            data[j][i] = val;
+        }
+    }
+
+    Ok(Some(CorrelationMatrix {
+        columns: numeric_cols,
+        data,
+    }))
 }
 
 #[expect(clippy::too_many_lines)]
@@ -209,7 +255,79 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
 
         let mut expr = col(old_name);
 
-        // 1. Imputation (Must happen early)
+        // 1. Basic Cleaning: Text operations (Must happen before casting)
+        if config.advanced_cleaning {
+            if config.trim_whitespace {
+                expr = expr.str().strip_chars(lit(Null {}));
+            }
+            if config.remove_special_chars {
+                expr = expr.str().replace_all(lit(r"[\r\x00-\x1F]"), lit(""), true);
+            }
+            if config.remove_non_ascii {
+                expr = expr.str().replace_all(lit(r"[^\x00-\x7F]"), lit(""), true);
+            }
+            if config.standardize_nulls {
+                let null_patterns = ["n/a", "null", "none", "-", "nan"];
+                let patterns_s = Series::new("p".into(), &null_patterns);
+                expr = when(expr.clone().str().to_lowercase().is_in(lit(patterns_s)))
+                    .then(lit(Null {}))
+                    .otherwise(expr);
+            }
+            if config.extract_numbers {
+                expr = expr
+                    .str()
+                    .replace_all(lit(r"[$,£€]"), lit(""), true)
+                    .str()
+                    .replace_all(lit(","), lit(""), true);
+            }
+            if !config.regex_find.is_empty() {
+                expr = expr.str().replace_all(
+                    lit(config.regex_find.as_str()),
+                    lit(config.regex_replace.as_str()),
+                    true,
+                );
+            }
+            match config.text_case {
+                TextCase::Lowercase => expr = expr.str().to_lowercase(),
+                TextCase::Uppercase => expr = expr.str().to_uppercase(),
+                TextCase::TitleCase | TextCase::None => {}
+            }
+        }
+
+        // 2. Change Datatypes
+        if let Some(kind) = config.target_dtype {
+            if kind == ColumnKind::Temporal && !config.temporal_format.is_empty() {
+                expr = expr.str().to_datetime(
+                    Some(TimeUnit::Microseconds),
+                    None,
+                    StrptimeOptions {
+                        format: Some(config.temporal_format.clone().into()),
+                        strict: false,
+                        cache: true,
+                        exact: true,
+                    },
+                    lit(Null {}),
+                );
+            } else {
+                let dtype = match kind {
+                    ColumnKind::Numeric => DataType::Float64,
+                    ColumnKind::Boolean => DataType::Boolean,
+                    ColumnKind::Temporal => DataType::Datetime(TimeUnit::Microseconds, None),
+                    _ => DataType::String,
+                };
+                expr = expr.cast(dtype);
+            }
+
+            if kind == ColumnKind::Temporal && config.timezone_utc {
+                expr = expr.dt().replace_time_zone(
+                    Some("UTC".into()),
+                    lit(Null {}),
+                    NonExistent::Null,
+                );
+            }
+        }
+
+        // 3. Imputation (After casting so that Numeric/Boolean specific logic works)
         if config.ml_preprocessing {
             match config.impute_mode {
                 ImputeMode::None => {}
@@ -228,26 +346,16 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
             }
         }
 
-        // 2. Trim whitespace and tabs
-        if config.advanced_cleaning && config.trim_whitespace {
-            expr = expr.str().strip_chars(lit(Null {}));
-        }
-
-        // 3. Remove special characters (CR, Null, control chars)
-        if config.advanced_cleaning && config.remove_special_chars {
-            // Regex for common non-printable/control characters
-            expr = expr.str().replace_all(lit(r"[\r\x00-\x1F]"), lit(""), true);
-        }
-
-        // 4. Change Datatypes
-        if let Some(kind) = config.target_dtype {
-            let dtype = match kind {
-                ColumnKind::Numeric => DataType::Float64,
-                ColumnKind::Boolean => DataType::Boolean,
-                ColumnKind::Temporal => DataType::Datetime(TimeUnit::Microseconds, None),
-                _ => DataType::String,
-            };
-            expr = expr.cast(dtype);
+        // 4. Numeric Refinement (Rounding/Clipping)
+        if config.ml_preprocessing {
+            if let Some(decimals) = config.rounding {
+                expr = expr.round(decimals);
+            }
+            if config.clip_outliers {
+                let lower = expr.clone().quantile(lit(0.05), QuantileMethod::Linear);
+                let upper = expr.clone().quantile(lit(0.95), QuantileMethod::Linear);
+                expr = expr.clip(lower, upper);
+            }
         }
 
         // 5. Normalization
@@ -267,9 +375,22 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
             }
         }
 
-        let needs_update = (config.advanced_cleaning && (config.trim_whitespace || config.remove_special_chars))
-            || config.target_dtype.is_some()
-            || (config.ml_preprocessing && (config.impute_mode != ImputeMode::None || config.normalization != NormalizationMethod::None));
+        // 6. Categorical Refinement
+        if config.ml_preprocessing {
+            if let Some(threshold) = config.freq_threshold {
+                expr = when(
+                    expr.clone()
+                        .count()
+                        .over([col(old_name)])
+                        .lt(lit(threshold as u32)),
+                )
+                .then(lit("Other"))
+                .otherwise(expr);
+            }
+        }
+
+        let needs_update =
+            config.advanced_cleaning || config.target_dtype.is_some() || config.ml_preprocessing;
 
         if needs_update {
             lf = lf.with_column(expr.alias(old_name));
@@ -354,6 +475,7 @@ fn analyse_boolean(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
 
 fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, ColumnStats)> {
     let series = col.as_materialized_series();
+    let distinct_count = series.n_unique()?;
     let f64_series = series.cast(&DataType::Float64)?;
     let ca = f64_series.f64()?;
 
@@ -406,6 +528,7 @@ fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, ColumnSta
         ColumnKind::Numeric,
         ColumnStats::Numeric(NumericStats {
             min,
+            distinct_count,
             p05,
             q1,
             median,
@@ -575,6 +698,7 @@ fn calculate_histogram(
 
 fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
     let series = col.as_materialized_series();
+    let distinct_count = series.n_unique()?;
     let min_str = series
         .cast(&DataType::String)?
         .min_reduce()?
@@ -654,6 +778,7 @@ fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
         ColumnStats::Temporal(TemporalStats {
             min: min_str,
             max: max_str,
+            distinct_count,
             p05,
             p95,
             is_sorted,
@@ -677,17 +802,7 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
     let distinct = series.n_unique()?;
     let row_count = series.len();
 
-    let (min_length, max_length, avg_length) = if dtype.is_string() {
-        let ca = series.str()?;
-        let lengths = ca.str_len_chars();
-        (
-            lengths.min().unwrap_or(0) as usize,
-            lengths.max().unwrap_or(0) as usize,
-            lengths.mean().unwrap_or(0.0),
-        )
-    } else {
-        (0, 0, 0.0)
-    };
+    let (min_length, max_length, avg_length) = get_text_lengths(series, dtype)?;
 
     // Use sorted=true to get descending counts for top_value detection
     let value_counts_df = if distinct > 0 {
@@ -696,22 +811,7 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
         None
     };
 
-    let mut has_special = false;
-    if dtype.is_string() {
-        if let Some(vc) = &value_counts_df {
-            let values = vc.column(name)?.as_materialized_series();
-            let v_ca = values.cast(&DataType::String)?;
-            let v_ca = v_ca.str()?;
-            for v in v_ca.into_iter().flatten() {
-                if v.chars()
-                    .any(|c| c == '\r' || (c.is_control() && c != '\n' && c != '\t'))
-                {
-                    has_special = true;
-                    break;
-                }
-            }
-        }
-    }
+    let has_special = check_special_characters(name, dtype, &value_counts_df)?;
 
     // Categorical detection
     if kind == ColumnKind::Text
@@ -775,4 +875,47 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
         }),
         has_special,
     ))
+}
+
+fn get_text_lengths(series: &Series, dtype: &DataType) -> Result<(usize, usize, f64)> {
+    if dtype.is_string() {
+        let ca = series.str()?;
+        let lengths = ca.str_len_chars();
+        Ok((
+            lengths.min().unwrap_or(0) as usize,
+            lengths.max().unwrap_or(0) as usize,
+            lengths.mean().unwrap_or(0.0),
+        ))
+    } else if let DataType::List(_) = dtype {
+        let lengths = series.list()?.lst_lengths();
+        Ok((
+            lengths.min().unwrap_or(0) as usize,
+            lengths.max().unwrap_or(0) as usize,
+            lengths.mean().unwrap_or(0.0),
+        ))
+    } else {
+        Ok((0, 0, 0.0))
+    }
+}
+
+fn check_special_characters(
+    name: &str,
+    dtype: &DataType,
+    value_counts_df: &Option<DataFrame>,
+) -> Result<bool> {
+    if dtype.is_string() {
+        if let Some(vc) = value_counts_df {
+            let values = vc.column(name)?.as_materialized_series();
+            let v_ca = values.cast(&DataType::String)?;
+            let v_ca = v_ca.str()?;
+            for v in v_ca.into_iter().flatten() {
+                if v.chars()
+                    .any(|c| c == '\r' || (c.is_control() && c != '\n' && c != '\t'))
+                {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
 }
