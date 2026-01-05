@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 
 pub fn render_controls(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
     ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
+        ui.spacing_mut().item_spacing.x = crate::theme::SPACING_SMALL;
 
         // --- Group: File ---
         crate::theme::card_frame(ui).show(ui, |ui| {
@@ -41,6 +41,9 @@ pub fn render_controls(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
                 ui.separator();
                 ui.checkbox(&mut app.model.categorical_as_pie, "Pie Charts")
                     .on_hover_text("Show categorical data as Pie charts instead of Bar charts.");
+                ui.separator();
+                ui.checkbox(&mut app.model.ml_enabled, "Enable ML")
+                    .on_hover_text("Show ML functionality and advanced preprocessing options.");
             });
         });
 
@@ -111,80 +114,104 @@ fn render_joins_group(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
             }
 
             if app.model.secondary_df.is_some() {
-                ui.separator();
-                ui.label("Join on:");
-                // Primary key selection
-                egui::ComboBox::from_id_salt("primary_key")
-                    .selected_text(if app.model.join_key_primary.is_empty() {
-                        "Primary Key"
-                    } else {
-                        &app.model.join_key_primary
-                    })
-                    .show_ui(ui, |ui| {
-                        for col in &app.model.summary {
-                            ui.selectable_value(
-                                &mut app.model.join_key_primary,
-                                col.name.clone(),
-                                &col.name,
-                            );
-                        }
-                    });
-
-                ui.label("=");
-
-                // Secondary key selection
-                egui::ComboBox::from_id_salt("secondary_key")
-                    .selected_text(if app.model.join_key_secondary.is_empty() {
-                        "Secondary Key"
-                    } else {
-                        &app.model.join_key_secondary
-                    })
-                    .show_ui(ui, |ui| {
-                        for col in &app.model.secondary_summary {
-                            ui.selectable_value(
-                                &mut app.model.join_key_secondary,
-                                col.name.clone(),
-                                &col.name,
-                            );
-                        }
-                    });
-
-                ui.separator();
-                egui::ComboBox::from_id_salt("join_type")
-                    .selected_text(format!("{:?}", app.model.join_type))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut app.model.join_type,
-                            crate::analyser::model::MyJoinType::Inner,
-                            "Inner Join",
-                        );
-                        ui.selectable_value(
-                            &mut app.model.join_type,
-                            crate::analyser::model::MyJoinType::Left,
-                            "Left Join",
-                        );
-                        ui.selectable_value(
-                            &mut app.model.join_type,
-                            crate::analyser::model::MyJoinType::Outer,
-                            "Outer (Full) Join",
-                        );
-                    });
-
-                ui.separator();
-                if ui
-                    .add(
-                        egui::Button::new(format!("{} Join Now", icons::LIGHTNING))
-                            .fill(egui::Color32::from_rgb(60, 120, 200)),
-                    )
-                    .clicked()
-                {
-                    app.perform_join(ctx.clone());
-                }
+                render_join_selectors(app, ui, ctx);
             } else if !app.model.secondary_summary.is_empty() {
-                ui.label(" (Joining...)");
+                if app.controller.is_loading {
+                    // Show a spinner and progress message while joining/analysing
+                    ui.add(egui::Spinner::new().size(12.0));
+                    ui.label(egui::RichText::new(" Joining & Analysing...").weak());
+                } else if let Some(df) = &app.model.df {
+                    let file_info = if let Some(name) = &app.model.secondary_file_name {
+                        format!(" '{name}'")
+                    } else {
+                        String::new()
+                    };
+                    // Show success message with column and row counts
+                    ui.label(
+                        egui::RichText::new(format!(
+                            " {} Joined{file_info}: {} columns, {} rows",
+                            icons::CHECK_CIRCLE,
+                            df.width(),
+                            crate::utils::fmt_num_human(df.height())
+                        ))
+                        .color(egui::Color32::from_rgb(102, 187, 106)),
+                    );
+                }
             }
         });
     });
+}
+
+fn render_join_selectors(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
+    ui.separator();
+    ui.label("Join on:");
+    // Primary key selection
+    egui::ComboBox::from_id_salt("primary_key")
+        .selected_text(if app.model.join_key_primary.is_empty() {
+            "Primary Key"
+        } else {
+            &app.model.join_key_primary
+        })
+        .show_ui(ui, |ui| {
+            for col in &app.model.summary {
+                ui.selectable_value(
+                    &mut app.model.join_key_primary,
+                    col.name.clone(),
+                    &col.name,
+                );
+            }
+        });
+
+    ui.label("=");
+
+    // Secondary key selection
+    egui::ComboBox::from_id_salt("secondary_key")
+        .selected_text(if app.model.join_key_secondary.is_empty() {
+            "Secondary Key"
+        } else {
+            &app.model.join_key_secondary
+        })
+        .show_ui(ui, |ui| {
+            for col in &app.model.secondary_summary {
+                ui.selectable_value(
+                    &mut app.model.join_key_secondary,
+                    col.name.clone(),
+                    &col.name,
+                );
+            }
+        });
+
+    ui.separator();
+    egui::ComboBox::from_id_salt("join_type")
+        .selected_text(format!("{:?}", app.model.join_type))
+        .show_ui(ui, |ui| {
+            ui.selectable_value(
+                &mut app.model.join_type,
+                crate::analyser::model::MyJoinType::Inner,
+                "Inner Join",
+            );
+            ui.selectable_value(
+                &mut app.model.join_type,
+                crate::analyser::model::MyJoinType::Left,
+                "Left Join",
+            );
+            ui.selectable_value(
+                &mut app.model.join_type,
+                crate::analyser::model::MyJoinType::Outer,
+                "Outer (Full) Join",
+            );
+        });
+
+    ui.separator();
+    if ui
+        .add(
+            egui::Button::new(format!("{} Join Now", icons::LIGHTNING))
+                .fill(egui::Color32::from_rgb(60, 120, 200)),
+        )
+        .clicked()
+    {
+        app.perform_join(ctx.clone());
+    }
 }
 
 fn render_status_and_timing(app: &App, ui: &mut egui::Ui) {
@@ -236,20 +263,20 @@ pub fn render_db_config(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
         )
         .default_open(false)
         .show(ui, |ui| {
-            ui.add_space(4.0);
+            ui.add_space(crate::theme::SPACING_TINY);
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     ui.label("Schema:");
                     ui.add(
                         egui::TextEdit::singleline(&mut app.model.pg_schema).desired_width(100.0),
                     );
-                    ui.add_space(10.0);
+                    ui.add_space(crate::theme::MARGIN_SIDEBAR);
                     ui.label("Table:");
                     ui.add(
                         egui::TextEdit::singleline(&mut app.model.pg_table).desired_width(150.0),
                     );
 
-                    ui.add_space(20.0);
+                    ui.add_space(crate::theme::SPACING_LARGE);
                     let can_push = app.model.df.is_some() && !app.model.pg_table.is_empty();
                     let push_btn = ui.add_enabled(
                         can_push,
@@ -285,10 +312,10 @@ pub fn render_ml_panel(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
         egui::CollapsingHeader::new(egui::RichText::new(format!("{} Machine Learning (Beta)", icons::BRAIN)).strong())
             .default_open(false)
             .show(ui, |ui| {
-                ui.add_space(4.0);
+                ui.add_space(crate::theme::SPACING_TINY);
                 ui.vertical(|ui| {
                     ui.label("Train basic models on your cleaned data. Categorical columns must be One-Hot encoded first.");
-                    ui.add_space(8.0);
+                    ui.add_space(crate::theme::SPACING_SMALL);
 
                     ui.horizontal(|ui| {
                         // 1. Select Model Kind
@@ -308,7 +335,7 @@ pub fn render_ml_panel(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
                                 .map(|c| c.name.clone());
                         }
 
-                        ui.add_space(10.0);
+                        ui.add_space(crate::theme::MARGIN_SIDEBAR);
 
                         // 2. Select Target Column
                         ui.label("Target:");
@@ -322,7 +349,7 @@ pub fn render_ml_panel(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
                                 }
                             });
 
-                        ui.add_space(10.0);
+                        ui.add_space(crate::theme::MARGIN_SIDEBAR);
 
                         // 3. Train Button
                         if app.controller.is_training {

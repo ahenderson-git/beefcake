@@ -23,6 +23,94 @@ pub struct AuditEntry {
     pub details: String,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct DetailedError {
+    pub timestamp: chrono::DateTime<chrono::Local>,
+    pub task: String,
+    pub message: String,
+    pub chain: Vec<String>,
+    pub suggestions: Vec<String>,
+}
+
+pub fn get_error_diagnostics(err: &anyhow::Error, task: &str) -> DetailedError {
+    let mut chain = Vec::new();
+    for cause in err.chain().skip(1) {
+        chain.push(cause.to_string());
+    }
+
+    let message = err.to_string();
+    let suggestions = generate_suggestions(&message, &chain);
+
+    DetailedError {
+        timestamp: chrono::Local::now(),
+        task: task.to_owned(),
+        message,
+        chain,
+        suggestions,
+    }
+}
+
+fn generate_suggestions(message: &str, chain: &[String]) -> Vec<String> {
+    let mut suggestions = Vec::new();
+    let full_text = format!("{} {}", message, chain.join(" ")).to_lowercase();
+
+    if full_text.contains("connection refused")
+        || full_text.contains("timeout")
+        || full_text.contains("no such host")
+    {
+        suggestions.push("Check if the database server is running and reachable.".to_owned());
+        suggestions.push("Verify your host, port, and firewall settings.".to_owned());
+    }
+    if full_text.contains("authentication failed")
+        || full_text.contains("password")
+        || full_text.contains("role")
+    {
+        suggestions.push("Double-check your database username and password.".to_owned());
+        suggestions.push(
+            "Ensure the user has sufficient permissions for the target database/schema.".to_owned(),
+        );
+    }
+    if full_text.contains("one-hot")
+        || full_text.contains("categorical")
+        || full_text.contains("float")
+    {
+        suggestions.push(
+            "Try applying One-Hot encoding to your categorical columns before training.".to_owned(),
+        );
+        suggestions.push(
+            "Ensure there are no unexpected non-numeric values in numeric columns.".to_owned(),
+        );
+    }
+    if full_text.contains("csv") && (full_text.contains("parse") || full_text.contains("delimiter"))
+    {
+        suggestions.push(
+            "Check if the CSV file has a valid header and consistent column count.".to_owned(),
+        );
+        suggestions.push(
+            "Verify the delimiter (comma, semicolon, etc.) is correctly detected.".to_owned(),
+        );
+    }
+    if full_text.contains("parquet") {
+        suggestions
+            .push("The Parquet file might be corrupted or in an unsupported version.".to_owned());
+    }
+    if full_text.contains("memory") || full_text.contains("allocation") {
+        suggestions
+            .push("The dataset might be too large for the available system memory.".to_owned());
+        suggestions
+            .push("Try closing other applications or using a machine with more RAM.".to_owned());
+    }
+
+    if suggestions.is_empty() {
+        suggestions.push(
+            "Consult the application logs or search for the error message online for more details."
+                .to_owned(),
+        );
+    }
+
+    suggestions
+}
+
 /// Formats an optional f64 to 4 decimal places, or returns "—" if None or non-finite.
 pub fn fmt_opt(v: Option<f64>) -> String {
     match v {
@@ -97,6 +185,14 @@ pub fn push_audit_log(log: &mut Vec<AuditEntry>, action: &str, details: &str) {
         action: action.to_owned(),
         details: details.to_owned(),
     });
+}
+
+/// Helper to push a new entry to an error diagnostics log.
+pub fn push_error_log(log: &mut Vec<DetailedError>, err: &anyhow::Error, task: &str) {
+    log.push(get_error_diagnostics(err, task));
+    if log.len() > 50 {
+        log.remove(0);
+    }
 }
 
 #[cfg(test)]

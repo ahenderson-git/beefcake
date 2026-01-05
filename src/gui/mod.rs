@@ -2,10 +2,13 @@ use eframe::egui;
 use egui_phosphor::regular as icons;
 use secrecy::SecretString;
 
-pub mod dashboard;
-pub mod db_settings;
-pub mod powershell;
-pub mod reference;
+mod dashboard;
+mod db_settings;
+mod error_view_bridge {
+    pub use crate::analyser::gui::render_error_diagnostics_window;
+}
+mod powershell;
+mod reference;
 
 pub use dashboard::ListItem;
 pub use db_settings::DbConfig;
@@ -28,7 +31,7 @@ impl Default for AppState {
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
-pub struct TemplateApp {
+pub struct BeefcakeApp {
     #[serde(skip)]
     pub state: AppState,
     #[serde(skip)]
@@ -48,6 +51,8 @@ pub struct TemplateApp {
     pub saved_configs: Vec<DbConfig>,
     #[serde(skip)]
     pub db_name_input: String,
+    #[serde(skip)]
+    pub show_db_save_ui: bool,
 
     // Dashboard
     pub todo_list: Vec<ListItem>,
@@ -63,11 +68,15 @@ pub struct TemplateApp {
     #[serde(skip)]
     pub ps_script_name_input: String,
     #[serde(skip)]
+    pub show_ps_save_ui: bool,
+    #[serde(skip)]
     pub is_running_ps: bool,
     #[serde(skip)]
     pub ps_rx: Option<crossbeam_channel::Receiver<anyhow::Result<(i32, String)>>>,
     #[serde(skip)]
     pub ps_last_output: String,
+    #[serde(skip)]
+    pub running_ps_script_name: Option<String>,
 
     #[serde(skip)]
     pub is_testing: bool,
@@ -75,12 +84,16 @@ pub struct TemplateApp {
     pub test_rx: Option<crossbeam_channel::Receiver<anyhow::Result<()>>>,
 
     pub audit_log: Vec<crate::utils::AuditEntry>,
+    #[serde(skip)]
+    pub error_log: Vec<crate::utils::DetailedError>,
+    #[serde(skip)]
+    pub show_error_diagnostics: bool,
 
     #[serde(skip)]
     pub toasts: egui_notify::Toasts,
 }
 
-impl Default for TemplateApp {
+impl Default for BeefcakeApp {
     fn default() -> Self {
         Self {
             state: AppState::MainMenu,
@@ -96,6 +109,7 @@ impl Default for TemplateApp {
             save_password: false,
             saved_configs: Vec::new(),
             db_name_input: String::new(),
+            show_db_save_ui: false,
             todo_list: Self::standard_todo_items(),
             ideas_list: Self::standard_idea_items(),
             todo_input: String::new(),
@@ -103,18 +117,22 @@ impl Default for TemplateApp {
             ps_script: String::new(),
             saved_ps_scripts: Self::default_scripts(),
             ps_script_name_input: String::new(),
+            show_ps_save_ui: false,
             is_running_ps: false,
             ps_rx: None,
             ps_last_output: String::new(),
+            running_ps_script_name: None,
             is_testing: false,
             test_rx: None,
             audit_log: Vec::new(),
+            error_log: Vec::new(),
+            show_error_diagnostics: false,
             toasts: egui_notify::Toasts::default(),
         }
     }
 }
 
-impl TemplateApp {
+impl BeefcakeApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         crate::theme::apply_beefcake_theme(&cc.egui_ctx);
         if let Some(storage) = cc.storage {
@@ -128,8 +146,9 @@ impl TemplateApp {
     }
 
     pub fn render_main_menu(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            crate::theme::top_bar_frame().show(ui, |ui| {
+        egui::TopBottomPanel::top("main_menu_top")
+            .frame(crate::theme::top_bar_frame())
+            .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.heading(
                         egui::RichText::new(format!("{} Beefcake Data Suite", icons::CHART_BAR))
@@ -144,25 +163,53 @@ impl TemplateApp {
                 });
             });
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.add_space(20.0);
-                ui.columns(2, |columns| {
-                    if let [left, right] = columns {
-                        left.vertical(|ui| {
-                            self.render_dashboard_lists(ui);
-                        });
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+                left: crate::theme::PANEL_LEFT as i8,
+                right: crate::theme::PANEL_RIGHT as i8,
+                top: 0,
+                bottom: crate::theme::SPACING_LARGE as i8,
+            }))
+            .show(ctx, |ui| {
+                ui.add_space(crate::theme::SPACING_LARGE);
+                let spacing = crate::theme::SPACING_LARGE;
+                let available_width = ui.available_width();
+                let available_height = ui.available_height();
+                let row_height = (available_height - spacing) / 2.0;
+                let col_width = (available_width - spacing) / 2.0;
 
-                        right.vertical(|ui| {
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = spacing;
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(col_width, row_height),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                self.render_todo_list(ui);
+                            },
+                        );
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(col_width, row_height),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                self.render_ideas_list(ui);
+                            },
+                        );
+                    });
+                    ui.add_space(spacing);
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(available_width, row_height),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
                             self.render_audit_log_panel(ui);
-                        });
-                    }
+                        },
+                    );
                 });
             });
-        });
     }
 
     fn render_sidebar(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(10.0);
+        ui.add_space(crate::theme::MARGIN_SIDEBAR);
         ui.vertical_centered(|ui| {
             ui.label(
                 egui::RichText::new("BEEFCAKE")
@@ -170,13 +217,13 @@ impl TemplateApp {
                     .size(20.0)
                     .color(crate::theme::ACCENT_COLOR),
             );
-            ui.add_space(20.0);
+            ui.add_space(crate::theme::SPACING_LARGE);
         });
 
         let mut next_state = None;
 
         ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 8.0;
+            ui.spacing_mut().item_spacing.y = crate::theme::SPACING_SMALL;
 
             if Self::sidebar_button(
                 ui,
@@ -228,6 +275,21 @@ impl TemplateApp {
             .clicked()
             {
                 next_state = Some(AppState::ReferenceMaterial);
+            }
+
+            if !self.error_log.is_empty() {
+                ui.add_space(crate::theme::SPACING_LARGE);
+                ui.vertical_centered(|ui| {
+                    if ui
+                        .button(
+                            egui::RichText::new(format!("{} Diagnostics", icons::SHIELD_WARNING))
+                                .color(egui::Color32::from_rgb(255, 100, 100)),
+                        )
+                        .clicked()
+                    {
+                        self.show_error_diagnostics = true;
+                    }
+                });
             }
         });
 
@@ -282,34 +344,60 @@ impl TemplateApp {
                 match result {
                     Ok((code, output)) => {
                         self.ps_last_output = output;
+                        let script_info = self
+                            .running_ps_script_name
+                            .as_ref()
+                            .map(|n| format!(" '{n}'"))
+                            .unwrap_or_default();
+
                         if code == 0 {
                             self.status = format!(
-                                "{} PowerShell script finished successfully.",
+                                "{} PowerShell script{script_info} finished successfully.",
                                 icons::CHECK_CIRCLE
                             );
-                            self.toasts
-                                .success("PowerShell script finished successfully.");
-                            self.log_action("PowerShell", "Execution success");
+                            self.toasts.success(format!(
+                                "PowerShell script{script_info} finished successfully."
+                            ));
+                            self.log_action(
+                                "PowerShell",
+                                &format!("Execution success{script_info}"),
+                            );
                         } else {
                             self.status = format!(
-                                "{} PowerShell script failed with exit code: {code}",
+                                "{} PowerShell script{script_info} failed with exit code: {code}",
                                 icons::X_CIRCLE
                             );
                             self.toasts.error(format!(
-                                "PowerShell script failed with exit code: {code}"
+                                "PowerShell script{script_info} failed with exit code: {code}"
                             ));
-                            self.log_action("PowerShell", &format!("Execution failure (code: {code})"));
+                            self.log_action(
+                                "PowerShell",
+                                &format!("Execution failure{script_info} (code: {code})"),
+                            );
                         }
                     }
                     Err(e) => {
-                        self.status =
-                            format!("{} PowerShell execution error: {e}", icons::X_CIRCLE);
+                        let script_info = self
+                            .running_ps_script_name
+                            .as_ref()
+                            .map(|n| format!(" '{n}'"))
+                            .unwrap_or_default();
+
+                        self.status = format!(
+                            "{} PowerShell{script_info} execution error: {e}",
+                            icons::X_CIRCLE
+                        );
                         self.toasts
-                            .error(format!("PowerShell execution error: {e}"));
-                        self.log_action("PowerShell", &format!("Execution error: {e}"));
+                            .error(format!("PowerShell{script_info} execution error: {e}"));
+                        self.log_action(
+                            "PowerShell",
+                            &format!("Execution error{script_info}: {e}"),
+                        );
+                        crate::utils::push_error_log(&mut self.error_log, &e, "PowerShell");
                     }
                 }
                 self.ps_rx = None;
+                self.running_ps_script_name = None;
             }
         }
 
@@ -331,6 +419,7 @@ impl TemplateApp {
                         self.toasts
                             .error(format!("Database connection test failed: {e}"));
                         self.log_action("Database", "Test connection failure");
+                        crate::utils::push_error_log(&mut self.error_log, &e, "Database Test");
                     }
                 }
                 self.test_rx = None;
@@ -359,10 +448,18 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for BeefcakeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_receivers();
         self.toasts.show(ctx);
+
+        if self.show_error_diagnostics {
+            error_view_bridge::render_error_diagnostics_window(
+                &mut self.error_log,
+                &mut self.show_error_diagnostics,
+                ctx,
+            );
+        }
 
         egui::SidePanel::left("main_sidebar")
             .frame(crate::theme::sidebar_frame())

@@ -53,30 +53,44 @@ impl Default for AnalysisController {
 }
 
 impl AnalysisController {
-    pub fn start_analysis(&mut self, ctx: egui::Context, path: PathBuf, trim_pct: f64) {
+    fn prepare_analysis(
+        &mut self,
+        was_cleaning: bool,
+    ) -> crossbeam_channel::Sender<Result<AnalysisResponse>> {
         self.is_loading = true;
-        self.was_cleaning = false;
+        self.was_cleaning = was_cleaning;
         self.progress_counter.store(0, Ordering::SeqCst);
         self.start_time = Some(std::time::Instant::now());
 
         let (tx, rx) = crossbeam_channel::unbounded();
         self.receiver = Some(rx);
+        tx
+    }
 
+    fn spawn_task<T, F>(ctx: egui::Context, tx: crossbeam_channel::Sender<Result<T>>, f: F)
+    where
+        T: Send + 'static,
+        F: FnOnce() -> Result<T> + Send + 'static,
+    {
+        std::thread::spawn(move || {
+            let result = f();
+            if tx.send(result).is_err() {
+                log::error!("Failed to send result");
+            }
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn start_analysis(&mut self, ctx: egui::Context, path: PathBuf, trim_pct: f64) {
+        let tx = self.prepare_analysis(false);
         let progress = Arc::clone(&self.progress_counter);
         let path_str = path.to_string_lossy().to_string();
 
-        std::thread::spawn(move || {
+        Self::spawn_task(ctx, tx, move || {
             let start = std::time::Instant::now();
-            let result = (|| -> Result<AnalysisResponse> {
-                let df = super::logic::load_df(&path, &progress)?;
-                let file_size = std::fs::metadata(&path)?.len();
-                Self::run_full_analysis(df, path_str, file_size, trim_pct, start)
-            })();
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send analysis result");
-            }
-            ctx.request_repaint();
+            let df = super::logic::load_df(&path, &progress)?;
+            let file_size = std::fs::metadata(&path)?.len();
+            Self::run_full_analysis(df, path_str, file_size, trim_pct, start)
         });
     }
 
@@ -88,22 +102,10 @@ impl AnalysisController {
         file_size: u64,
         trim_pct: f64,
     ) {
-        self.is_loading = true;
-        self.was_cleaning = false;
-        self.progress_counter.store(0, Ordering::SeqCst);
-        self.start_time = Some(std::time::Instant::now());
-
-        let (tx, rx) = crossbeam_channel::unbounded();
-        self.receiver = Some(rx);
-
-        std::thread::spawn(move || {
+        let tx = self.prepare_analysis(false);
+        Self::spawn_task(ctx, tx, move || {
             let start = std::time::Instant::now();
-            let result = Self::run_full_analysis(df, file_path, file_size, trim_pct, start);
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send re-analysis result");
-            }
-            ctx.request_repaint();
+            Self::run_full_analysis(df, file_path, file_size, trim_pct, start)
         });
     }
 
@@ -116,27 +118,13 @@ impl AnalysisController {
         file_path: Option<String>,
         file_size: u64,
     ) {
+        let tx = self.prepare_analysis(true);
         let path_str = file_path.unwrap_or_else(|| "cleaned_file".to_owned());
 
-        self.is_loading = true;
-        self.was_cleaning = true;
-        self.progress_counter.store(0, Ordering::SeqCst);
-        self.start_time = Some(std::time::Instant::now());
-
-        let (tx, rx) = crossbeam_channel::unbounded();
-        self.receiver = Some(rx);
-
-        std::thread::spawn(move || {
+        Self::spawn_task(ctx, tx, move || {
             let start = std::time::Instant::now();
-            let result = (|| -> Result<AnalysisResponse> {
-                let cleaned_df = super::logic::analysis::clean_df(df, &configs)?;
-                Self::run_full_analysis(cleaned_df, path_str, file_size, trim_pct, start)
-            })();
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send cleaning result");
-            }
-            ctx.request_repaint();
+            let cleaned_df = super::logic::analysis::clean_df(df, &configs)?;
+            Self::run_full_analysis(cleaned_df, path_str, file_size, trim_pct, start)
         });
     }
 
@@ -159,8 +147,8 @@ impl AnalysisController {
         let (tx, rx) = crossbeam_channel::unbounded();
         self.push_receiver = Some(rx);
 
-        std::thread::spawn(move || {
-            let result = crate::utils::TOKIO_RUNTIME.block_on(async {
+        Self::spawn_task(ctx, tx, move || {
+            crate::utils::TOKIO_RUNTIME.block_on(async {
                 let client = super::db::DbClient::connect(pg_options).await?;
                 client.init_schema().await?;
 
@@ -187,12 +175,7 @@ impl AnalysisController {
                     })
                     .await?;
                 Ok(())
-            });
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send push result");
-            }
-            ctx.request_repaint();
+            })
         });
     }
 
@@ -211,12 +194,8 @@ impl AnalysisController {
         self.training_receiver = Some(rx);
 
         let progress = Arc::clone(&self.training_progress);
-        std::thread::spawn(move || {
-            let result = super::logic::train_model(&df, &target_col, model_kind, &progress);
-            if tx.send(result).is_err() {
-                log::error!("Failed to send training result");
-            }
-            ctx.request_repaint();
+        Self::spawn_task(ctx, tx, move || {
+            super::logic::train_model(&df, &target_col, model_kind, &progress)
         });
     }
 
@@ -229,16 +208,11 @@ impl AnalysisController {
         let (tx, rx) = crossbeam_channel::unbounded();
         self.test_receiver = Some(rx);
 
-        std::thread::spawn(move || {
-            let result = crate::utils::TOKIO_RUNTIME.block_on(async {
+        Self::spawn_task(ctx, tx, move || {
+            crate::utils::TOKIO_RUNTIME.block_on(async {
                 super::db::DbClient::connect(pg_options).await?;
                 Ok(())
-            });
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send test connection result");
-            }
-            ctx.request_repaint();
+            })
         });
     }
 
@@ -247,12 +221,8 @@ impl AnalysisController {
         let (tx, rx) = crossbeam_channel::unbounded();
         self.export_receiver = Some(rx);
 
-        std::thread::spawn(move || {
-            let result = super::logic::analysis::save_df(&mut df, &path);
-            if tx.send(result).is_err() {
-                log::error!("Failed to send export result");
-            }
-            ctx.request_repaint();
+        Self::spawn_task(ctx, tx, move || {
+            super::logic::analysis::save_df(&mut df, &path)
         });
     }
 
@@ -263,18 +233,11 @@ impl AnalysisController {
         let progress = Arc::clone(&self.progress_counter);
         let path_str = path.to_string_lossy().to_string();
 
-        std::thread::spawn(move || {
+        Self::spawn_task(ctx, tx, move || {
             let start = std::time::Instant::now();
-            let result = (|| -> Result<AnalysisResponse> {
-                let df = super::logic::load_df(&path, &progress)?;
-                let file_size = std::fs::metadata(&path)?.len();
-                Self::run_full_analysis(df, path_str, file_size, trim_pct, start)
-            })();
-
-            if tx.send(result).is_err() {
-                log::error!("Failed to send secondary analysis result");
-            }
-            ctx.request_repaint();
+            let df = super::logic::load_df(&path, &progress)?;
+            let file_size = std::fs::metadata(&path)?.len();
+            Self::run_full_analysis(df, path_str, file_size, trim_pct, start)
         });
     }
 

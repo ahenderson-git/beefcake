@@ -1,4 +1,4 @@
-use crate::gui::TemplateApp;
+use crate::gui::BeefcakeApp;
 use eframe::egui;
 use egui_phosphor::regular as icons;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ pub struct ListItem {
     pub completed: bool,
 }
 
-impl TemplateApp {
+impl BeefcakeApp {
     pub fn standard_todo_items() -> Vec<ListItem> {
         vec![
             ListItem {
@@ -63,11 +63,13 @@ impl TemplateApp {
     pub fn render_audit_log_panel(&mut self, ui: &mut egui::Ui) {
         crate::theme::card_frame(ui).show(ui, |ui| {
             ui.set_width(ui.available_width());
+            ui.set_height(ui.available_height());
             ui.heading(format!("{} Activity Log", icons::CLOCK_COUNTER_CLOCKWISE));
-            ui.add_space(4.0);
+            ui.add_space(crate::theme::SPACING_TINY);
+            let scroll_height = ui.available_height() - 40.0;
             egui::ScrollArea::vertical()
                 .id_salt("audit_log_scroll")
-                .max_height(200.0)
+                .max_height(scroll_height)
                 .auto_shrink([false; 2])
                 .show(ui, |ui| {
                     if self.audit_log.is_empty() {
@@ -88,32 +90,25 @@ impl TemplateApp {
                         }
                     }
                 });
-            ui.add_space(8.0);
+            ui.add_space(crate::theme::SPACING_SMALL);
             if ui.button("Clear Log").clicked() {
                 self.audit_log.clear();
             }
         });
     }
 
-    pub fn render_dashboard_lists(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            ui.columns(2, |columns| {
-                if let [left, right] = columns {
-                    self.render_todo_list(left);
-                    self.render_ideas_list(right);
-                }
-            });
-        });
-    }
-
     pub fn render_todo_list(&mut self, ui: &mut egui::Ui) {
         crate::theme::card_frame(ui).show(ui, |ui| {
             ui.set_width(ui.available_width());
+            ui.set_height(ui.available_height());
             ui.heading(format!("{} My TODOs", icons::CHECK_SQUARE));
-            ui.add_space(8.0);
+            ui.add_space(crate::theme::SPACING_SMALL);
 
             ui.horizontal(|ui| {
-                let res = ui.text_edit_singleline(&mut self.todo_input);
+                let edit_width = ui.available_width() - 60.0;
+                let res = ui.add(
+                    egui::TextEdit::singleline(&mut self.todo_input).desired_width(edit_width),
+                );
                 if ((res.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
                     || ui.button("Add").clicked())
                     && !self.todo_input.is_empty()
@@ -127,14 +122,13 @@ impl TemplateApp {
                 }
             });
 
-            ui.add_space(8.0);
+            ui.add_space(crate::theme::SPACING_SMALL);
 
             let mut to_remove = None;
             let mut log_entry = None;
 
             egui::ScrollArea::vertical()
                 .id_salt("todo_scroll")
-                .max_height(300.0)
                 .auto_shrink([false; 2])
                 .show(ui, |ui| {
                     for (i, item) in self.todo_list.iter_mut().enumerate() {
@@ -180,11 +174,15 @@ impl TemplateApp {
     pub fn render_ideas_list(&mut self, ui: &mut egui::Ui) {
         crate::theme::card_frame(ui).show(ui, |ui| {
             ui.set_width(ui.available_width());
+            ui.set_height(ui.available_height());
             ui.heading(format!("{} Future Ideas", icons::LIGHTBULB));
-            ui.add_space(8.0);
+            ui.add_space(crate::theme::SPACING_SMALL);
 
             ui.horizontal(|ui| {
-                let res = ui.text_edit_singleline(&mut self.idea_input);
+                let edit_width = ui.available_width() - 60.0;
+                let res = ui.add(
+                    egui::TextEdit::singleline(&mut self.idea_input).desired_width(edit_width),
+                );
                 if ((res.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
                     || ui.button("Add").clicked())
                     && !self.idea_input.is_empty()
@@ -198,14 +196,13 @@ impl TemplateApp {
                 }
             });
 
-            ui.add_space(8.0);
+            ui.add_space(crate::theme::SPACING_SMALL);
 
             let mut to_remove = None;
             let mut log_entry = None;
 
             egui::ScrollArea::vertical()
                 .id_salt("idea_scroll")
-                .max_height(300.0)
                 .auto_shrink([false; 2])
                 .show(ui, |ui| {
                     for (i, item) in self.ideas_list.iter_mut().enumerate() {

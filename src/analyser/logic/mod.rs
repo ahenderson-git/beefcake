@@ -721,6 +721,26 @@ mod tests {
             config4.one_hot_encode,
             "One-Hot encoding should be auto-enabled for categorical data"
         );
+
+        // Case 5: Special characters detected -> Remove Special Chars
+        let summary5 = ColumnSummary {
+            name: "special".to_owned(),
+            kind: types::ColumnKind::Text,
+            count: 100,
+            nulls: 0,
+            has_special: true,
+            stats: types::ColumnStats::Text(Default::default()),
+            interpretation: vec![],
+            business_summary: vec![],
+            ml_advice: vec![],
+            samples: vec![],
+        };
+        let mut config5 = ColumnCleanConfig::default();
+        summary5.apply_advice_to_config(&mut config5);
+        assert!(
+            config5.remove_special_chars,
+            "Remove special chars should be auto-enabled when special chars are detected"
+        );
     }
 
     #[test]

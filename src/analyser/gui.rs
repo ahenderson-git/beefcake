@@ -13,11 +13,13 @@ use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 
 mod controls;
+mod error_view;
 mod heatmap;
 mod plots;
 mod summary_table;
 
 pub use controls::{render_controls, render_db_config, render_ml_details_window, render_ml_panel};
+pub use error_view::render_error_diagnostics_window;
 use heatmap::render_correlation_heatmap;
 use summary_table::render_summary_table;
 
@@ -29,6 +31,7 @@ pub struct App {
     pub status: String,
     pub load_summary: Option<String>,
     pub summary_minimized: bool,
+    pub analysis_minimized: bool,
     #[serde(skip)]
     pub expanded_rows: std::collections::HashSet<String>,
     #[serde(skip)]
@@ -37,6 +40,10 @@ pub struct App {
     pub show_ml_details: bool,
     #[serde(skip)]
     pub audit_log: Vec<crate::utils::AuditEntry>,
+    #[serde(skip)]
+    pub error_log: Vec<crate::utils::DetailedError>,
+    #[serde(skip)]
+    pub show_error_diagnostics: bool,
 }
 
 impl App {
@@ -47,8 +54,16 @@ impl App {
     pub fn update(&mut self, ctx: &egui::Context, toasts: &mut egui_notify::Toasts) -> bool {
         self.handle_receivers(toasts);
 
-        if self.show_ml_details {
+        if self.model.ml_enabled && self.show_ml_details {
             render_ml_details_window(self, ctx);
+        }
+
+        if self.show_error_diagnostics {
+            render_error_diagnostics_window(
+                &mut self.error_log,
+                &mut self.show_error_diagnostics,
+                ctx,
+            );
         }
 
         if self.controller.is_loading || self.controller.is_pushing || self.controller.is_training {
@@ -56,76 +71,132 @@ impl App {
         }
 
         let mut go_back = false;
-        egui::TopBottomPanel::top("analyser_top").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui.button(format!("{} Back", icons::ARROW_LEFT)).clicked() {
-                    go_back = true;
-                }
-                ui.separator();
-                ui.heading("Analyse, Clean & Export Data");
+        egui::TopBottomPanel::top("analyser_top")
+            .frame(crate::theme::top_bar_frame())
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(format!("{} Back", icons::ARROW_LEFT)).clicked() {
+                        go_back = true;
+                    }
+                    ui.separator();
+                    ui.heading("Analyse, Clean & Export Data");
+                });
             });
-        });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            render_controls(self, ui, ctx);
-            ui.add_space(4.0);
-            render_db_config(self, ui, ctx);
-            ui.add_space(4.0);
-            render_ml_panel(self, ui, ctx);
-
-            if let Some(summary) = &self.load_summary {
-                ui.add_space(8.0);
-                egui::Frame::group(ui.style())
-                    .fill(ui.visuals().faint_bg_color)
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+                left: crate::theme::PANEL_LEFT as i8,
+                right: crate::theme::PANEL_RIGHT as i8,
+                top: 0,
+                bottom: 0,
+            }))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("analyser_scroll")
                     .show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        ui.vertical(|ui| {
+                        render_controls(self, ui, ctx);
+                        ui.add_space(crate::theme::SPACING_TINY);
+                        render_db_config(self, ui, ctx);
+                        ui.add_space(crate::theme::SPACING_TINY);
+                        if self.model.ml_enabled {
+                            render_ml_panel(self, ui, ctx);
+                        }
+
+                        self.render_load_summary(ui);
+
+                        ui.add_space(crate::theme::SPACING_TINY);
+                        ui.horizontal(|ui| {
+                            crate::utils::render_status_message(ui, &self.status);
+                            if !self.error_log.is_empty()
+                                && (self.status.contains("failed")
+                                    || self.status.contains("Error")
+                                    || self.status.contains(icons::X_CIRCLE))
+                            {
+                                ui.add_space(crate::theme::SPACING_SMALL);
+                                if ui
+                                    .button(format!("{} View Diagnostics", icons::SHIELD_WARNING))
+                                    .clicked()
+                                {
+                                    self.show_error_diagnostics = true;
+                                }
+                            }
+                        });
+
+                        if !self.model.summary.is_empty() {
+                            ui.separator();
                             ui.horizontal(|ui| {
                                 ui.label(
-                                    egui::RichText::new(format!(
-                                        "{} File Summary",
-                                        icons::CLIPBOARD_TEXT
-                                    ))
-                                    .strong(),
+                                    egui::RichText::new(format!("{} Column Analysis", icons::TABLE))
+                                        .strong()
+                                        .size(14.0),
                                 );
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        let btn_text = if self.summary_minimized {
+                                        let btn_text = if self.analysis_minimized {
                                             "Expand"
                                         } else {
                                             "Minimise"
                                         };
                                         if ui.button(btn_text).clicked() {
-                                            self.summary_minimized = !self.summary_minimized;
+                                            self.analysis_minimized = !self.analysis_minimized;
                                         }
                                     },
                                 );
                             });
-                            if !self.summary_minimized {
-                                ui.separator();
-                                ui.label(summary);
+
+                            if !self.analysis_minimized {
+                                ui.add_space(crate::theme::SPACING_TINY);
+                                render_summary_table(self, ui);
                             }
-                        });
+                        }
+
+                        if let Some(matrix) = &self.model.correlation_matrix {
+                            ui.add_space(crate::theme::SPACING_LARGE);
+                            ui.separator();
+                            render_correlation_heatmap(ui, matrix);
+                        }
+                        ui.add_space(crate::theme::SPACING_LARGE);
                     });
-            }
-
-            ui.add_space(4.0);
-            crate::utils::render_status_message(ui, &self.status);
-
-            if !self.model.summary.is_empty() {
-                ui.separator();
-                render_summary_table(self, ui);
-            }
-
-            if let Some(matrix) = &self.model.correlation_matrix {
-                ui.add_space(20.0);
-                ui.separator();
-                render_correlation_heatmap(ui, matrix);
-            }
-        });
+            });
 
         go_back
+    }
+
+    fn render_load_summary(&mut self, ui: &mut egui::Ui) {
+        if let Some(summary) = &self.load_summary {
+            ui.add_space(crate::theme::SPACING_SMALL);
+            egui::Frame::group(ui.style())
+                .fill(ui.visuals().faint_bg_color)
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{} File Summary",
+                                    icons::CLIPBOARD_TEXT
+                                ))
+                                .strong(),
+                            );
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let btn_text = if self.summary_minimized {
+                                    "Expand"
+                                } else {
+                                    "Minimise"
+                                };
+                                if ui.button(btn_text).clicked() {
+                                    self.summary_minimized = !self.summary_minimized;
+                                }
+                            });
+                        });
+                        if !self.summary_minimized {
+                            ui.separator();
+                            ui.label(summary);
+                        }
+                    });
+                });
+        }
     }
 
     fn handle_receivers(&mut self, toasts: &mut egui_notify::Toasts) {
@@ -137,241 +208,219 @@ impl App {
         self.handle_export_receiver(toasts);
     }
 
+    fn process_result<T>(
+        &mut self,
+        toasts: &mut egui_notify::Toasts,
+        result: anyhow::Result<T>,
+        action_label: &str,
+        success_handler: impl FnOnce(&mut Self, T) -> (String, String), // (Success Message, Log Detail)
+    ) {
+        match result {
+            Ok(data) => {
+                let (msg, log_detail) = success_handler(self, data);
+                self.status = format!("{} {}", icons::CHECK_CIRCLE, msg);
+                toasts.success(&msg);
+                self.log_action(&format!("{action_label} Success"), &log_detail);
+            }
+            Err(e) => {
+                let err_msg = format!("{action_label} failed: {e}");
+                self.status = format!("{} {err_msg}", icons::X_CIRCLE);
+                toasts.error(&err_msg);
+                self.log_action(&format!("{action_label} Failed"), &e.to_string());
+                crate::utils::push_error_log(&mut self.error_log, &e, action_label);
+            }
+        }
+    }
+
     fn handle_secondary_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
-        let result = self
+        if let Some(result) = self
             .controller
             .secondary_receiver
             .as_ref()
-            .and_then(|rx| rx.try_recv().ok());
-        if let Some(result) = result {
+            .and_then(|rx| rx.try_recv().ok())
+        {
             self.controller.secondary_receiver = None;
-            match result {
-                Ok(resp) => {
-                    self.model.secondary_df = Some(resp.df);
-                    self.model.secondary_summary = resp.summary;
-                    let name = resp.file_path;
-                    self.status = format!("Loaded secondary file: {name}");
-                    toasts.success(format!("Loaded secondary file: {name}"));
-                    self.log_action("Secondary File Loaded", &name);
-                }
-                Err(e) => {
-                    self.status = format!("Secondary Load Error: {e}");
-                    toasts.error(format!("Secondary Load Error: {e}"));
-                    self.log_action("Secondary Load Failed", &e.to_string());
-                }
-            }
+            self.process_result(toasts, result, "Secondary Load", |this, resp| {
+                this.model.secondary_df = Some(resp.df);
+                this.model.secondary_summary = resp.summary;
+                let name = resp.file_path;
+                this.model.secondary_file_name = Some(name.clone());
+                (format!("Loaded secondary file: {name}"), name)
+            });
         }
     }
 
     fn handle_analysis_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
-        let result = self
+        if let Some(result) = self
             .controller
             .receiver
             .as_ref()
-            .and_then(|rx| rx.try_recv().ok());
-
-        if let Some(result) = result {
-            self.controller.is_loading = false;
+            .and_then(|rx| rx.try_recv().ok())
+        {
             self.controller.receiver = None;
-            self.controller.start_time = None; // Reset timer
-            match result {
-                Ok(resp) => {
-                    self.model.file_path = Some(resp.file_path);
-                    self.model.file_size = resp.file_size;
-                    self.model.summary = resp.summary;
-                    self.model.health = Some(resp.health);
-                    self.model.last_duration = Some(resp.duration);
-                    self.model.correlation_matrix = resp.correlation_matrix;
-                    self.model.df = Some(resp.df);
-                    self.should_scroll_to_top = true;
+            self.process_result(toasts, result, "Analysis", |this, resp| {
+                this.controller.is_loading = false;
+                this.controller.start_time = None; // Reset timer
 
-                    // Reset cleaning configs if we just applied them, otherwise preserve (for trim changes)
-                    if self.controller.was_cleaning {
-                        self.model.cleaning_configs.clear();
+                this.model.file_path = Some(resp.file_path);
+                this.model.file_size = resp.file_size;
+                this.model.summary = resp.summary;
+                this.model.health = Some(resp.health);
+                this.model.last_duration = Some(resp.duration);
+                this.model.correlation_matrix = resp.correlation_matrix;
+                this.model.df = Some(resp.df);
+                this.should_scroll_to_top = true;
+
+                // Reset cleaning configs if we just applied them, otherwise preserve (for trim changes)
+                if this.controller.was_cleaning {
+                    this.model.cleaning_configs.clear();
+                }
+                for col in &this.model.summary {
+                    let is_new = !this.model.cleaning_configs.contains_key(&col.name);
+                    let config = this
+                        .model
+                        .cleaning_configs
+                        .entry(col.name.clone())
+                        .or_default();
+
+                    if is_new {
+                        col.apply_advice_to_config(config);
                     }
-                    for col in &self.model.summary {
-                        let is_new = !self.model.cleaning_configs.contains_key(&col.name);
-                        let config = self
-                            .model
-                            .cleaning_configs
-                            .entry(col.name.clone())
-                            .or_default();
+                }
 
-                        if is_new {
-                            col.apply_advice_to_config(config);
+                // Auto-select first suitable ML target if none set
+                if this.model.ml_target.is_none() {
+                    this.model.ml_target = this
+                        .model
+                        .summary
+                        .iter()
+                        .find(|c| this.model.ml_model_kind.is_suitable_target(c.kind))
+                        .map(|c| c.name.clone());
+                }
+
+                let path_display = this.model.file_path.as_deref().unwrap_or("file").to_owned();
+                let secs = resp.duration.as_secs_f32();
+
+                // Generate load summary
+                let mut breakdown = std::collections::HashMap::new();
+                for col in &this.model.summary {
+                    *breakdown.entry(col.kind.as_str()).or_insert(0) += 1;
+                }
+
+                let mut breakdown_str = String::new();
+                let mut keys: Vec<_> = breakdown.keys().collect();
+                keys.sort();
+                for key in keys {
+                    let count = breakdown.get(key).unwrap_or(&0);
+                    breakdown_str.push_str(&format!("\n - {key}: {count}"));
+                }
+
+                let row_count = this.model.summary.first().map(|c| c.count).unwrap_or(0);
+                let row_count_fmt = crate::utils::fmt_num_human(row_count);
+                let col_count = this.model.summary.len();
+                let size_fmt = crate::utils::fmt_bytes(resp.file_size);
+
+                let mut msg = format!(
+                    "{row_count} ({row_count_fmt}) rows\n{col_count} columns\nBreakdown by Type:{breakdown_str}"
+                );
+                msg.push_str(&format!("\n\nFile Size: {size_fmt}"));
+
+                if let Some(h) = &this.model.health {
+                    msg.push_str(&format!("\nHealth Score: {:.0}%", h.score * 100.0));
+
+                    if !h.risks.is_empty() {
+                        msg.push_str("\n\nIdentified Risks:");
+                        for risk in h.risks.iter().take(15) {
+                            msg.push_str(&format!("\n • {risk}"));
+                        }
+                        if h.risks.len() > 15 {
+                            msg.push_str("\n ... and more");
                         }
                     }
-
-                    // Auto-select first suitable ML target if none set
-                    if self.model.ml_target.is_none() {
-                        self.model.ml_target = self
-                            .model
-                            .summary
-                            .iter()
-                            .find(|c| self.model.ml_model_kind.is_suitable_target(c.kind))
-                            .map(|c| c.name.clone());
-                    }
-
-                    let path_display = self.model.file_path.as_deref().unwrap_or("file").to_owned();
-                    let secs = resp.duration.as_secs_f32();
-                    self.status = format!("Loaded {path_display} in {secs:.2}s");
-                    toasts.success(format!("Analysed {path_display}"));
-
-                    // Generate load summary
-                    let mut breakdown = std::collections::HashMap::new();
-                    for col in &self.model.summary {
-                        *breakdown.entry(col.kind.as_str()).or_insert(0) += 1;
-                    }
-
-                    let mut breakdown_str = String::new();
-                    let mut keys: Vec<_> = breakdown.keys().collect();
-                    keys.sort();
-                    for key in keys {
-                        let count = breakdown.get(key).unwrap_or(&0);
-                        breakdown_str.push_str(&format!("\n - {key}: {count}"));
-                    }
-
-                    let row_count = self.model.summary.first().map(|c| c.count).unwrap_or(0);
-                    let row_count_fmt = crate::utils::fmt_num_human(row_count);
-                    let col_count = self.model.summary.len();
-                    let size_fmt = crate::utils::fmt_bytes(resp.file_size);
-
-                    let mut msg = format!(
-                        "{row_count} ({row_count_fmt}) rows\n{col_count} columns\nBreakdown by Type:{breakdown_str}"
-                    );
-                    msg.push_str(&format!("\n\nFile Size: {size_fmt}"));
-
-                    if let Some(h) = &self.model.health {
-                        msg.push_str(&format!("\nHealth Score: {:.0}%", h.score * 100.0));
-
-                        if !h.risks.is_empty() {
-                            msg.push_str("\n\nIdentified Risks:");
-                            for risk in h.risks.iter().take(15) {
-                                msg.push_str(&format!("\n • {risk}"));
-                            }
-                            if h.risks.len() > 15 {
-                                msg.push_str("\n ... and more");
-                            }
-                        }
-                    }
-                    self.load_summary = Some(msg);
-                    self.summary_minimized = false;
-                    self.log_action("File Analysed", &path_display);
                 }
-                Err(e) => {
-                    self.status = format!("Error: {e}");
-                    toasts.error(format!("Analysis failed: {e}"));
-                    self.log_action("Analysis Failed", &e.to_string());
-                }
-            }
+                this.load_summary = Some(msg);
+                this.summary_minimized = false;
+
+                (format!("Analysed {path_display} in {secs:.2}s"), path_display)
+            });
         }
     }
 
     fn handle_push_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
-        let result = self
+        if let Some(result) = self
             .controller
             .push_receiver
             .as_ref()
-            .and_then(|rx| rx.try_recv().ok());
-        if let Some(result) = result {
-            let duration = self.controller.push_start_time.take().map(|s| s.elapsed());
-            self.model.push_last_duration = duration;
-            self.controller.is_pushing = false;
+            .and_then(|rx| rx.try_recv().ok())
+        {
             self.controller.push_receiver = None;
-            match result {
-                Ok(_) => {
-                    let secs = duration.map(|d| d.as_secs_f32()).unwrap_or(0.0);
-                    self.status = format!("Successfully pushed to PostgreSQL in {secs:.2}s");
-                    toasts.success("Successfully pushed to PostgreSQL");
-                    let table = self.model.pg_table.clone();
-                    self.log_action("Export Successful", &format!("Table: {table}"));
-                }
-                Err(e) => {
-                    self.status = format!("PostgreSQL Push Error: {e}");
-                    toasts.error(format!("PostgreSQL Push Error: {e}"));
-                    self.log_action("Export Failed", &e.to_string());
-                }
-            }
+            self.process_result(toasts, result, "Export", |this, _| {
+                let duration = this.controller.push_start_time.take().map(|s| s.elapsed());
+                this.model.push_last_duration = duration;
+                this.controller.is_pushing = false;
+
+                let secs = duration.map(|d| d.as_secs_f32()).unwrap_or(0.0);
+                let table = this.model.pg_table.clone();
+                (
+                    format!("Successfully pushed to PostgreSQL in {secs:.2}s"),
+                    format!("Table: {table}"),
+                )
+            });
         }
     }
 
     fn handle_test_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
-        let result = self
+        if let Some(result) = self
             .controller
             .test_receiver
             .as_ref()
-            .and_then(|rx| rx.try_recv().ok());
-        if let Some(result) = result {
-            self.controller.is_testing = false;
+            .and_then(|rx| rx.try_recv().ok())
+        {
             self.controller.test_receiver = None;
-            let host = self.model.pg_host.clone();
-            match result {
-                Ok(_) => {
-                    self.status = format!(
-                        "{} Database connection test successful!",
-                        icons::CHECK_CIRCLE
-                    );
-                    toasts.success("Database connection test successful!");
-                    self.log_action("DB Test Success", &host);
-                }
-                Err(e) => {
-                    self.status =
-                        format!("{} Database connection test failed: {e}", icons::X_CIRCLE);
-                    toasts.error(format!("Database connection test failed: {e}"));
-                    self.log_action("DB Test Failed", &host);
-                }
-            }
+            self.process_result(toasts, result, "DB Test", |this, _| {
+                this.controller.is_testing = false;
+                let host = this.model.pg_host.clone();
+                ("Database connection test successful!".to_owned(), host)
+            });
         }
     }
 
     fn handle_training_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
-        let result = self
+        if let Some(result) = self
             .controller
             .training_receiver
             .as_ref()
-            .and_then(|rx| rx.try_recv().ok());
-        if let Some(result) = result {
-            self.controller.is_training = false;
-            self.controller.training_start_time = None;
+            .and_then(|rx| rx.try_recv().ok())
+        {
             self.controller.training_receiver = None;
-            match result {
-                Ok(res) => {
-                    let target = res.target_column.clone();
-                    self.model.ml_results = Some(res);
-                    self.status = format!("{} ML Training successful!", icons::CHECK_CIRCLE);
-                    toasts.success("ML Training successful!");
-                    self.log_action("ML Training Success", &format!("Target: {target}"));
-                }
-                Err(e) => {
-                    self.status = format!("{} ML Training failed: {e}", icons::X_CIRCLE);
-                    toasts.error(format!("ML Training failed: {e}"));
-                    self.log_action("ML Training Failed", &e.to_string());
-                }
-            }
+            self.process_result(toasts, result, "ML Training", |this, res| {
+                this.controller.is_training = false;
+                this.controller.training_start_time = None;
+                let target = res.target_column.clone();
+                this.model.ml_results = Some(res);
+                (
+                    "ML Training successful!".to_owned(),
+                    format!("Target: {target}"),
+                )
+            });
         }
     }
 
     fn handle_export_receiver(&mut self, toasts: &mut egui_notify::Toasts) {
-        let result = self
+        if let Some(result) = self
             .controller
             .export_receiver
             .as_ref()
-            .and_then(|rx| rx.try_recv().ok());
-        if let Some(result) = result {
-            self.controller.is_exporting = false;
+            .and_then(|rx| rx.try_recv().ok())
+        {
             self.controller.export_receiver = None;
-            match result {
-                Ok(_) => {
-                    self.status = format!("{} File exported successfully!", icons::CHECK_CIRCLE);
-                    toasts.success("File exported successfully!");
-                    self.log_action("File Exported", "Cleaned data saved to disk");
-                }
-                Err(e) => {
-                    self.status = format!("{} Export failed: {e}", icons::X_CIRCLE);
-                    toasts.error(format!("Export failed: {e}"));
-                    self.log_action("Export Failed", &e.to_string());
-                }
-            }
+            self.process_result(toasts, result, "File Export", |this, _| {
+                this.controller.is_exporting = false;
+                (
+                    "File exported successfully!".to_owned(),
+                    "Cleaned data saved to disk".to_owned(),
+                )
+            });
         }
     }
 
@@ -542,6 +591,10 @@ impl App {
             .pick_file();
 
         let Some(path) = path else { return };
+
+        // Clear previous secondary results before starting new load
+        self.model.secondary_summary.clear();
+        self.model.secondary_file_name = None;
 
         self.status = format!("Loading secondary: {}", path.display());
         self.log_action("Secondary Load Started", &path.display().to_string());

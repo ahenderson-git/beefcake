@@ -10,7 +10,9 @@ use egui_extras::{Column, TableBuilder};
 use egui_phosphor::regular as icons;
 
 pub fn render_summary_table(app: &mut App, ui: &mut egui::Ui) {
-    let mut scroll_area = egui::ScrollArea::horizontal();
+    let mut scroll_area = egui::ScrollArea::both()
+        .max_height(500.0)
+        .id_salt("summary_table_scroll");
     if app.should_scroll_to_top {
         scroll_area = scroll_area.scroll_offset(egui::Vec2::ZERO);
     }
@@ -117,7 +119,7 @@ fn render_column_row(
     });
     row.col(|ui| {
         if let Some(config) = app.model.cleaning_configs.get_mut(&col.name) {
-            ui.add_space(4.0);
+            ui.add_space(crate::theme::SPACING_TINY);
             ui.checkbox(&mut config.active, "");
         }
     });
@@ -143,8 +145,17 @@ fn render_column_row(
     });
     row.col(|ui| {
         ui.add_enabled_ui(is_active, |ui| {
-            if col.has_special {
-                ui.colored_label(egui::Color32::RED, format!("{} Yes", icons::WARNING));
+            // Check if any advanced cleaning is actually configured/active for this column
+            let has_cleaning = app
+                .model
+                .cleaning_configs
+                .get(&col.name)
+                .map(crate::analyser::logic::types::ColumnCleanConfig::has_any_advanced_cleaning)
+                .unwrap_or(false);
+
+            if has_cleaning {
+                // Using icons::SPARKLE to match the Advanced Cleaning section icon
+                ui.colored_label(egui::Color32::RED, format!("{} Yes", icons::SPARKLE));
             } else {
                 ui.label("No");
             }
@@ -215,7 +226,7 @@ fn render_column_stats_cell(
 
         // 2. Sample Values (Now always shown under stats)
         if !col.samples.is_empty() {
-            ui.add_space(4.0);
+            ui.add_space(crate::theme::SPACING_TINY);
             ui.label(egui::RichText::new("Samples:").strong().size(11.0));
             ui.add(
                 egui::Label::new(
@@ -239,7 +250,7 @@ fn render_column_stats_cell(
 
 #[expect(clippy::too_many_lines)]
 pub fn render_cleaning_controls(app: &mut App, ui: &mut egui::Ui, col: &ColumnSummary) {
-    ui.add_space(8.0);
+    ui.add_space(crate::theme::SPACING_SMALL);
     ui.separator();
 
     if let Some(config) = app.model.cleaning_configs.get_mut(&col.name) {
@@ -296,173 +307,208 @@ pub fn render_cleaning_controls(app: &mut App, ui: &mut egui::Ui, col: &ColumnSu
             });
         });
 
-        ui.add_space(4.0);
+        ui.add_space(crate::theme::SPACING_TINY);
 
         // --- 2. ML Preprocessing Section ---
-        ui.horizontal(|ui| {
-            ui.checkbox(&mut config.ml_preprocessing, "")
-                .on_hover_text("Enable or disable all ML preprocessing steps for this column.");
-            ui.strong(format!("{} ML Preprocessing:", icons::BRAIN));
+        if app.model.ml_enabled {
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut config.ml_preprocessing, "")
+                    .on_hover_text("Enable or disable all ML preprocessing steps for this column.");
+                ui.strong(format!("{} ML Preprocessing:", icons::BRAIN));
 
-            ui.add_enabled_ui(config.ml_preprocessing, |ui| {
-                let effective_kind = config.target_dtype.unwrap_or(col.kind);
+                ui.add_enabled_ui(config.ml_preprocessing, |ui| {
+                    let effective_kind = config.target_dtype.unwrap_or(col.kind);
 
-                // --- Imputation ---
-                let suggest_impute = col.ml_advice.iter().any(|a| a.contains("Mean or Median Imputation"));
-                if suggest_impute && config.impute_mode == crate::analyser::logic::types::ImputeMode::Mean {
-                    ui.label(egui::RichText::new(icons::WARNING).color(egui::Color32::YELLOW))
-                        .on_hover_text("Auto-selected Mean imputation based on missing data advice. Please review.");
-                }
-
-                egui::ComboBox::from_id_salt(format!("impute_{}", col.name))
-                    .selected_text(match config.impute_mode {
-                        crate::analyser::logic::types::ImputeMode::None => "No Imputation",
-                        crate::analyser::logic::types::ImputeMode::Mean => "Fill with Mean",
-                        crate::analyser::logic::types::ImputeMode::Median => "Fill with Median",
-                        crate::analyser::logic::types::ImputeMode::Zero => "Fill with Zero",
-                        crate::analyser::logic::types::ImputeMode::Mode => "Fill with Mode",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut config.impute_mode,
-                            crate::analyser::logic::types::ImputeMode::None,
-                            "No Imputation",
-                        );
-
-                        if effective_kind == crate::analyser::logic::types::ColumnKind::Numeric {
-                            ui.selectable_value(
-                                &mut config.impute_mode,
-                                crate::analyser::logic::types::ImputeMode::Mean,
-                                "Fill with Mean",
-                            );
-                            ui.selectable_value(
-                                &mut config.impute_mode,
-                                crate::analyser::logic::types::ImputeMode::Median,
-                                "Fill with Median",
-                            );
-                            ui.selectable_value(
-                                &mut config.impute_mode,
-                                crate::analyser::logic::types::ImputeMode::Zero,
-                                "Fill with Zero",
-                            );
-                        }
-
-                        if effective_kind == crate::analyser::logic::types::ColumnKind::Categorical {
-                            ui.selectable_value(
-                                &mut config.impute_mode,
-                                crate::analyser::logic::types::ImputeMode::Mode,
-                                "Fill with Mode",
-                            );
-                        }
-                    });
-
-                // Auto-reset invalid imputation modes
-                match config.impute_mode {
-                    crate::analyser::logic::types::ImputeMode::Mean
-                    | crate::analyser::logic::types::ImputeMode::Median
-                    | crate::analyser::logic::types::ImputeMode::Zero
-                        if effective_kind != crate::analyser::logic::types::ColumnKind::Numeric =>
+                    // --- Imputation ---
+                    let suggest_impute =
+                        col.ml_advice.iter().any(|a| a.contains("Mean or Median Imputation"));
+                    if suggest_impute
+                        && config.impute_mode == crate::analyser::logic::types::ImputeMode::Mean
                     {
-                        config.impute_mode = crate::analyser::logic::types::ImputeMode::None;
+                        ui.label(egui::RichText::new(icons::WARNING).color(egui::Color32::YELLOW))
+                            .on_hover_text(
+                                "Auto-selected Mean imputation based on missing data advice. Please review.",
+                            );
                     }
-                    crate::analyser::logic::types::ImputeMode::Mode
-                        if effective_kind != crate::analyser::logic::types::ColumnKind::Categorical =>
-                    {
-                        config.impute_mode = crate::analyser::logic::types::ImputeMode::None;
-                    }
-                    _ => {}
-                }
 
-                // --- Normalization & Numeric Refinement ---
-                if effective_kind == crate::analyser::logic::types::ColumnKind::Numeric {
-                    ui.separator();
-                    egui::ComboBox::from_id_salt(format!("norm_{}", col.name))
-                        .selected_text(match config.normalization {
-                            crate::analyser::logic::types::NormalizationMethod::None => "No Scaling",
-                            crate::analyser::logic::types::NormalizationMethod::ZScore => "Z-Score (Std)",
-                            crate::analyser::logic::types::NormalizationMethod::MinMax => "Min-Max (0-1)",
+                    egui::ComboBox::from_id_salt(format!("impute_{}", col.name))
+                        .selected_text(match config.impute_mode {
+                            crate::analyser::logic::types::ImputeMode::None => "No Imputation",
+                            crate::analyser::logic::types::ImputeMode::Mean => "Fill with Mean",
+                            crate::analyser::logic::types::ImputeMode::Median => "Fill with Median",
+                            crate::analyser::logic::types::ImputeMode::Zero => "Fill with Zero",
+                            crate::analyser::logic::types::ImputeMode::Mode => "Fill with Mode",
                         })
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut config.normalization, crate::analyser::logic::types::NormalizationMethod::None, "No Scaling");
-                            ui.selectable_value(&mut config.normalization, crate::analyser::logic::types::NormalizationMethod::ZScore, "Z-Score (Std)");
-                            ui.selectable_value(&mut config.normalization, crate::analyser::logic::types::NormalizationMethod::MinMax, "Min-Max (0-1)");
+                            ui.selectable_value(
+                                &mut config.impute_mode,
+                                crate::analyser::logic::types::ImputeMode::None,
+                                "No Imputation",
+                            );
+
+                            if effective_kind == crate::analyser::logic::types::ColumnKind::Numeric {
+                                ui.selectable_value(
+                                    &mut config.impute_mode,
+                                    crate::analyser::logic::types::ImputeMode::Mean,
+                                    "Fill with Mean",
+                                );
+                                ui.selectable_value(
+                                    &mut config.impute_mode,
+                                    crate::analyser::logic::types::ImputeMode::Median,
+                                    "Fill with Median",
+                                );
+                                ui.selectable_value(
+                                    &mut config.impute_mode,
+                                    crate::analyser::logic::types::ImputeMode::Zero,
+                                    "Fill with Zero",
+                                );
+                            }
+
+                            if effective_kind
+                                == crate::analyser::logic::types::ColumnKind::Categorical
+                            {
+                                ui.selectable_value(
+                                    &mut config.impute_mode,
+                                    crate::analyser::logic::types::ImputeMode::Mode,
+                                    "Fill with Mode",
+                                );
+                            }
                         });
 
-                    ui.separator();
-                    ui.checkbox(&mut config.extract_numbers, "Extract Num");
-                    ui.checkbox(&mut config.clip_outliers, "Clip");
-
-                    let mut rounding_active = config.rounding.is_some();
-                    if ui.checkbox(&mut rounding_active, "Round").changed() {
-                        config.rounding = if rounding_active { Some(2) } else { None };
+                    // Auto-reset invalid imputation modes
+                    match config.impute_mode {
+                        crate::analyser::logic::types::ImputeMode::Mean
+                        | crate::analyser::logic::types::ImputeMode::Median
+                        | crate::analyser::logic::types::ImputeMode::Zero
+                            if effective_kind
+                                != crate::analyser::logic::types::ColumnKind::Numeric =>
+                        {
+                            config.impute_mode = crate::analyser::logic::types::ImputeMode::None;
+                        }
+                        crate::analyser::logic::types::ImputeMode::Mode
+                            if effective_kind
+                                != crate::analyser::logic::types::ColumnKind::Categorical =>
+                        {
+                            config.impute_mode = crate::analyser::logic::types::ImputeMode::None;
+                        }
+                        _ => {}
                     }
-                    if let Some(val) = &mut config.rounding {
-                        ui.add(egui::DragValue::new(val).range(0..=10).suffix(" d"));
+
+                    // --- Normalization & Numeric Refinement ---
+                    if effective_kind == crate::analyser::logic::types::ColumnKind::Numeric {
+                        ui.separator();
+                        egui::ComboBox::from_id_salt(format!("norm_{}", col.name))
+                            .selected_text(match config.normalization {
+                                crate::analyser::logic::types::NormalizationMethod::None => {
+                                    "No Scaling"
+                                }
+                                crate::analyser::logic::types::NormalizationMethod::ZScore => {
+                                    "Z-Score (Std)"
+                                }
+                                crate::analyser::logic::types::NormalizationMethod::MinMax => {
+                                    "Min-Max (0-1)"
+                                }
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut config.normalization,
+                                    crate::analyser::logic::types::NormalizationMethod::None,
+                                    "No Scaling",
+                                );
+                                ui.selectable_value(
+                                    &mut config.normalization,
+                                    crate::analyser::logic::types::NormalizationMethod::ZScore,
+                                    "Z-Score (Std)",
+                                );
+                                ui.selectable_value(
+                                    &mut config.normalization,
+                                    crate::analyser::logic::types::NormalizationMethod::MinMax,
+                                    "Min-Max (0-1)",
+                                );
+                            });
+
+                        ui.separator();
+                        ui.checkbox(&mut config.extract_numbers, "Extract Num");
+                        ui.checkbox(&mut config.clip_outliers, "Clip");
+
+                        let mut rounding_active = config.rounding.is_some();
+                        if ui.checkbox(&mut rounding_active, "Round").changed() {
+                            config.rounding = if rounding_active { Some(2) } else { None };
+                        }
+                        if let Some(val) = &mut config.rounding {
+                            ui.add(egui::DragValue::new(val).range(0..=10).suffix(" d"));
+                        }
+                    } else {
+                        config.normalization =
+                            crate::analyser::logic::types::NormalizationMethod::None;
+                        config.extract_numbers = false;
+                        config.clip_outliers = false;
+                        config.rounding = None;
                     }
-                } else {
-                    config.normalization = crate::analyser::logic::types::NormalizationMethod::None;
-                    config.extract_numbers = false;
-                    config.clip_outliers = false;
-                    config.rounding = None;
-                }
 
-                // --- One-Hot Encoding & Categorical Refinement ---
-                if effective_kind == crate::analyser::logic::types::ColumnKind::Categorical {
-                    ui.separator();
-                    ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode")
-                        .on_hover_text("Convert categorical values into multiple binary columns.");
+                    // --- One-Hot Encoding & Categorical Refinement ---
+                    if effective_kind == crate::analyser::logic::types::ColumnKind::Categorical {
+                        ui.separator();
+                        ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode")
+                            .on_hover_text("Convert categorical values into multiple binary columns.");
 
-                    ui.separator();
-                    let mut cap_active = config.freq_threshold.is_some();
-                    if ui.checkbox(&mut cap_active, "Freq Cap")
+                        ui.separator();
+                        let mut cap_active = config.freq_threshold.is_some();
+                        if ui.checkbox(&mut cap_active, "Freq Cap")
                         .on_hover_text("Group rare categories (appearing less than the threshold) into an 'Other' category to prevent a 'curse of dimensionality' in ML models.")
                         .changed()
                     {
                         config.freq_threshold = if cap_active { Some(5) } else { None };
                     }
-                    if let Some(val) = &mut config.freq_threshold {
-                        ui.add(egui::DragValue::new(val).range(1..=1000).prefix("min:"));
+                        if let Some(val) = &mut config.freq_threshold {
+                            ui.add(egui::DragValue::new(val).range(1..=1000).prefix("min:"));
+                        }
+                    } else if effective_kind == crate::analyser::logic::types::ColumnKind::Boolean {
+                        ui.separator();
+                        ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode");
+                        config.freq_threshold = None;
+                    } else {
+                        config.one_hot_encode = false;
+                        config.freq_threshold = None;
                     }
-                } else if effective_kind == crate::analyser::logic::types::ColumnKind::Boolean {
-                    ui.separator();
-                    ui.checkbox(&mut config.one_hot_encode, "One-Hot Encode");
-                    config.freq_threshold = None;
-                } else {
-                    config.one_hot_encode = false;
-                    config.freq_threshold = None;
-                }
 
-                // --- Temporal Format ---
-                if effective_kind == crate::analyser::logic::types::ColumnKind::Temporal {
-                    ui.separator();
-                    ui.label("Format:");
-                    ui.add(egui::TextEdit::singleline(&mut config.temporal_format).hint_text("%Y-%m-%d").desired_width(80.0));
-                    ui.checkbox(&mut config.timezone_utc, "UTC").on_hover_text("Normalize to UTC timezone.");
-                } else {
-                    config.temporal_format = String::new();
-                    config.timezone_utc = false;
-                }
+                    // --- Temporal Format ---
+                    if effective_kind == crate::analyser::logic::types::ColumnKind::Temporal {
+                        ui.separator();
+                        ui.label("Format:");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut config.temporal_format)
+                                .hint_text("%Y-%m-%d")
+                                .desired_width(80.0),
+                        );
+                        ui.checkbox(&mut config.timezone_utc, "UTC")
+                            .on_hover_text("Normalize to UTC timezone.");
+                    } else {
+                        config.temporal_format = String::new();
+                        config.timezone_utc = false;
+                    }
+                });
             });
-        });
 
-        ui.add_space(4.0);
+            ui.add_space(crate::theme::SPACING_TINY);
 
-        // --- 3. Smart ML Advice ---
-        ui.horizontal(|ui| {
-            ui.label(icons::LIGHTBULB);
-            ui.strong("Smart ML Advice:");
-            ui.add_space(4.0);
-            ui.vertical(|ui| {
-                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-                for advice in &col.ml_advice {
-                    ui.label(
-                        egui::RichText::new(format!("• {advice}"))
-                            .size(11.0)
-                            .color(ui.visuals().weak_text_color()),
-                    );
-                }
+            // --- 3. Smart ML Advice ---
+            ui.horizontal(|ui| {
+                ui.label(icons::LIGHTBULB);
+                ui.strong("Smart ML Advice:");
+                ui.add_space(crate::theme::SPACING_TINY);
+                ui.vertical(|ui| {
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                    for advice in &col.ml_advice {
+                        ui.label(
+                            egui::RichText::new(format!("• {advice}"))
+                                .size(11.0)
+                                .color(ui.visuals().weak_text_color()),
+                        );
+                    }
+                });
             });
-        });
+        }
     }
 }
 

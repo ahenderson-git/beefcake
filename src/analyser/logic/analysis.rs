@@ -1,6 +1,9 @@
 use anyhow::{Context as _, Result};
-use polars::prelude::NonExistent;
-use polars::prelude::*;
+use polars::prelude::NonExistent as NonExistentStrategy;
+use polars::prelude::{
+    DataType as PolarsDataType, QuantileMethod as PolarsQuantileMethod, TimeUnit as PolarsTimeUnit,
+    *,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -65,7 +68,10 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
             let s = col.as_materialized_series();
 
             // Try Datetime (Microseconds is a good default for Polars)
-            if let Ok(dt) = s.cast(&DataType::Datetime(TimeUnit::Microseconds, None)) {
+            if let Ok(dt) = s.cast(&PolarsDataType::Datetime(
+                PolarsTimeUnit::Microseconds,
+                None,
+            )) {
                 // If the number of nulls didn't increase, it's a perfect match
                 if dt.null_count() == s.null_count() && !s.is_empty() {
                     *col = Column::from(dt);
@@ -75,7 +81,7 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
             }
 
             // Try Date
-            if let Ok(d) = s.cast(&DataType::Date) {
+            if let Ok(d) = s.cast(&PolarsDataType::Date) {
                 if d.null_count() == s.null_count() && !s.is_empty() {
                     *col = Column::from(d);
                     changed = true;
@@ -129,7 +135,7 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
         let samples = {
             let series = col.as_materialized_series();
             let head = series.drop_nulls().head(Some(10));
-            match head.cast(&DataType::String) {
+            match head.cast(&PolarsDataType::String) {
                 Ok(s_ca) => s_ca
                     .str()
                     .map(|ca| {
@@ -298,7 +304,7 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         if let Some(kind) = config.target_dtype {
             if kind == ColumnKind::Temporal && !config.temporal_format.is_empty() {
                 expr = expr.str().to_datetime(
-                    Some(TimeUnit::Microseconds),
+                    Some(PolarsTimeUnit::Microseconds),
                     None,
                     StrptimeOptions {
                         format: Some(config.temporal_format.clone().into()),
@@ -310,10 +316,12 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
                 );
             } else {
                 let dtype = match kind {
-                    ColumnKind::Numeric => DataType::Float64,
-                    ColumnKind::Boolean => DataType::Boolean,
-                    ColumnKind::Temporal => DataType::Datetime(TimeUnit::Microseconds, None),
-                    _ => DataType::String,
+                    ColumnKind::Numeric => PolarsDataType::Float64,
+                    ColumnKind::Boolean => PolarsDataType::Boolean,
+                    ColumnKind::Temporal => {
+                        PolarsDataType::Datetime(PolarsTimeUnit::Microseconds, None)
+                    }
+                    _ => PolarsDataType::String,
                 };
                 expr = expr.cast(dtype);
             }
@@ -322,7 +330,7 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
                 expr = expr.dt().replace_time_zone(
                     Some("UTC".into()),
                     lit(Null {}),
-                    NonExistent::Null,
+                    NonExistentStrategy::Null,
                 );
             }
         }
@@ -352,8 +360,12 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
                 expr = expr.round(decimals);
             }
             if config.clip_outliers {
-                let lower = expr.clone().quantile(lit(0.05), QuantileMethod::Linear);
-                let upper = expr.clone().quantile(lit(0.95), QuantileMethod::Linear);
+                let lower = expr
+                    .clone()
+                    .quantile(lit(0.05), PolarsQuantileMethod::Linear);
+                let upper = expr
+                    .clone()
+                    .quantile(lit(0.95), PolarsQuantileMethod::Linear);
                 expr = expr.clip(lower, upper);
             }
         }
@@ -430,7 +442,7 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
                 .context("Failed to access column for One-Hot encoding")?
                 .as_materialized_series();
             let s_str = column
-                .cast(&DataType::String)
+                .cast(&PolarsDataType::String)
                 .context("Failed to cast column to string for One-Hot encoding")?;
             let s_str = s_str
                 .str()
@@ -444,7 +456,7 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
                 let dummy_series = s_str
                     .equal(val)
                     .into_series()
-                    .cast(&DataType::Int32)
+                    .cast(&PolarsDataType::Int32)
                     .context("Failed to create binary series for One-Hot encoding")?;
                 result_df
                     .with_column(Column::from(dummy_series).with_name(dummy_col_name.into()))
@@ -476,7 +488,7 @@ fn analyse_boolean(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
 fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, ColumnStats)> {
     let series = col.as_materialized_series();
     let distinct_count = series.n_unique()?;
-    let f64_series = series.cast(&DataType::Float64)?;
+    let f64_series = series.cast(&PolarsDataType::Float64)?;
     let ca = f64_series.f64()?;
 
     let min = ca.min();
@@ -489,11 +501,11 @@ fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, ColumnSta
     let mean = ca.mean();
     let std_dev = ca.std(1);
 
-    let q1 = ca.quantile(0.25, QuantileMethod::Linear)?;
+    let q1 = ca.quantile(0.25, PolarsQuantileMethod::Linear)?;
     let median = ca.median();
-    let q3 = ca.quantile(0.75, QuantileMethod::Linear)?;
-    let p05 = ca.quantile(0.05, QuantileMethod::Linear)?;
-    let p95 = ca.quantile(0.95, QuantileMethod::Linear)?;
+    let q3 = ca.quantile(0.75, PolarsQuantileMethod::Linear)?;
+    let p05 = ca.quantile(0.05, PolarsQuantileMethod::Linear)?;
+    let p95 = ca.quantile(0.95, PolarsQuantileMethod::Linear)?;
 
     let skew = calculate_skew(mean, median, q1, q3, std_dev);
     let trimmed_mean = calculate_trimmed_mean(ca, mean, trim_pct);
@@ -700,25 +712,25 @@ fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
     let series = col.as_materialized_series();
     let distinct_count = series.n_unique()?;
     let min_str = series
-        .cast(&DataType::String)?
+        .cast(&PolarsDataType::String)?
         .min_reduce()?
         .as_any_value()
         .get_str()
         .map(|s| s.to_owned());
     let max_str = series
-        .cast(&DataType::String)?
+        .cast(&PolarsDataType::String)?
         .max_reduce()?
         .as_any_value()
         .get_str()
         .map(|s| s.to_owned());
 
-    let ts_ca = series.cast(&DataType::Int64)?;
+    let ts_ca = series.cast(&PolarsDataType::Int64)?;
     let ts_ca = ts_ca.i64()?;
     let min_ts = ts_ca.min();
     let max_ts = ts_ca.max();
 
-    let p05 = ts_ca.quantile(0.05, QuantileMethod::Linear)?;
-    let p95 = ts_ca.quantile(0.95, QuantileMethod::Linear)?;
+    let p05 = ts_ca.quantile(0.05, PolarsQuantileMethod::Linear)?;
+    let p95 = ts_ca.quantile(0.95, PolarsQuantileMethod::Linear)?;
 
     let is_sorted = series.is_sorted(SortOptions {
         descending: false,
@@ -793,7 +805,7 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
     let series = col.as_materialized_series();
     let dtype = col.dtype();
 
-    let kind = if matches!(dtype, DataType::List(_) | DataType::Struct(_)) {
+    let kind = if matches!(dtype, PolarsDataType::List(_) | PolarsDataType::Struct(_)) {
         ColumnKind::Nested
     } else {
         ColumnKind::Text
@@ -824,7 +836,7 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
             let counts = vc.column("counts")?.as_materialized_series();
 
             let mut freq = HashMap::new();
-            let v_ca = values.cast(&DataType::String)?;
+            let v_ca = values.cast(&PolarsDataType::String)?;
             let v_ca = v_ca.str()?;
             let c_ca = counts.u32()?;
 
@@ -847,7 +859,7 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
         let counts = vc.column("counts")?.as_materialized_series();
 
         let v = values
-            .cast(&DataType::String)
+            .cast(&PolarsDataType::String)
             .ok()
             .and_then(|s| s.str().ok().and_then(|ca| ca.get(0).map(|s| s.to_owned())));
         let c = counts
@@ -877,7 +889,7 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
     ))
 }
 
-fn get_text_lengths(series: &Series, dtype: &DataType) -> Result<(usize, usize, f64)> {
+fn get_text_lengths(series: &Series, dtype: &PolarsDataType) -> Result<(usize, usize, f64)> {
     if dtype.is_string() {
         let ca = series.str()?;
         let lengths = ca.str_len_chars();
@@ -886,7 +898,7 @@ fn get_text_lengths(series: &Series, dtype: &DataType) -> Result<(usize, usize, 
             lengths.max().unwrap_or(0) as usize,
             lengths.mean().unwrap_or(0.0),
         ))
-    } else if let DataType::List(_) = dtype {
+    } else if let PolarsDataType::List(_) = dtype {
         let lengths = series.list()?.lst_lengths();
         Ok((
             lengths.min().unwrap_or(0) as usize,
@@ -900,13 +912,13 @@ fn get_text_lengths(series: &Series, dtype: &DataType) -> Result<(usize, usize, 
 
 fn check_special_characters(
     name: &str,
-    dtype: &DataType,
+    dtype: &PolarsDataType,
     value_counts_df: &Option<DataFrame>,
 ) -> Result<bool> {
     if dtype.is_string() {
         if let Some(vc) = value_counts_df {
             let values = vc.column(name)?.as_materialized_series();
-            let v_ca = values.cast(&DataType::String)?;
+            let v_ca = values.cast(&PolarsDataType::String)?;
             let v_ca = v_ca.str()?;
             for v in v_ca.into_iter().flatten() {
                 if v.chars()

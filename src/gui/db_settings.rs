@@ -1,4 +1,4 @@
-use crate::gui::TemplateApp;
+use crate::gui::BeefcakeApp;
 use eframe::egui;
 use egui_phosphor::regular as icons;
 use secrecy::{ExposeSecret as _, SecretString};
@@ -34,42 +34,52 @@ impl Default for DbConfig {
     }
 }
 
-impl TemplateApp {
+impl BeefcakeApp {
     pub fn render_database_settings(&mut self, ctx: &egui::Context) -> bool {
         let mut go_back = false;
-        egui::TopBottomPanel::top("db_settings_top").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui.button(format!("{} Back", icons::ARROW_LEFT)).clicked() {
-                    go_back = true;
-                }
-                ui.separator();
-                ui.heading(format!("{} Database Connection Settings", icons::DATABASE));
+        egui::TopBottomPanel::top("db_settings_top")
+            .frame(crate::theme::top_bar_frame())
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(format!("{} Back", icons::ARROW_LEFT)).clicked() {
+                        go_back = true;
+                    }
+                    ui.separator();
+                    ui.heading(format!("{} Database Connection Settings", icons::DATABASE));
+                });
             });
-        });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.add_space(8.0);
-                self.render_db_grid(ui, ctx);
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+                left: crate::theme::PANEL_LEFT as i8,
+                right: crate::theme::PANEL_RIGHT as i8,
+                top: 0,
+                bottom: 0,
+            }))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.add_space(crate::theme::SPACING_SMALL);
+                    self.render_db_grid(ui, ctx);
 
-                ui.add_space(20.0);
-                ui.separator();
-                ui.add_space(20.0);
+                    ui.add_space(crate::theme::SPACING_LARGE);
+                    ui.separator();
+                    ui.add_space(crate::theme::SPACING_LARGE);
 
-                self.render_db_profiles(ui);
+                    self.render_db_profiles(ui);
+                    ui.add_space(crate::theme::SPACING_LARGE);
+                });
             });
-        });
 
         go_back
     }
 
     pub fn render_db_grid(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         ui.heading("Current Configuration");
-        ui.add_space(8.0);
+        ui.add_space(crate::theme::SPACING_SMALL);
 
         egui::Grid::new("db_settings_grid")
             .num_columns(2)
-            .spacing([40.0, 12.0])
+            .spacing([40.0, crate::theme::SPACING_MEDIUM])
             .striped(true)
             .show(ui, |ui| {
                 ui.label("Database Type:");
@@ -121,7 +131,7 @@ impl TemplateApp {
                 ui.end_row();
             });
 
-        ui.add_space(20.0);
+        ui.add_space(crate::theme::SPACING_LARGE);
 
         ui.horizontal(|ui| {
             if self.is_testing {
@@ -135,53 +145,64 @@ impl TemplateApp {
                 self.start_test_connection(ctx.clone());
             }
 
-            let response = ui.button(format!("{} Save as New Profile", icons::FLOPPY_DISK));
-
-            if response.clicked() {
-                egui::Popup::toggle_id(ui.ctx(), response.id);
-            }
-
-            egui::Popup::from_response(&response).show(|ui| {
-                ui.set_min_width(200.0);
-                ui.vertical(|ui| {
-                    ui.label("Profile Name:");
-                    ui.text_edit_singleline(&mut self.db_name_input);
-                    ui.add_space(4.0);
-                    if ui.button("Confirm Save").clicked() && !self.db_name_input.is_empty() {
-                        let config = DbConfig {
-                            name: self.db_name_input.clone(),
-                            db_type: self.pg_type.clone(),
-                            host: self.pg_host.clone(),
-                            port: self.pg_port.clone(),
-                            user: self.pg_user.clone(),
-                            password: if self.save_password {
-                                self.pg_password.clone()
-                            } else {
-                                SecretString::default()
-                            },
-                            database: self.pg_database.clone(),
-                            schema: self.pg_schema.clone(),
-                            table: self.pg_table.clone(),
-                        };
-                        self.saved_configs.push(config);
-                        self.log_action(
-                            "Database",
-                            &format!("Saved profile: {}", self.db_name_input),
-                        );
-                        self.db_name_input.clear();
-                        egui::Popup::close_id(ui.ctx(), response.id);
-                    }
-                });
-            });
+            self.render_save_profile_controls(ui);
         });
 
-        ui.add_space(12.0);
+        ui.add_space(crate::theme::SPACING_MEDIUM);
         crate::utils::render_status_message(ui, &self.status);
+    }
+
+    fn render_save_profile_controls(&mut self, ui: &mut egui::Ui) {
+        ui.vertical(|ui| {
+            if ui
+                .button(format!("{} Save as New Profile", icons::FLOPPY_DISK))
+                .clicked()
+            {
+                self.show_db_save_ui = !self.show_db_save_ui;
+            }
+
+            if self.show_db_save_ui {
+                ui.add_space(crate::theme::SPACING_TINY);
+                egui::Frame::group(ui.style())
+                    .fill(ui.visuals().faint_bg_color)
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            ui.label("Profile Name:");
+                            ui.text_edit_singleline(&mut self.db_name_input);
+                            ui.add_space(crate::theme::SPACING_TINY);
+                            if ui.button("Confirm Save").clicked() && !self.db_name_input.is_empty() {
+                                let config = DbConfig {
+                                    name: self.db_name_input.clone(),
+                                    db_type: self.pg_type.clone(),
+                                    host: self.pg_host.clone(),
+                                    port: self.pg_port.clone(),
+                                    user: self.pg_user.clone(),
+                                    password: if self.save_password {
+                                        self.pg_password.clone()
+                                    } else {
+                                        SecretString::default()
+                                    },
+                                    database: self.pg_database.clone(),
+                                    schema: self.pg_schema.clone(),
+                                    table: self.pg_table.clone(),
+                                };
+                                self.saved_configs.push(config);
+                                self.log_action(
+                                    "Database",
+                                    &format!("Saved profile: {}", self.db_name_input),
+                                );
+                                self.db_name_input.clear();
+                                self.show_db_save_ui = false;
+                            }
+                        });
+                    });
+            }
+        });
     }
 
     pub fn render_db_profiles(&mut self, ui: &mut egui::Ui) {
         ui.heading(format!("{} Saved Profiles", icons::FLOPPY_DISK));
-        ui.add_space(8.0);
+        ui.add_space(crate::theme::SPACING_SMALL);
 
         if self.saved_configs.is_empty() {
             ui.label(egui::RichText::new("No profiles saved yet.").weak());

@@ -5,4 +5,4 @@ mod gui;
 mod theme;
 mod utils;
 
-pub use gui::TemplateApp;
+pub use gui::BeefcakeApp;

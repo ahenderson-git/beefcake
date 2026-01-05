@@ -54,4 +54,6 @@ pub struct AnalysisModel {
     #[serde(skip)]
     pub secondary_df: Option<DataFrame>,
     pub secondary_summary: Vec<ColumnSummary>,
+    pub secondary_file_name: Option<String>,
+    pub ml_enabled: bool,
 }

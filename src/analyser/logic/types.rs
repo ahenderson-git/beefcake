@@ -78,6 +78,11 @@ impl ColumnSummary {
     }
 
     pub fn apply_advice_to_config(&self, config: &mut ColumnCleanConfig) {
+        // Automatically enable special character removal if they were detected during analysis
+        if self.has_special {
+            config.remove_special_chars = true;
+        }
+
         for advice in &self.ml_advice {
             if advice.contains("Outlier Clipping") {
                 config.clip_outliers = true;
@@ -92,6 +97,20 @@ impl ColumnSummary {
                 config.one_hot_encode = true;
             }
         }
+    }
+}
+
+impl ColumnCleanConfig {
+    /// Returns true if the advanced cleaning master switch is on AND at least one
+    /// specific advanced cleaning step is enabled.
+    pub fn has_any_advanced_cleaning(&self) -> bool {
+        self.advanced_cleaning
+            && (self.trim_whitespace
+                || self.remove_special_chars
+                || self.remove_non_ascii
+                || self.standardize_nulls
+                || self.text_case != TextCase::None
+                || !self.regex_find.is_empty())
     }
 }
 
@@ -195,7 +214,7 @@ impl Default for ColumnCleanConfig {
             target_dtype: None,
             active: true,
             advanced_cleaning: true,
-            ml_preprocessing: true,
+            ml_preprocessing: false,
             trim_whitespace: false,
             remove_special_chars: false,
             text_case: TextCase::None,

@@ -1,4 +1,4 @@
-use crate::gui::TemplateApp;
+use crate::gui::BeefcakeApp;
 use eframe::egui;
 use egui_phosphor::regular as icons;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ pub struct PsScript {
     pub content: String,
 }
 
-impl TemplateApp {
+impl BeefcakeApp {
     pub fn default_scripts() -> Vec<PsScript> {
         vec![
             PsScript {
@@ -38,65 +38,79 @@ impl TemplateApp {
 
     pub fn render_powershell_module(&mut self, ctx: &egui::Context) -> bool {
         let mut go_back = false;
-        egui::TopBottomPanel::top("ps_module_top").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui.button(format!("{} Back", icons::ARROW_LEFT)).clicked() {
-                    go_back = true;
-                }
-                ui.separator();
-                ui.heading(format!("{} PowerShell Automation Module", icons::TERMINAL));
-            });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.columns(2, |columns| {
-                if let [left, right] = columns {
-                    self.render_ps_editor(left);
-                    self.render_ps_library(right);
-                }
+        egui::TopBottomPanel::top("ps_module_top")
+            .frame(crate::theme::top_bar_frame())
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(format!("{} Back", icons::ARROW_LEFT)).clicked() {
+                        go_back = true;
+                    }
+                    ui.separator();
+                    ui.heading(format!("{} PowerShell Automation Module", icons::TERMINAL));
+                });
             });
 
-            ui.add_space(10.0);
-            crate::utils::render_status_message(ui, &self.status);
-
-            if !self.ps_last_output.is_empty() {
-                ui.add_space(10.0);
-                crate::theme::card_frame(ui).show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    egui::CollapsingHeader::new(
-                        egui::RichText::new(format!(
-                            "{} Last Execution Output",
-                            icons::LIST_DASHES
-                        ))
-                        .strong(),
-                    )
-                    .default_open(true)
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+                left: crate::theme::PANEL_LEFT as i8,
+                right: crate::theme::PANEL_RIGHT as i8,
+                top: 0,
+                bottom: 0,
+            }))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("ps_module_scroll")
                     .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.add_space(ui.available_width() - 60.0);
-                            if ui.small_button(format!("{} Clear", icons::TRASH)).clicked() {
-                                self.ps_last_output.clear();
+                        ui.columns(2, |columns| {
+                            if let [left, right] = columns {
+                                self.render_ps_editor(left);
+                                self.render_ps_library(right);
                             }
                         });
-                        ui.add_space(4.0);
-                        egui::ScrollArea::vertical()
-                            .id_salt("ps_output_scroll")
-                            .max_height(200.0)
-                            .auto_shrink([false; 2])
-                            .show(ui, |ui| {
-                                let mut output = self.ps_last_output.clone();
-                                ui.add(
-                                    egui::TextEdit::multiline(&mut output)
-                                        .font(egui::TextStyle::Monospace)
-                                        .desired_width(f32::INFINITY)
-                                        .lock_focus(true)
-                                        .interactive(true),
-                                );
+
+                        ui.add_space(crate::theme::MARGIN_SIDEBAR);
+                        crate::utils::render_status_message(ui, &self.status);
+
+                        if !self.ps_last_output.is_empty() {
+                            ui.add_space(crate::theme::MARGIN_SIDEBAR);
+                            crate::theme::card_frame(ui).show(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                ui.set_height(ui.available_height());
+                                egui::CollapsingHeader::new(egui::RichText::new(format!("{} Last Execution Output", icons::LIST_DASHES)).strong())
+                                    .default_open(true)
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                if ui.small_button(format!("{} Clear", icons::TRASH)).clicked() {
+                                                    self.ps_last_output.clear();
+                                                }
+                                                if ui.small_button(format!("{} Copy", icons::COPY)).clicked() {
+                                                    ui.ctx().copy_text(self.ps_last_output.clone());
+                                                    self.toasts.success("Output copied to clipboard");
+                                                }
+                                            });
+                                        });
+                                        ui.add_space(crate::theme::SPACING_TINY);
+                                        egui::ScrollArea::vertical()
+                                            .id_salt("ps_output_scroll")
+                                            .auto_shrink([false; 2])
+                                            .show(ui, |ui| {
+                                                let mut output = self.ps_last_output.clone();
+                                                ui.add(
+                                                    egui::TextEdit::multiline(&mut output)
+                                                        .font(egui::TextStyle::Monospace)
+                                                        .desired_width(f32::INFINITY)
+                                                        .desired_rows(10)
+                                                        .lock_focus(true)
+                                                        .interactive(true),
+                                                );
+                                            });
+                                    });
                             });
+                        }
+                        ui.add_space(crate::theme::SPACING_LARGE);
                     });
-                });
-            }
-        });
+            });
 
         go_back
     }
@@ -104,7 +118,7 @@ impl TemplateApp {
     pub fn render_ps_editor(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             ui.heading(format!("{} Script Editor", icons::NOTE_PENCIL));
-            ui.add_space(4.0);
+            ui.add_space(crate::theme::SPACING_TINY);
 
             let theme =
                 egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
@@ -134,7 +148,7 @@ impl TemplateApp {
                     );
                 });
 
-            ui.add_space(8.0);
+            ui.add_space(crate::theme::SPACING_SMALL);
             self.render_ps_controls(ui);
         });
     }
@@ -149,35 +163,44 @@ impl TemplateApp {
                 .on_hover_text("Execute script and wait for result")
                 .clicked()
             {
-                self.start_ps_execution(ui.ctx().clone(), self.ps_script.clone());
+                self.start_ps_execution(ui.ctx().clone(), self.ps_script.clone(), None);
                 self.log_action("PowerShell", "Started script execution");
             }
 
-            let response = ui.button(format!("{} Save to Library", icons::FLOPPY_DISK));
+            ui.vertical(|ui| {
+                if ui
+                    .button(format!("{} Save to Library", icons::FLOPPY_DISK))
+                    .clicked()
+                {
+                    self.show_ps_save_ui = !self.show_ps_save_ui;
+                }
 
-            if response.clicked() {
-                egui::Popup::toggle_id(ui.ctx(), response.id);
-            }
-
-            egui::Popup::from_response(&response).show(|ui| {
-                ui.set_min_width(200.0);
-                ui.vertical(|ui| {
-                    ui.label("Script Name:");
-                    ui.text_edit_singleline(&mut self.ps_script_name_input);
-                    ui.add_space(4.0);
-                    if ui.button("Confirm Save").clicked() && !self.ps_script_name_input.is_empty() {
-                        self.saved_ps_scripts.push(PsScript {
-                            name: self.ps_script_name_input.clone(),
-                            content: self.ps_script.clone(),
+                if self.show_ps_save_ui {
+                    ui.add_space(crate::theme::SPACING_TINY);
+                    egui::Frame::group(ui.style())
+                        .fill(ui.visuals().faint_bg_color)
+                        .show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.label("Script Name:");
+                                ui.text_edit_singleline(&mut self.ps_script_name_input);
+                                ui.add_space(crate::theme::SPACING_TINY);
+                                if ui.button("Confirm Save").clicked()
+                                    && !self.ps_script_name_input.is_empty()
+                                {
+                                    self.saved_ps_scripts.push(PsScript {
+                                        name: self.ps_script_name_input.clone(),
+                                        content: self.ps_script.clone(),
+                                    });
+                                    self.log_action(
+                                        "PowerShell",
+                                        &format!("Saved script: {}", self.ps_script_name_input),
+                                    );
+                                    self.ps_script_name_input.clear();
+                                    self.show_ps_save_ui = false;
+                                }
+                            });
                         });
-                        self.log_action(
-                            "PowerShell",
-                            &format!("Saved script: {}", self.ps_script_name_input),
-                        );
-                        self.ps_script_name_input.clear();
-                        egui::Popup::close_id(ui.ctx(), response.id);
-                    }
-                });
+                }
             });
         });
     }
@@ -185,7 +208,7 @@ impl TemplateApp {
     pub fn render_ps_library(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             ui.heading(format!("{} Script Library", icons::BOOKS));
-            ui.add_space(4.0);
+            ui.add_space(crate::theme::SPACING_TINY);
 
             let mut to_remove = None;
             let mut to_load = None;
@@ -223,12 +246,15 @@ impl TemplateApp {
                                 );
                             });
                         });
-                        ui.add_space(4.0);
+                        ui.add_space(crate::theme::SPACING_TINY);
                     }
                 });
 
             if let Some(i) = to_load {
-                let script_data = self.saved_ps_scripts.get(i).map(|s| (s.content.clone(), s.name.clone()));
+                let script_data = self
+                    .saved_ps_scripts
+                    .get(i)
+                    .map(|s| (s.content.clone(), s.name.clone()));
                 if let Some((content, name)) = script_data {
                     self.ps_script = content;
                     self.status = format!("Loaded script: {name}");
@@ -236,9 +262,12 @@ impl TemplateApp {
             }
 
             if let Some(i) = to_run {
-                let script_data = self.saved_ps_scripts.get(i).map(|s| (s.content.clone(), s.name.clone()));
+                let script_data = self
+                    .saved_ps_scripts
+                    .get(i)
+                    .map(|s| (s.content.clone(), s.name.clone()));
                 if let Some((content, name)) = script_data {
-                    self.start_ps_execution(ui.ctx().clone(), content);
+                    self.start_ps_execution(ui.ctx().clone(), content, Some(name.clone()));
                     self.log_action("PowerShell", &format!("Executed: {name}"));
                 }
             }
@@ -252,9 +281,10 @@ impl TemplateApp {
         });
     }
 
-    pub fn start_ps_execution(&mut self, ctx: egui::Context, script: String) {
+    pub fn start_ps_execution(&mut self, ctx: egui::Context, script: String, name: Option<String>) {
         self.is_running_ps = true;
         self.ps_last_output.clear();
+        self.running_ps_script_name = name;
         let (tx, rx) = crossbeam_channel::unbounded();
         self.ps_rx = Some(rx);
 
