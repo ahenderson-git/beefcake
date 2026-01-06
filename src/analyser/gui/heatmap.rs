@@ -75,13 +75,13 @@ pub fn render_correlation_heatmap(ui: &mut egui::Ui, matrix: &CorrelationMatrix)
                             egui::vec2(cell_size, cell_size),
                         );
 
-                        // Color based on correlation: -1 (Blue) -> 0 (Faint) -> 1 (Beef Red)
+                        // Color based on correlation: -1 (Rust Grey) -> 0 (Faint) -> 1 (Rust Orange)
                         let color = if val > 0.0 {
                             crate::theme::ACCENT_COLOR
                                 .linear_multiply(val.abs() as f32)
                                 .gamma_multiply(0.8)
                         } else {
-                            egui::Color32::from_rgb(41, 121, 255)
+                            crate::theme::PRIMARY_COLOR
                                 .linear_multiply(val.abs() as f32)
                                 .gamma_multiply(0.8)
                         };

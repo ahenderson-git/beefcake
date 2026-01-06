@@ -206,7 +206,7 @@ fn render_join_selectors(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) 
     if ui
         .add(
             egui::Button::new(format!("{} Join Now", icons::LIGHTNING))
-                .fill(egui::Color32::from_rgb(60, 120, 200)),
+                .fill(crate::theme::ACCENT_COLOR),
         )
         .clicked()
     {
@@ -243,7 +243,7 @@ fn render_status_and_timing(app: &App, ui: &mut egui::Ui) {
             } else if let Some(duration) = app.model.last_duration {
                 ui.label(
                     egui::RichText::new(format!("{} Ready", icons::CHECK_CIRCLE))
-                        .color(egui::Color32::from_rgb(102, 187, 106)),
+                        .color(egui::Color32::from_rgb(129, 178, 154)),
                 );
                 ui.separator();
                 ui.label(egui::RichText::new(format!("{:.2}s", duration.as_secs_f32())).weak());

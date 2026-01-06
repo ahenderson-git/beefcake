@@ -645,14 +645,14 @@ fn render_advanced_metrics(ui: &mut egui::Ui, stats: &ColumnStats) {
                 if s.is_sorted {
                     ui.label(
                         egui::RichText::new(format!("{} Sorted", icons::CHECK_CIRCLE))
-                            .color(egui::Color32::from_rgb(0, 150, 0)),
+                            .color(egui::Color32::from_rgb(129, 178, 154)),
                     )
                     .on_hover_text("Values are strictly increasing.");
                     first = false;
                 } else if s.is_sorted_rev {
                     ui.label(
                         egui::RichText::new(format!("{} Sorted (Rev)", icons::CHECK_CIRCLE))
-                            .color(egui::Color32::from_rgb(0, 150, 0)),
+                            .color(egui::Color32::from_rgb(129, 178, 154)),
                     )
                     .on_hover_text("Values are strictly decreasing.");
                     first = false;
@@ -694,13 +694,13 @@ fn render_advanced_metrics(ui: &mut egui::Ui, stats: &ColumnStats) {
             if s.is_sorted {
                 ui.label(
                     egui::RichText::new(format!("{} Chronological", icons::CHECK_CIRCLE))
-                        .color(egui::Color32::from_rgb(0, 150, 0)),
+                        .color(egui::Color32::from_rgb(129, 178, 154)),
                 )
                 .on_hover_text("Values are in strictly increasing chronological order.");
             } else if s.is_sorted_rev {
                 ui.label(
                     egui::RichText::new(format!("{} Reverse Chronological", icons::CHECK_CIRCLE))
-                        .color(egui::Color32::from_rgb(0, 150, 0)),
+                        .color(egui::Color32::from_rgb(129, 178, 154)),
                 )
                 .on_hover_text("Values are in strictly decreasing chronological order.");
             }

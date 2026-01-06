@@ -65,7 +65,7 @@ fn render_numeric_plot(
     let curve_points = create_gaussian_points(s, view_min, view_max, margin);
     let has_curve = !curve_points.is_empty();
     let curve = Line::new("Gaussian Distribution", curve_points)
-        .color(egui::Color32::from_rgb(255, 167, 38))
+        .color(egui::Color32::from_rgb(255, 179, 102))
         .width(2.0);
 
     let box_lines =
@@ -96,7 +96,7 @@ fn render_numeric_plot(
                     plot_ui.line(curve);
                 }
                 for line in box_lines {
-                    plot_ui.line(line.color(egui::Color32::from_gray(120)).width(1.0));
+                    plot_ui.line(line.color(egui::Color32::from_gray(180)).width(1.0));
                 }
             });
 
@@ -142,7 +142,7 @@ fn create_histogram_bars(
                 .width(s.bin_width)
                 .stroke(egui::Stroke::new(
                     0.5,
-                    egui::Color32::from_rgb(100, 140, 240),
+                    crate::theme::ACCENT_COLOR,
                 ))
         })
         .collect()
@@ -491,12 +491,12 @@ fn render_temporal_plot(
                 .width(s.bin_width)
                 .stroke(egui::Stroke::new(
                     0.5,
-                    egui::Color32::from_rgb(160, 110, 60),
+                    egui::Color32::from_rgb(217, 187, 157),
                 ))
         })
         .collect();
 
-    let chart = BarChart::new("Temporal", bars).color(egui::Color32::from_rgb(200, 150, 100));
+    let chart = BarChart::new("Temporal", bars).color(egui::Color32::from_rgb(238, 218, 198));
 
     let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(1) as f64;
 

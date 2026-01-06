@@ -78,9 +78,17 @@ impl ColumnSummary {
     }
 
     pub fn apply_advice_to_config(&self, config: &mut ColumnCleanConfig) {
+        // Automatically enable basic text cleaning for string-like columns
+        if self.kind == ColumnKind::Text || self.kind == ColumnKind::Categorical {
+            config.trim_whitespace = true;
+            config.standardize_nulls = true;
+        }
+
         // Automatically enable special character removal if they were detected during analysis
         if self.has_special {
             config.remove_special_chars = true;
+            // If we have special characters, we might also have non-ascii junk
+            config.remove_non_ascii = true;
         }
 
         for advice in &self.ml_advice {

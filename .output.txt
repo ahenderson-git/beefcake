@@ -1,1341 +1,213 @@
-    Checking beefcake v0.1.0 (C:\Users\antho\OneDrive\beefcake\beefcake)
-warning: unnecessary hashes around raw string literal
-  --> src\analyser\db.rs:33:13
-   |
-33 | /             r#"
-34 | |             CREATE TABLE IF NOT EXISTS analyses (
-35 | |                 id SERIAL PRIMARY KEY,
-36 | |                 file_path TEXT NOT NULL,
-...  |
-40 | |             );
-41 | |             "#,
-   | |______________^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#needless_raw_string_hashes
-   = note: `-W clippy::needless-raw-string-hashes` implied by `-W clippy::pedantic`
-   = help: to override `-W clippy::pedantic` add `#[allow(clippy::needless_raw_string_hashes)]`
-help: remove all the hashes around the string literal
-   |
-33 ~             r"
-34 |             CREATE TABLE IF NOT EXISTS analyses (
-...
-40 |             );
-41 ~             ",
-   |
-warning: unnecessary hashes around raw string literal
-  --> src\analyser\db.rs:48:13
-   |
-48 | / ...   r#"
-49 | | ...   CREATE TABLE IF NOT EXISTS column_summaries (
-50 | | ...       id SERIAL PRIMARY KEY,
-51 | | ...       analysis_id INTEGER REFERENCES analyses(id) ON DELETE CASCADE,
-...  |
-60 | | ...   );
-61 | | ...   "#,
-   | |________^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#needless_raw_string_hashes
-help: remove all the hashes around the string literal
-   |
-48 ~             r"
-49 |             CREATE TABLE IF NOT EXISTS column_summaries (
-...
-60 |             );
-61 ~             ",
-   |
-warning: unnecessary hashes around raw string literal
-   --> src\analyser\db.rs:99:17
-    |
-99  | / ...   r#"
-100 | | ...   INSERT INTO column_summaries
-101 | | ...   (analysis_id, column_name, kind, row_count, null_count, interp...
-102 | | ...   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-103 | | ...   "#
-    | |________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#needless_raw_string_hashes
-help: remove all the hashes around the string literal
-    |
-99  ~                 r"
-100 |                 INSERT INTO column_summaries
-101 |                 (analysis_id, column_name, kind, row_count, null_count, interpretation, business_summary, ml_advice, stats)
-102 |                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-103 ~                 "
-    |
-warning: more than 3 bools in a struct
-  --> src\analyser\controller.rs:11:1
-   |
-11 | / pub struct AnalysisController {
-12 | |     pub is_loading: bool,
-13 | |     pub progress_counter: Arc<AtomicU64>,
-14 | |     pub receiver: Option<AnalysisReceiver>,
-...  |
-28 | |     pub training_progress: Arc<AtomicU64>,
-29 | | }
-   | |_^
-   |
-   = help: consider using a state machine or refactoring bools into two-variant enums
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#struct_excessive_bools
-   = note: `-W clippy::struct-excessive-bools` implied by `-W clippy::pedantic`
-   = help: to override `-W clippy::pedantic` add `#[allow(clippy::struct_excessive_bools)]`
-warning: casting `u64` to `i64` may wrap around the value
-  --> src\analyser\db.rs:90:15
-   |
-90 |         .bind(params.file_size as i64)
-   |               ^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_wrap
-   = note: `-W clippy::cast-possible-wrap` implied by `-W clippy::pedantic`
-   = help: to override `-W clippy::pedantic` add `#[allow(clippy::cast_possible_wrap)]`
-warning: casts from `f32` to `f64` can be expressed infallibly using `From`
-  --> src\analyser\db.rs:91:15
-   |
-91 |         .bind(params.health.score as f64)
-   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: an `as` cast can become silently lossy if the types change in the future
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-   = note: `-W clippy::cast-lossless` implied by `-W clippy::pedantic`
-   = help: to override `-W clippy::pedantic` add `#[allow(clippy::cast_lossless)]`
-help: use `f64::from` instead
-   |
-91 -         .bind(params.health.score as f64)
-91 +         .bind(f64::from(params.health.score))
-   |
-warning: casting `usize` to `i64` may wrap around the value on targets with 64-bit wide pointers
-   --> src\analyser\db.rs:108:19
-    |
-108 |             .bind(col.count as i64)
-    |                   ^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_wrap
-warning: casting `usize` to `i64` may wrap around the value on targets with 64-bit wide pointers
-   --> src\analyser\db.rs:109:19
-    |
-109 |             .bind(col.nulls as i64)
-    |                   ^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_wrap
-warning: casts from `i8` to `i64` can be expressed infallibly using `From`
-   --> src\analyser\db.rs:206:41
-    |
-206 | ...                   b.push_bind(v as i64);
-    |                                   ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `i64::from` instead
-    |
-206 -                             b.push_bind(v as i64);
-206 +                             b.push_bind(i64::from(v));
-    |
-warning: casts from `i16` to `i64` can be expressed infallibly using `From`
-   --> src\analyser\db.rs:209:41
-    |
-209 | ...                   b.push_bind(v as i64);
-    |                                   ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `i64::from` instead
-    |
-209 -                             b.push_bind(v as i64);
-209 +                             b.push_bind(i64::from(v));
-    |
-warning: casts from `i32` to `i64` can be expressed infallibly using `From`
-   --> src\analyser\db.rs:212:41
-    |
-212 | ...                   b.push_bind(v as i64);
-    |                                   ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `i64::from` instead
-    |
-212 -                             b.push_bind(v as i64);
-212 +                             b.push_bind(i64::from(v));
-    |
-warning: casts from `u8` to `i64` can be expressed infallibly using `From`
-   --> src\analyser\db.rs:218:41
-    |
-218 | ...                   b.push_bind(v as i64);
-    |                                   ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `i64::from` instead
-    |
-218 -                             b.push_bind(v as i64);
-218 +                             b.push_bind(i64::from(v));
-    |
-warning: casts from `u16` to `i64` can be expressed infallibly using `From`
-   --> src\analyser\db.rs:221:41
-    |
-221 | ...                   b.push_bind(v as i64);
-    |                                   ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `i64::from` instead
-    |
-221 -                             b.push_bind(v as i64);
-221 +                             b.push_bind(i64::from(v));
-    |
-warning: casts from `u32` to `i64` can be expressed infallibly using `From`
-   --> src\analyser\db.rs:224:41
-    |
-224 | ...                   b.push_bind(v as i64);
-    |                                   ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `i64::from` instead
-    |
-224 -                             b.push_bind(v as i64);
-224 +                             b.push_bind(i64::from(v));
-    |
-warning: casting `u64` to `i64` may wrap around the value
-   --> src\analyser\db.rs:227:41
-    |
-227 | ...                   b.push_bind(v as i64);
-    |                                   ^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_wrap
-warning: casts from `f32` to `f64` can be expressed infallibly using `From`
-   --> src\analyser\db.rs:230:41
-    |
-230 | ...                   b.push_bind(v as f64);
-    |                                   ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `f64::from` instead
-    |
-230 -                             b.push_bind(v as f64);
-230 +                             b.push_bind(f64::from(v));
-    |
-warning: casts from `i32` to `i64` can be expressed infallibly using `From`
-   --> src\analyser\db.rs:247:63
-    |
-247 | ...   + chrono::TimeDelta::try_days(v as i64).unwrap_or_default();
-    |                                     ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `i64::from` instead
-    |
-247 -                                 + chrono::TimeDelta::try_days(v as i64).unwrap_or_default();
-247 +                                 + chrono::TimeDelta::try_days(i64::from(v)).unwrap_or_default();
-    |
-warning: casting `i64` to `u32` may lose the sign of the value
-   --> src\analyser\db.rs:254:37
-    |
-254 | ...                   (v % 1_000_000_000) as u32,
-    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_sign_loss
-    = note: `-W clippy::cast-sign-loss` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::cast_sign_loss)]`
-warning: casting `i64` to `u32` may truncate the value
-   --> src\analyser\db.rs:258:37
-    |
-258 | ...                   ((v % 1_000_000) * 1000) as u32,
-    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-    = note: `-W clippy::cast-possible-truncation` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::cast_possible_truncation)]`
-help: ... or use `try_from` and handle the error accordingly
-    |
-258 -                                     ((v % 1_000_000) * 1000) as u32,
-258 +                                     u32::try_from((v % 1_000_000) * 1000),
-    |
-warning: casting `i64` to `u32` may lose the sign of the value
-   --> src\analyser\db.rs:258:37
-    |
-258 | ...                   ((v % 1_000_000) * 1000) as u32,
-    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_sign_loss
-warning: casting `i64` to `u32` may truncate the value
-   --> src\analyser\db.rs:262:37
-    |
-262 | ...                   ((v % 1000) * 1_000_000) as u32,
-    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-help: ... or use `try_from` and handle the error accordingly
-    |
-262 -                                     ((v % 1000) * 1_000_000) as u32,
-262 +                                     u32::try_from((v % 1000) * 1_000_000),
-    |
-warning: casting `i64` to `u32` may lose the sign of the value
-   --> src\analyser\db.rs:262:37
-    |
-262 | ...                   ((v % 1000) * 1_000_000) as u32,
-    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_sign_loss
-warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
-   --> src\analyser\gui\controls.rs:196:31
-    |
-196 |                   let elapsed = app
-    |  _______________________________^
-197 | |                     .controller
-198 | |                     .start_time
-199 | |                     .map(|s| s.elapsed().as_secs_f32())
-200 | |                     .unwrap_or(0.0);
-    | |___________________________________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or
-    = note: `-W clippy::map-unwrap-or` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::map_unwrap_or)]`
-help: use `map_or(<a>, <f>)` instead
-    |
-199 -                     .map(|s| s.elapsed().as_secs_f32())
-199 +                     .map_or(0.0, |s| s.elapsed().as_secs_f32());
-    |
-warning: casting `u64` to `f32` causes a loss of precision (`u64` is 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\controls.rs:330:43
-    |
-330 | ... = app.controller.training_progress.load(Ordering::SeqCst) as f32 / ...
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-    = note: `-W clippy::cast-precision-loss` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::cast_precision_loss)]`
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-  --> src\analyser\gui\heatmap.rs:28:35
-   |
-28 |                     label_width + n as f32 * cell_size + 20.0,
-   |                                   ^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-  --> src\analyser\gui\heatmap.rs:29:37
-   |
-29 |                     header_height + n as f32 * cell_size + 20.0,
-   |                                     ^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-  --> src\analyser\gui\heatmap.rs:40:39
-   |
-40 | ...   label_width + j as f32 * cell_size + cell_size / 2.0,
-   |                     ^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-  --> src\analyser\gui\heatmap.rs:58:45
-   |
-58 | ...   header_height + i as f32 * cell_size + cell_size / 2.0,
-   |                       ^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-  --> src\analyser\gui\heatmap.rs:70:47
-   |
-70 | ...                   label_width + j as f32 * cell_size,
-   |                                     ^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-  --> src\analyser\gui\heatmap.rs:71:49
-   |
-71 | ...                   header_height + i as f32 * cell_size,
-   |                                       ^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `f64` to `f32` may truncate the value
-  --> src\analyser\gui\heatmap.rs:79:46
-   |
-79 | ...                   .linear_multiply(val.abs() as f32)
-   |                                        ^^^^^^^^^^^^^^^^
-   |
-   = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `f64` to `f32` may truncate the value
-  --> src\analyser\gui\heatmap.rs:83:46
-   |
-83 | ...                   .linear_multiply(val.abs() as f32)
-   |                                        ^^^^^^^^^^^^^^^^
-   |
-   = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-  --> src\analyser\gui\plots.rs:54:21
-   |
-54 | ...nt = s.histogram.iter().map(|h| h.1).max().unwrap_or(1) as f64;
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\plots.rs:141:27
-    |
-141 |             Bar::new(val, count as f64)
-    |                           ^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\plots.rs:161:25
-    |
-161 |             let scale = total_count as f64 * s.bin_width;
-    |                         ^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casts from `i32` to `f64` can be expressed infallibly using `From`
-   --> src\analyser\gui\plots.rs:167:40
-    |
-167 |                     let x = plot_min + i as f64 * step;
-    |                                        ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `f64::from` instead
-    |
-167 -                     let x = plot_min + i as f64 * step;
-167 +                     let x = plot_min + f64::from(i) * step;
-    |
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\plots.rs:243:27
-    |
-243 |     let out_pct = (1.0 - (in_view_count as f64 / total_count as f64)) ...
-    |                           ^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\plots.rs:243:50
-    |
-243 |     let out_pct = (1.0 - (in_view_count as f64 / total_count as f64)) ...
-    |                                                  ^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
-   --> src\analyser\gui\plots.rs:288:21
-    |
-288 |     let max_count = sorted.first().map(|s| *s.1 as f32).unwrap_or(1.0);
-    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or
-help: use `map_or(<a>, <f>)` instead
-    |
-288 -     let max_count = sorted.first().map(|s| *s.1 as f32).unwrap_or(1.0);
-288 +     let max_count = sorted.first().map_or(1.0, |s| *s.1 as f32);
-    |
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:288:44
-    |
-288 |     let max_count = sorted.first().map(|s| *s.1 as f32).unwrap_or(1.0);
-    |                                            ^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `f32` to `usize` may truncate the value
-   --> src\analyser\gui\plots.rs:293:17
-    |
-293 | ... = ((plot_height + spacing) / (row_height + spacing)).floor() as usize;
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `f32` to `usize` may lose the sign of the value
-   --> src\analyser\gui\plots.rs:293:17
-    |
-293 | ... = ((plot_height + spacing) / (row_height + spacing)).floor() as usize;
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_sign_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:300:32
-    |
-300 |                 let fraction = **count as f32 / max_count;
-    |                                ^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:344:30
-    |
-344 | ...                   (**count as f32 / total as f32) * 100.0
-    |                        ^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:344:47
-    |
-344 | ...                   (**count as f32 / total as f32) * 100.0
-    |                                         ^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:394:28
-    |
-394 | ...   let sweep_angle = (count as f32 / total as f32) * 2.0 * std::f32...
-    |                          ^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:394:43
-    |
-394 | ...   let sweep_angle = (count as f32 / total as f32) * 2.0 * std::f32...
-    |                                         ^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `f32` to `usize` may truncate the value
-   --> src\analyser\gui\plots.rs:402:24
-    |
-402 | ... = (sweep_angle / (std::f32::consts::PI / 32.0)).ceil() as usize;
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `f32` to `usize` may lose the sign of the value
-   --> src\analyser\gui\plots.rs:402:24
-    |
-402 | ... = (sweep_angle / (std::f32::consts::PI / 32.0)).ceil() as usize;
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_sign_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:405:40
-    |
-405 | ...   let angle = start_angle + (j as f32 / n_points as f32) * sweep_a...
-    |                                  ^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:405:51
-    |
-405 | ...   let angle = start_angle + (j as f32 / n_points as f32) * sweep_a...
-    |                                             ^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: used underscore-prefixed binding
-   --> src\analyser\gui\plots.rs:415:23
-    |
-415 |         start_angle = _end_angle;
-    |                       ^^^^^^^^^^
-    |
-note: binding is defined here
-   --> src\analyser\gui\plots.rs:398:13
-    |
-398 |         let _end_angle = start_angle + sweep_angle;
-    |             ^^^^^^^^^^
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#used_underscore_binding
-    = note: `-W clippy::used-underscore-binding` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::used_underscore_binding)]`
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:429:32
-    |
-429 | ...   let sweep_angle = (other_count as f32 / total as f32) * 2.0 * st...
-    |                          ^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:429:53
-    |
-429 | ...   let sweep_angle = (other_count as f32 / total as f32) * 2.0 * st...
-    |                                               ^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `f32` to `usize` may truncate the value
-   --> src\analyser\gui\plots.rs:434:28
-    |
-434 | ... = (sweep_angle / (std::f32::consts::PI / 32.0)).ceil() as usize;
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `f32` to `usize` may lose the sign of the value
-   --> src\analyser\gui\plots.rs:434:28
-    |
-434 | ... = (sweep_angle / (std::f32::consts::PI / 32.0)).ceil() as usize;
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_sign_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:437:44
-    |
-437 | ...   let angle = start_angle + (j as f32 / n_points as f32) * sweep_a...
-    |                                  ^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f32` causes a loss of precision (`usize` is 32 or 64 bits wide, but `f32`'s mantissa is only 23 bits wide)
-   --> src\analyser\gui\plots.rs:437:55
-    |
-437 | ...   let angle = start_angle + (j as f32 / n_points as f32) * sweep_a...
-    |                                             ^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: binding to `_` prefixed variable with no side-effect
-   --> src\analyser\gui\plots.rs:430:17
-    |
-430 |             let _end_angle = start_angle + sweep_angle;
-    |                 ^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#no_effect_underscore_binding
-    = note: `-W clippy::no-effect-underscore-binding` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::no_effect_underscore_binding)]`
-warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
-   --> src\analyser\gui\plots.rs:463:19
-    |
-463 |         let min = s.histogram.first().map(|h| h.0).unwrap_or(0.0);
-    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or
-help: use `map_or(<a>, <f>)` instead
-    |
-463 -         let min = s.histogram.first().map(|h| h.0).unwrap_or(0.0);
-463 +         let min = s.histogram.first().map_or(0.0, |h| h.0);
-    |
-warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
-   --> src\analyser\gui\plots.rs:464:19
-    |
-464 |         let max = s.histogram.last().map(|h| h.0).unwrap_or(1.0);
-    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or
-help: use `map_or(<a>, <f>)` instead
-    |
-464 -         let max = s.histogram.last().map(|h| h.0).unwrap_or(1.0);
-464 +         let max = s.histogram.last().map_or(1.0, |h| h.0);
-    |
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\plots.rs:490:26
-    |
-490 |             Bar::new(ts, count as f64)
-    |                          ^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\plots.rs:501:21
-    |
-501 | ...nt = s.histogram.iter().map(|h| h.1).max().unwrap_or(1) as f64;
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `f64` to `f32` may truncate the value
-  --> src\analyser\gui\summary_table.rs:78:38
-   |
-78 | ..._height = (if is_expanded { 280.0 } else { 85.0 } as f32).max(35.0);
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
-  --> src\analyser\gui\summary_table.rs:94:21
-   |
-94 |       let is_active = app
-   |  _____________________^
-95 | |         .model
-96 | |         .cleaning_configs
-97 | |         .get(&col.name)
-98 | |         .map(|c| c.active)
-99 | |         .unwrap_or(true);
-   | |________________________^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or
-help: use `map_or(<a>, <f>)` instead
-   |
-98 -         .map(|c| c.active)
-98 +         .map_or(true, |c| c.active);
-   |
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\summary_table.rs:137:18
-    |
-137 |                 (col.nulls as f64 / col.count as f64) * 100.0
-    |                  ^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\summary_table.rs:137:37
-    |
-137 |                 (col.nulls as f64 / col.count as f64) * 100.0
-    |                                     ^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\summary_table.rs:541:17
-    |
-541 |     let total = total_count as f64;
-    |                 ^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\summary_table.rs:553:18
-    |
-553 |                 (**count as f64 / total) * 100.0
-    |                  ^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\summary_table.rs:577:17
-    |
-577 |     let total = total_count as f64;
-    |                 ^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\summary_table.rs:580:14
-    |
-580 |             (s.true_count as f64 / total) * 100.0
-    |              ^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\gui\summary_table.rs:585:14
-    |
-585 |             (s.false_count as f64 / total) * 100.0
-    |              ^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
-   --> src\analyser\gui\summary_table.rs:688:17
-    |
-688 | /                 config
-689 | |                     .target_dtype
-690 | |                     .map(|k| k.as_str())
-691 | |                     .unwrap_or(col.kind.as_str()),
-    | |_________________________________________________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or
-help: use `map_or(<a>, <f>)` instead
-    |
-690 -                     .map(|k| k.as_str())
-690 +                     .map_or(col.kind.as_str(), |k| k.as_str()),
-    |
-warning: `format!(..)` appended to existing `String`
-   --> src\analyser\gui.rs:231:25
-    |
-231 | ...   breakdown_str.push_str(&format!("\n - {key}: {count}"));
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `write!` to avoid the extra allocation
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#format_push_string
-    = note: `-W clippy::format-push-string` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::format_push_string)]`
-warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
-   --> src\analyser\gui.rs:234:37
-    |
-234 | ...nt = self.model.summary.first().map(|c| c.count).unwrap_or(0);
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or
-help: use `map_or(<a>, <f>)` instead
-    |
-234 -                     let row_count = self.model.summary.first().map(|c| c.count).unwrap_or(0);
-234 +                     let row_count = self.model.summary.first().map_or(0, |c| c.count);
-    |
-warning: `format!(..)` appended to existing `String`
-   --> src\analyser\gui.rs:242:21
-    |
-242 |                     msg.push_str(&format!("\n\nFile Size: {size_fmt}"));
-    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `write!` to avoid the extra allocation
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#format_push_string
-warning: `format!(..)` appended to existing `String`
-   --> src\analyser\gui.rs:245:25
-    |
-245 | ...   msg.push_str(&format!("\nHealth Score: {:.0}%", h.score * 100.0));
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `write!` to avoid the extra allocation
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#format_push_string
-warning: `format!(..)` appended to existing `String`
-   --> src\analyser\gui.rs:250:33
-    |
-250 | ...                   msg.push_str(&format!("\n • {risk}"));
-    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `write!` to avoid the extra allocation
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#format_push_string
-warning: matching over `()` is more explicit
-   --> src\analyser\gui.rs:282:20
-    |
-282 |                 Ok(_) => {
-    |                    ^ help: use `()` instead of `_`: `()`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#ignored_unit_patterns
-    = note: `-W clippy::ignored-unit-patterns` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::ignored_unit_patterns)]`
-warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
-   --> src\analyser\gui.rs:283:32
-    |
-283 | ...   let secs = duration.map(|d| d.as_secs_f32()).unwrap_or(0.0);
-    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or
-help: use `map_or(<a>, <f>)` instead
-    |
-283 -                     let secs = duration.map(|d| d.as_secs_f32()).unwrap_or(0.0);
-283 +                     let secs = duration.map_or(0.0, |d| d.as_secs_f32());
-    |
-warning: matching over `()` is more explicit
-   --> src\analyser\gui.rs:309:20
-    |
-309 |                 Ok(_) => {
-    |                    ^ help: use `()` instead of `_`: `()`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#ignored_unit_patterns
-warning: matching over `()` is more explicit
-   --> src\analyser\gui.rs:364:20
-    |
-364 |                 Ok(_) => {
-    |                    ^ help: use `()` instead of `_`: `()`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#ignored_unit_patterns
-warning: assigning the result of `ToOwned::to_owned()` may be inefficient
-   --> src\analyser\gui.rs:463:9
-    |
-463 |         self.status = "Applying cleaning steps...".to_owned();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_into()`: `"Applying cleaning steps...".clone_into(&mut self.status)`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assigning_clones
-    = note: `-W clippy::assigning-clones` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::assigning_clones)]`
-warning: assigning the result of `ToOwned::to_owned()` may be inefficient
-   --> src\analyser\gui.rs:483:13
-    |
-483 | ...   self.status = "Error: Database connection not configured".to_owned();
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_into()`: `"Error: Database connection not configured".clone_into(&mut self.status)`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assigning_clones
-warning: assigning the result of `ToOwned::to_owned()` may be inefficient
-   --> src\analyser\gui.rs:498:9
-    |
-498 |         self.status = "Connecting to PostgreSQL...".to_owned();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_into()`: `"Connecting to PostgreSQL...".clone_into(&mut self.status)`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assigning_clones
-warning: assigning the result of `ToOwned::to_owned()` may be inefficient
-   --> src\analyser\gui.rs:517:9
-    |
-517 |         self.status = "Testing database connection...".to_owned();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_into()`: `"Testing database connection...".clone_into(&mut self.status)`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assigning_clones
-warning: assigning the result of `ToOwned::to_owned()` may be inefficient
-   --> src\analyser\gui.rs:562:13
-    |
-562 | ...   self.status = "Please select join keys for both files.".to_owned();
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_into()`: `"Please select join keys for both files.".clone_into(&mut self.status)`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assigning_clones
-warning: assigning the result of `ToOwned::to_owned()` may be inefficient
-   --> src\analyser\gui.rs:566:9
-    |
-566 |         self.status = "Joining dataframes...".to_owned();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_into()`: `"Joining dataframes...".clone_into(&mut self.status)`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assigning_clones
-warning: assigning the result of `ToOwned::to_owned()` may be inefficient
-   --> src\analyser\gui.rs:585:17
-    |
-585 | ...   self.status = "Successfully joined dataframes.".to_owned();
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_into()`: `"Successfully joined dataframes.".clone_into(&mut self.status)`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assigning_clones
-warning: redundant closure
-   --> src\analyser\logic\analysis.rs:138:34
-    |
-138 | ...                   .map(|s| s.to_owned())
-    |                            ^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::borrow::ToOwned::to_owned`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls
-    = note: `-W clippy::redundant-closure-for-method-calls` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::redundant_closure_for_method_calls)]`
-warning: redundant closure
-   --> src\analyser\logic\analysis.rs:196:14
-    |
-196 |         .map(|s| s.to_string())
-    |              ^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::string::ToString::to_string`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls
-warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
-   --> src\analyser\logic\analysis.rs:385:33
-    |
-385 |                         .lt(lit(threshold as u32)),
-    |                                 ^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-help: ... or use `try_from` and handle the error accordingly
-    |
-385 -                         .lt(lit(threshold as u32)),
-385 +                         .lt(lit(u32::try_from(threshold))),
-    |
-warning: unnecessary boolean `not` operation
-   --> src\analyser\logic\analysis.rs:406:30
-    |
-406 |               let final_name = if !config.new_name.is_empty() {
-    |  ______________________________^
-407 | |                 config.new_name.clone()
-408 | |             } else {
-409 | |                 old_name.clone()
-410 | |             };
-    | |_____________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#if_not_else
-    = note: `-W clippy::if-not-else` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::if_not_else)]`
-help: try
-    |
-406 ~             let final_name = if config.new_name.is_empty() {
-407 +                 old_name.clone()
-408 +             } else {
-409 +                 config.new_name.clone()
-410 ~             };
-    |
-warning: casting `f64` to `usize` may truncate the value
-   --> src\analyser\logic\analysis.rs:624:17
-    |
-624 |         let k = (n as f64 * trim_pct).floor() as usize;
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `f64` to `usize` may lose the sign of the value
-   --> src\analyser\logic\analysis.rs:624:17
-    |
-624 |         let k = (n as f64 * trim_pct).floor() as usize;
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_sign_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\analysis.rs:624:18
-    |
-624 |         let k = (n as f64 * trim_pct).floor() as usize;
-    |                  ^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `i64` may wrap around the value on targets with 64-bit wide pointers
-   --> src\analyser\logic\analysis.rs:626:39
-    |
-626 |             let sliced = sorted.slice(k as i64, n - 2 * k);
-    |                                       ^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_wrap
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\analysis.rs:650:29
-    |
-650 |                 2.0 * iqr / (n as f64).cbrt()
-    |                             ^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `f64` to `i64` may truncate the value
-   --> src\analyser\logic\analysis.rs:661:29
-    |
-661 |                     let b = ((val - min_v) / bin_width).floor() as i64;
-    |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `i64` to `f64` causes a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\analysis.rs:679:43
-    |
-679 |                     let center = min_v + (b as f64 + 0.5) * bin_width;
-    |                                           ^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casts from `i32` to `f64` can be expressed infallibly using `From`
-   --> src\analyser\logic\analysis.rs:689:38
-    |
-689 |                     let c = center + i as f64 * step;
-    |                                      ^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `f64::from` instead
-    |
-689 -                     let c = center + i as f64 * step;
-689 +                     let c = center + f64::from(i) * step;
-    |
-warning: redundant closure
-   --> src\analyser\logic\analysis.rs:707:14
-    |
-707 |         .map(|s| s.to_owned());
-    |              ^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::borrow::ToOwned::to_owned`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls
-warning: redundant closure
-   --> src\analyser\logic\analysis.rs:713:14
-    |
-713 |         .map(|s| s.to_owned());
-    |              ^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::borrow::ToOwned::to_owned`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls
-warning: casting `i64` to `f64` causes a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\analysis.rs:738:33
-    |
-738 |             let mut bin_width = (max_v - min_v) as f64 / 50.0;
-    |                                 ^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `f64` to `i64` may truncate the value
-   --> src\analyser\logic\analysis.rs:746:29
-    |
-746 | ...   let b = ((val - min_v) as f64 / bin_width).floor() as i64;
-    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `i64` to `f64` causes a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\analysis.rs:746:30
-    |
-746 | ...   let b = ((val - min_v) as f64 / bin_width).floor() as i64;
-    |                ^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `i64` to `f64` causes a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\analysis.rs:764:34
-    |
-764 | ...   let center = min_v as f64 + (b as f64 + 0.5) * bin_width;
-    |                    ^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `i64` to `f64` causes a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\analysis.rs:764:50
-    |
-764 | ...   let center = min_v as f64 + (b as f64 + 0.5) * bin_width;
-    |                                    ^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `i64` to `f64` causes a loss of precision (`i64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\analysis.rs:771:33
-    |
-771 |                 histogram.push((min_v as f64, n));
-    |                                 ^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: redundant closure
-   --> src\analyser\logic\analysis.rs:852:68
-    |
-852 | ...n(|ca| ca.get(0).map(|s| s.to_owned())));
-    |                         ^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::borrow::ToOwned::to_owned`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls
-warning: it is more idiomatic to use `Option<&T>` instead of `&Option<T>`
-   --> src\analyser\logic\analysis.rs:901:1
-    |
-901 | / fn check_special_characters(
-902 | |     name: &str,
-903 | |     dtype: &DataType,
-904 | |     value_counts_df: &Option<DataFrame>,
-    | |                      ------------------ help: change this to: `Option<&DataFrame>`
-...   |
-920 | |     Ok(false)
-921 | | }
-    | |_^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#ref_option
-    = note: `-W clippy::ref-option` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::ref_option)]`
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
- --> src\analyser\logic\health.rs:9:14
-  |
-9 |             (col.nulls as f64 / col.count as f64) * 100.0
-  |              ^^^^^^^^^^^^^^^^
-  |
-  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
- --> src\analyser\logic\health.rs:9:33
-  |
-9 |             (col.nulls as f64 / col.count as f64) * 100.0
-  |                                 ^^^^^^^^^^^^^^^^
-  |
-  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `f64` to `f32` may truncate the value
-  --> src\analyser\logic\health.rs:51:16
-   |
-51 |         score: (score.max(0.0) / 100.0) as f32,
-   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-  --> src\analyser\logic\interpretation.rs:23:14
-   |
-23 |             (self.nulls as f64 / self.count as f64) * 100.0
-   |              ^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-  --> src\analyser\logic\interpretation.rs:23:34
-   |
-23 |             (self.nulls as f64 / self.count as f64) * 100.0
-   |                                  ^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: redundant closure
-  --> src\analyser\logic\interpretation.rs:53:37
-   |
-53 |             signals.into_iter().map(|s| s.to_owned()).collect()
-   |                                     ^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::borrow::ToOwned::to_owned`
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-  --> src\analyser\logic\interpretation.rs:79:13
-   |
-79 |             n_distinct as f64 / self.count as f64
-   |             ^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-  --> src\analyser\logic\interpretation.rs:79:33
-   |
-79 |             n_distinct as f64 / self.count as f64
-   |                                 ^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:167:14
-    |
-167 |             (self.nulls as f64 / self.count as f64) * 100.0
-    |              ^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:167:34
-    |
-167 |             (self.nulls as f64 / self.count as f64) * 100.0
-    |                                  ^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:323:33
-    |
-323 | ...nt = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:329:45
-    |
-329 | ...   .any(|&(_, c)| c > 0 && (c as f64) < max_count * TINY_BAR_THRESH...
-    |                               ^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:334:51
-    |
-334 | ...   if total_count > 0 && max_count / total_count as f64 > DOMINANT_...
-    |                                         ^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:344:35
-    |
-344 | ...   let gauss_peak = (total_count as f64 * s.bin_width) / (sigma * (...
-    |                         ^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:345:31
-    |
-345 | ...ar = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:367:21
-    |
-367 | ...   if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHO...
-    |           ^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:367:37
-    |
-367 | ...   if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHO...
-    |                           ^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:411:14
-    |
-411 |             (self.nulls as f64 / self.count as f64) * 100.0
-    |              ^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:411:34
-    |
-411 |             (self.nulls as f64 / self.count as f64) * 100.0
-    |                                  ^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: redundant closure
-   --> src\analyser\logic\interpretation.rs:448:38
-    |
-448 |             insights.into_iter().map(|s| s.to_owned()).collect()
-    |                                      ^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::borrow::ToOwned::to_owned`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls
-warning: strict comparison of `f32` or `f64`
-   --> src\analyser\logic\interpretation.rs:454:16
-    |
-454 |             if min == max {
-    |                ^^^^^^^^^^ help: consider comparing them within some margin of error: `(min - max).abs() < error_margin`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#float_cmp
-    = note: `-W clippy::float-cmp` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::float_cmp)]`
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:506:21
-    |
-506 | ...   if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHO...
-    |           ^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-   --> src\analyser\logic\interpretation.rs:506:37
-    |
-506 | ...   if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHO...
-    |                           ^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: redundant closure
-  --> src\analyser\logic\ml.rs:43:14
-   |
-43 |         .map(|s| s.to_string())
-   |              ^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::string::ToString::to_string`
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls
-warning: casts from `f32` to `f64` can be expressed infallibly using `From`
-   --> src\analyser\logic\ml.rs:152:37
-    |
-152 |             results.accuracy = Some(cm.accuracy() as f64);
-    |                                     ^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `f64::from` instead
-    |
-152 -             results.accuracy = Some(cm.accuracy() as f64);
-152 +             results.accuracy = Some(f64::from(cm.accuracy()));
-    |
-warning: casts from `f32` to `f64` can be expressed infallibly using `From`
-   --> src\analyser\logic\ml.rs:168:37
-    |
-168 |             results.accuracy = Some(cm.accuracy() as f64);
-    |                                     ^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: an `as` cast can become silently lossy if the types change in the future
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_lossless
-help: use `f64::from` instead
-    |
-168 -             results.accuracy = Some(cm.accuracy() as f64);
-168 +             results.accuracy = Some(f64::from(cm.accuracy()));
-    |
-warning: this argument (1 byte) is passed by reference, but would be more efficient if passed by value (limit: 8 byte)
-   --> src\analyser\logic\types.rs:125:19
-    |
-125 |     pub fn as_str(&self) -> &'static str {
-    |                   ^^^^^ help: consider passing by value instead: `self`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#trivially_copy_pass_by_ref
-    = note: `-W clippy::trivially-copy-pass-by-ref` implied by `-W clippy::pedantic`
-    = help: to override `-W clippy::pedantic` add `#[allow(clippy::trivially_copy_pass_by_ref)]`
-warning: this argument (1 byte) is passed by reference, but would be more efficient if passed by value (limit: 8 byte)
-   --> src\analyser\logic\types.rs:133:31
-    |
-133 |     pub fn is_suitable_target(&self, kind: ColumnKind) -> bool {
-    |                               ^^^^^ help: consider passing by value instead: `self`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#trivially_copy_pass_by_ref
-warning: more than 3 bools in a struct
-   --> src\analyser\logic\types.rs:167:1
-    |
-167 | / pub struct ColumnCleanConfig {
-168 | |     pub new_name: String,
-169 | |     pub target_dtype: Option<ColumnKind>,
-170 | |     pub active: bool,
-...   |
-188 | |     pub impute_mode: ImputeMode,
-189 | | }
-    | |_^
-    |
-    = help: consider using a state machine or refactoring bools into two-variant enums
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#struct_excessive_bools
-warning: this argument (1 byte) is passed by reference, but would be more efficient if passed by value (limit: 8 byte)
-   --> src\analyser\logic\types.rs:311:19
-    |
-311 |     pub fn as_str(&self) -> &'static str {
-    |                   ^^^^^ help: consider passing by value instead: `self`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#trivially_copy_pass_by_ref
-warning: this argument (1 byte) is passed by reference, but would be more efficient if passed by value (limit: 8 byte)
-   --> src\analyser\logic\types.rs:322:31
-    |
-322 |     pub fn is_compatible_with(&self, target: Self) -> bool {
-    |                               ^^^^^ help: consider passing by value instead: `self`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#trivially_copy_pass_by_ref
-warning: this method could have a `#[must_use]` attribute
-  --> src\gui\dashboard.rs:13:5
-   |
-13 |     pub fn standard_todo_items() -> Vec<ListItem> {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub fn standard_todo_items() -> Vec<ListItem>`
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
-   = note: `-W clippy::must-use-candidate` implied by `-W clippy::pedantic`
-   = help: to override `-W clippy::pedantic` add `#[allow(clippy::must_use_candidate)]`
-warning: this method could have a `#[must_use]` attribute
-  --> src\gui\dashboard.rs:38:5
-   |
-38 |     pub fn standard_idea_items() -> Vec<ListItem> {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub fn standard_idea_items() -> Vec<ListItem>`
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
-warning: assigning the result of `ToOwned::to_owned()` may be inefficient
-   --> src\gui\db_settings.rs:251:9
-    |
-251 |         self.status = "Testing database connection...".to_owned();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use `clone_into()`: `"Testing database connection...".clone_into(&mut self.status)`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assigning_clones
-warning: this method could have a `#[must_use]` attribute
-  --> src\gui\powershell.rs:14:5
-   |
-14 |     pub fn default_scripts() -> Vec<PsScript> {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub fn default_scripts() -> Vec<PsScript>`
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
-warning: this method could have a `#[must_use]` attribute
-   --> src\gui\powershell.rs:285:5
-    |
-285 |     pub fn prepare_powershell_cmd(command: &str, no_exit: bool) -> Command {
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub fn prepare_powershell_cmd(command: &str, no_exit: bool) -> Command`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
-warning: this method could have a `#[must_use]` attribute
-   --> src\gui\mod.rs:118:5
-    |
-118 |     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub fn new(cc: &eframe::CreationContext<'_>) -> Self`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
-warning: matching over `()` is more explicit
-   --> src\gui\mod.rs:320:24
-    |
-320 |                     Ok(_) => {
-    |                        ^ help: use `()` instead of `_`: `()`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#ignored_unit_patterns
-warning: casting `u64` to `f64` causes a loss of precision (`u64` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-  --> src\utils.rs:36:14
-   |
-36 |     let kb = bytes as f64 / 1024.0;
-   |              ^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: casting `usize` to `f64` causes a loss of precision on targets with 64-bit wide pointers (`usize` is 64 bits wide, but `f64`'s mantissa is only 52 bits wide)
-  --> src\utils.rs:53:13
-   |
-53 |     let n = num as f64;
-   |             ^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_precision_loss
-warning: `beefcake` (lib) generated 151 warnings (run `cargo clippy --fix --lib -p beefcake` to apply 42 suggestions)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.00s
+warning: in the working copy of 'src/gui/powershell.rs', LF will be replaced by CRLF the next time Git touches it
+diff --git a/src/gui/powershell.rs b/src/gui/powershell.rs
+index e572156..9173220 100644
+--- a/src/gui/powershell.rs
++++ b/src/gui/powershell.rs
+@@ -33,6 +33,32 @@ impl BeefcakeApp {
+                 name: "Network Diagnostics".to_owned(),
+                 content: "Test-NetConnection -ComputerName google.com -Port 443".to_owned(),
+             },
++            PsScript {
++                name: "Beefcake CLI Wrappers".to_owned(),
++                content: r#"# Use these functions to interact with the Beefcake CLI
++function Import-BeefcakeData {
++    param($Path, $Table, $Schema="public", [switch]$Clean)
++    $Args = @("import", "--file", $Path, "--table", $Table, "--schema", $Schema, "--db-url", $env:DATABASE_URL)
++    if ($Clean) { $Args += "--clean" }
++    & ./beefcake.exe @Args
++}
++
++function Convert-BeefcakeData {
++    param($Input, $Output, [switch]$Clean)
++    $Args = @("export", "--input", $Input, "--output", $Output)
++    if ($Clean) { $Args += "--clean" }
++    & ./beefcake.exe @Args
++}
++
++function Clean-BeefcakeData {
++    param($Path, $Output)
++    & ./beefcake.exe clean --file $Path --output $Output
++}
++
++# Example:
++# Clean-BeefcakeData -Path "dirty.csv" -Output "clean.parquet"
++"Beefcake CLI functions loaded. Usage: Clean-BeefcakeData -Path 'dirty.csv' -Output 'clean.parquet'"#.to_owned(),
++            },
+         ]
+     }
+
+@@ -51,7 +77,7 @@ impl BeefcakeApp {
+             });
+
+         egui::CentralPanel::default()
+-            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
++            .frame(crate::theme::central_panel_frame().inner_margin(egui::Margin {
+                 left: crate::theme::PANEL_LEFT as i8,
+                 right: crate::theme::PANEL_RIGHT as i8,
+                 top: 0,
+@@ -63,51 +89,55 @@ impl BeefcakeApp {
+                     .show(ui, |ui| {
+                         ui.columns(2, |columns| {
+                             if let [left, right] = columns {
+-                                self.render_ps_editor(left);
++                                left.vertical(|ui| {
++                                    self.render_ps_editor(ui);
++
++                                    ui.add_space(crate::theme::MARGIN_SIDEBAR);
++                                    crate::utils::render_status_message(ui, &self.status);
++
++                                    if !self.ps_last_output.is_empty() {
++                                        ui.add_space(crate::theme::MARGIN_SIDEBAR);
++                                        crate::theme::card_frame(ui).show(ui, |ui| {
++                                            ui.set_width(ui.available_width());
++                                            egui::CollapsingHeader::new(egui::RichText::new(format!("{} Last Execution Output", icons::LIST_DASHES)).strong())
++                                                .default_open(true)
++                                                .show(ui, |ui| {
++                                                    ui.horizontal(|ui| {
++                                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
++                                                            if ui.small_button(format!("{} Clear", icons::TRASH)).clicked() {
++                                                                self.ps_last_output.clear();
++                                                            }
++                                                            if ui.small_button(format!("{} Copy", icons::COPY)).clicked() {
++                                                                ui.ctx().copy_text(self.ps_last_output.clone());
++                                                                self.toasts.success("Output copied to clipboard");
++                                                            }
++                                                        });
++                                                    });
++                                                    ui.add_space(crate::theme::SPACING_TINY);
++                                                    egui::ScrollArea::vertical()
++                                                        .id_salt("ps_output_scroll")
++                                                        .auto_shrink([false; 2])
++                                                        .show(ui, |ui| {
++                                                            let mut output = self.ps_last_output.clone();
++                                                            ui.add(
++                                                                egui::TextEdit::multiline(&mut output)
++                                                                    .font(egui::TextStyle::Monospace)
++                                                                    .desired_width(f32::INFINITY)
++                                                                    .desired_rows(10)
++                                                                    .lock_focus(true)
++                                                                    .interactive(true),
++                                                            );
++                                                        });
++                                                });
++                                        });
++                                    }
++                                });
+                                 self.render_ps_library(right);
+                             }
+                         });
+
+-                        ui.add_space(crate::theme::MARGIN_SIDEBAR);
+-                        crate::utils::render_status_message(ui, &self.status);
+-
+-                        if !self.ps_last_output.is_empty() {
+-                            ui.add_space(crate::theme::MARGIN_SIDEBAR);
+-                            crate::theme::card_frame(ui).show(ui, |ui| {
+-                                ui.set_width(ui.available_width());
+-                                ui.set_height(ui.available_height());
+-                                egui::CollapsingHeader::new(egui::RichText::new(format!("{} Last Execution Output", icons::LIST_DASHES)).strong())
+-                                    .default_open(true)
+-                                    .show(ui, |ui| {
+-                                        ui.horizontal(|ui| {
+-                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+-                                                if ui.small_button(format!("{} Clear", icons::TRASH)).clicked() {
+-                                                    self.ps_last_output.clear();
+-                                                }
+-                                                if ui.small_button(format!("{} Copy", icons::COPY)).clicked() {
+-                                                    ui.ctx().copy_text(self.ps_last_output.clone());
+-                                                    self.toasts.success("Output copied to clipboard");
+-                                                }
+-                                            });
+-                                        });
+-                                        ui.add_space(crate::theme::SPACING_TINY);
+-                                        egui::ScrollArea::vertical()
+-                                            .id_salt("ps_output_scroll")
+-                                            .auto_shrink([false; 2])
+-                                            .show(ui, |ui| {
+-                                                let mut output = self.ps_last_output.clone();
+-                                                ui.add(
+-                                                    egui::TextEdit::multiline(&mut output)
+-                                                        .font(egui::TextStyle::Monospace)
+-                                                        .desired_width(f32::INFINITY)
+-                                                        .desired_rows(10)
+-                                                        .lock_focus(true)
+-                                                        .interactive(true),
+-                                                );
+-                                            });
+-                                    });
+-                            });
+-                        }
++                        ui.add_space(crate::theme::SPACING_LARGE);
++                        self.render_cli_reference(ui);
+                         ui.add_space(crate::theme::SPACING_LARGE);
+                     });
+             });
+@@ -281,6 +311,68 @@ impl BeefcakeApp {
+         });
+     }
+
++    pub fn render_cli_reference(&self, ui: &mut egui::Ui) {
++        crate::theme::card_frame(ui).show(ui, |ui| {
++            ui.vertical(|ui| {
++                ui.horizontal(|ui| {
++                    ui.heading(format!("{} Beefcake CLI Reference", icons::TERMINAL_WINDOW));
++                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
++                        ui.label(egui::RichText::new("v0.1.0").weak().small());
++                    });
++                });
++                ui.add_space(crate::theme::SPACING_SMALL);
++
++                ui.label("Beefcake can be run directly from the terminal for high-performance data operations.");
++
++                ui.add_space(crate::theme::SPACING_MEDIUM);
++
++                egui::Grid::new("cli_commands_grid")
++                    .num_columns(2)
++                    .spacing([crate::theme::SPACING_LARGE, crate::theme::SPACING_SMALL])
++                    .show(ui, |ui| {
++                        // Import Command
++                        ui.vertical(|ui| {
++                            ui.label(egui::RichText::new("import").strong().color(crate::theme::ACCENT_COLOR));
++                            ui.label(egui::RichText::new("Load files into database").small().weak());
++                        });
++                        ui.vertical(|ui| {
++                            ui.label(egui::RichText::new("beefcake import --file <PATH> --table <NAME>").monospace());
++                            ui.label(egui::RichText::new("Options: --schema, --db-url, --clean").small().weak());
++                        });
++                        ui.end_row();
++
++                        // Export Command
++                        ui.vertical(|ui| {
++                            ui.label(egui::RichText::new("export").strong().color(crate::theme::ACCENT_COLOR));
++                            ui.label(egui::RichText::new("Fast file format conversion").small().weak());
++                        });
++                        ui.vertical(|ui| {
++                            ui.label(egui::RichText::new("beefcake export --input <FILE> --output <FILE>").monospace());
++                            ui.label(egui::RichText::new("Options: --clean (Supports CSV, Parquet, JSON)").small().weak());
++                        });
++                        ui.end_row();
++
++                        // Clean Command
++                        ui.vertical(|ui| {
++                            ui.label(egui::RichText::new("clean").strong().color(crate::theme::ACCENT_COLOR));
++                            ui.label(egui::RichText::new("Heuristic-based auto-cleaning").small().weak());
++                        });
++                        ui.vertical(|ui| {
++                            ui.label(egui::RichText::new("beefcake clean --file <FILE> --output <FILE>").monospace());
++                            ui.label(egui::RichText::new("Applies advised cleaning transformations").small().weak());
++                        });
++                        ui.end_row();
++                    });
++
++                ui.add_space(crate::theme::SPACING_MEDIUM);
++                ui.horizontal(|ui| {
++                    ui.label(format!("{} ", icons::INFO));
++                    ui.label(egui::RichText::new("Tip: Use '--help' with any command to see all available flags and options.").small().weak());
++                });
++            });
++        });
++    }
++
+     pub fn start_ps_execution(&mut self, ctx: egui::Context, script: String, name: Option<String>) {
+         self.is_running_ps = true;
+         self.ps_last_output.clear();

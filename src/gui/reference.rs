@@ -14,16 +14,14 @@ pub fn render_reference_material(ctx: &egui::Context) -> bool {
     });
 
     egui::CentralPanel::default()
-        .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+        .frame(crate::theme::central_panel_frame().inner_margin(egui::Margin {
             left: crate::theme::PANEL_LEFT as i8,
             right: crate::theme::PANEL_RIGHT as i8,
-            top: 0,
+            top: crate::theme::SPACING_LARGE as i8,
             bottom: 0,
         }))
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.add_space(crate::theme::SPACING_SMALL);
-
                 crate::theme::card_frame(ui).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.heading("Understanding Data Skewness");
@@ -97,6 +95,7 @@ pub fn render_reference_material(ctx: &egui::Context) -> bool {
                                 ui.strong(format!("{} UI Development", icons::PALETTE));
                                 ui.hyperlink_to("egui Documentation", "https://docs.rs/egui/latest/egui/");
                                 ui.hyperlink_to("egui Demo Gallery", "https://emilk.github.io/egui/");
+                                ui.hyperlink_to("eframe Template", "https://github.com/ahenderson-git/eframe_template");
                             });
 
                             c3.vertical(|ui| {

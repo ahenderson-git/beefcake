@@ -50,15 +50,14 @@ impl BeefcakeApp {
             });
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+            .frame(crate::theme::central_panel_frame().inner_margin(egui::Margin {
                 left: crate::theme::PANEL_LEFT as i8,
                 right: crate::theme::PANEL_RIGHT as i8,
-                top: 0,
+                top: crate::theme::SPACING_LARGE as i8,
                 bottom: 0,
             }))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.add_space(crate::theme::SPACING_SMALL);
                     self.render_db_grid(ui, ctx);
 
                     ui.add_space(crate::theme::SPACING_LARGE);

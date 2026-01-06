@@ -170,7 +170,7 @@ pub fn render_status_message(ui: &mut egui::Ui, status: &str) {
         || status.contains("loaded")
         || status.contains("deleted")
     {
-        egui::Color32::from_rgb(0, 150, 0)
+        egui::Color32::from_rgb(129, 178, 154)
     } else {
         ui.visuals().text_color()
     };

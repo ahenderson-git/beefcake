@@ -130,7 +130,7 @@ impl DbClient {
     }
 
     #[expect(clippy::too_many_lines)]
-    async fn push_dataframe(
+    pub async fn push_dataframe(
         &self,
         analysis_id: i32,
         df: &DataFrame,

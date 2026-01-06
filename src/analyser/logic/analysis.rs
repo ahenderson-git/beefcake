@@ -112,6 +112,11 @@ pub fn save_df(df: &mut DataFrame, path: &std::path::Path) -> Result<()> {
                 .finish(df)
                 .context("Failed to write Parquet file")?;
         }
+        "json" => {
+            JsonWriter::new(file)
+                .finish(df)
+                .context("Failed to write JSON file")?;
+        }
         _ => {
             CsvWriter::new(file)
                 .include_header(true)

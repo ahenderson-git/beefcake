@@ -21,6 +21,7 @@ pub enum AppState {
     ReferenceMaterial,
     DatabaseSettings,
     PowerShellModule,
+    Settings,
 }
 
 impl Default for AppState {
@@ -91,6 +92,9 @@ pub struct BeefcakeApp {
 
     #[serde(skip)]
     pub toasts: egui_notify::Toasts,
+
+    pub font_size: f32,
+    pub sidebar_font_size: f32,
 }
 
 impl Default for BeefcakeApp {
@@ -128,17 +132,22 @@ impl Default for BeefcakeApp {
             error_log: Vec::new(),
             show_error_diagnostics: false,
             toasts: egui_notify::Toasts::default(),
+            font_size: 14.0,
+            sidebar_font_size: 14.0,
         }
     }
 }
 
 impl BeefcakeApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        crate::theme::apply_beefcake_theme(&cc.egui_ctx);
-        if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        }
-        Self::default()
+        let app: Self = if let Some(storage) = cc.storage {
+            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
+        } else {
+            Self::default()
+        };
+
+        crate::theme::apply_beefcake_theme(&cc.egui_ctx, app.font_size);
+        app
     }
 
     pub fn log_action(&mut self, action: &str, details: &str) {
@@ -153,25 +162,25 @@ impl BeefcakeApp {
                     ui.heading(
                         egui::RichText::new(format!("{} Beefcake Data Suite", icons::CHART_BAR))
                             .size(24.0)
-                            .strong(),
+                            .strong()
+                            .color(crate::theme::PRIMARY_COLOR),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
-                            egui::RichText::new("Professional Grade Analysis & Automation").weak(),
+                            egui::RichText::new("Professional Grade Analysis & Automation"),
                         );
                     });
                 });
             });
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+            .frame(crate::theme::central_panel_frame().inner_margin(egui::Margin {
                 left: crate::theme::PANEL_LEFT as i8,
                 right: crate::theme::PANEL_RIGHT as i8,
-                top: 0,
+                top: crate::theme::SPACING_LARGE as i8,
                 bottom: crate::theme::SPACING_LARGE as i8,
             }))
             .show(ctx, |ui| {
-                ui.add_space(crate::theme::SPACING_LARGE);
                 let spacing = crate::theme::SPACING_LARGE;
                 let available_width = ui.available_width();
                 let available_height = ui.available_height();
@@ -214,8 +223,8 @@ impl BeefcakeApp {
             ui.label(
                 egui::RichText::new("BEEFCAKE")
                     .strong()
-                    .size(20.0)
-                    .color(crate::theme::ACCENT_COLOR),
+                    .size(self.sidebar_font_size + 6.0)
+                    .color(crate::theme::PRIMARY_COLOR),
             );
             ui.add_space(crate::theme::SPACING_LARGE);
         });
@@ -230,6 +239,7 @@ impl BeefcakeApp {
                 icons::HOUSE,
                 "Dashboard",
                 matches!(self.state, AppState::MainMenu),
+                self.sidebar_font_size,
             )
             .clicked()
             {
@@ -240,6 +250,7 @@ impl BeefcakeApp {
                 icons::CHART_BAR,
                 "Analyser",
                 matches!(self.state, AppState::Analyser(_)),
+                self.sidebar_font_size,
             )
             .clicked()
                 && !matches!(self.state, AppState::Analyser(_))
@@ -251,6 +262,7 @@ impl BeefcakeApp {
                 icons::DATABASE,
                 "Database",
                 matches!(self.state, AppState::DatabaseSettings),
+                self.sidebar_font_size,
             )
             .clicked()
             {
@@ -261,6 +273,7 @@ impl BeefcakeApp {
                 icons::TERMINAL_WINDOW,
                 "PowerShell",
                 matches!(self.state, AppState::PowerShellModule),
+                self.sidebar_font_size,
             )
             .clicked()
             {
@@ -271,10 +284,22 @@ impl BeefcakeApp {
                 icons::BOOK_OPEN,
                 "Reference",
                 matches!(self.state, AppState::ReferenceMaterial),
+                self.sidebar_font_size,
             )
             .clicked()
             {
                 next_state = Some(AppState::ReferenceMaterial);
+            }
+            if Self::sidebar_button(
+                ui,
+                icons::GEAR,
+                "Settings",
+                matches!(self.state, AppState::Settings),
+                self.sidebar_font_size,
+            )
+            .clicked()
+            {
+                next_state = Some(AppState::Settings);
             }
 
             if !self.error_log.is_empty() {
@@ -283,7 +308,8 @@ impl BeefcakeApp {
                     if ui
                         .button(
                             egui::RichText::new(format!("{} Diagnostics", icons::SHIELD_WARNING))
-                                .color(egui::Color32::from_rgb(255, 100, 100)),
+                                .size(self.sidebar_font_size)
+                                .color(crate::theme::PRIMARY_COLOR),
                         )
                         .clicked()
                     {
@@ -298,19 +324,27 @@ impl BeefcakeApp {
         }
     }
 
-    fn sidebar_button(ui: &mut egui::Ui, icon: &str, text: &str, active: bool) -> egui::Response {
+    fn sidebar_button(
+        ui: &mut egui::Ui,
+        icon: &str,
+        text: &str,
+        active: bool,
+        font_size: f32,
+    ) -> egui::Response {
         let text = egui::RichText::new(format!("{icon}  {text}"))
-            .size(14.0)
+            .size(font_size)
             .strong();
 
-        let (rect, response) =
-            ui.allocate_at_least(egui::vec2(ui.available_width(), 40.0), egui::Sense::click());
+        let (rect, response) = ui.allocate_at_least(
+            egui::vec2(ui.available_width(), font_size + 26.0),
+            egui::Sense::click(),
+        );
 
         if ui.is_rect_visible(rect) {
             let bg_fill = if active {
                 crate::theme::ACCENT_COLOR
             } else if response.hovered() {
-                ui.visuals().faint_bg_color
+                ui.visuals().widgets.hovered.bg_fill
             } else {
                 egui::Color32::TRANSPARENT
             };
@@ -320,7 +354,7 @@ impl BeefcakeApp {
             let text_color = if active {
                 egui::Color32::WHITE
             } else if response.hovered() {
-                ui.visuals().strong_text_color()
+                crate::theme::PRIMARY_COLOR
             } else {
                 ui.visuals().weak_text_color()
             };
@@ -329,7 +363,7 @@ impl BeefcakeApp {
                 rect.left_center() + egui::vec2(15.0, 0.0),
                 egui::Align2::LEFT_CENTER,
                 text.text(),
-                egui::FontId::proportional(14.0),
+                egui::FontId::proportional(font_size),
                 text_color,
             );
         }
@@ -427,6 +461,52 @@ impl BeefcakeApp {
         }
     }
 
+    pub fn render_settings(&mut self, ctx: &egui::Context) -> bool {
+        let mut go_back = false;
+        egui::TopBottomPanel::top("settings_top")
+            .frame(crate::theme::top_bar_frame())
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(format!("{} Back", icons::ARROW_LEFT)).clicked() {
+                        go_back = true;
+                    }
+                    ui.separator();
+                    ui.heading(format!("{} Application Settings", icons::GEAR));
+                });
+            });
+
+        egui::CentralPanel::default()
+            .frame(crate::theme::central_panel_frame().inner_margin(egui::Margin::same(20)))
+            .show(ctx, |ui| {
+                ui.add_space(crate::theme::SPACING_LARGE);
+                ui.heading("Appearance");
+                ui.add_space(crate::theme::SPACING_SMALL);
+
+                ui.horizontal(|ui| {
+                    ui.label("Main Font Size:");
+                    let response = ui.add(egui::Slider::new(&mut self.font_size, 10.0..=24.0));
+                    if response.changed() {
+                        crate::theme::apply_beefcake_theme(ctx, self.font_size);
+                    }
+                    if ui.button("Reset").clicked() {
+                        self.font_size = 14.0;
+                        crate::theme::apply_beefcake_theme(ctx, self.font_size);
+                    }
+                });
+
+                ui.add_space(crate::theme::SPACING_SMALL);
+                ui.horizontal(|ui| {
+                    ui.label("Sidebar Font Size:");
+                    ui.add(egui::Slider::new(&mut self.sidebar_font_size, 10.0..=24.0));
+                    if ui.button("Reset").clicked() {
+                        self.sidebar_font_size = 14.0;
+                    }
+                });
+            });
+
+        go_back
+    }
+
     fn render_footer(ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("footer").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -490,6 +570,11 @@ impl eframe::App for BeefcakeApp {
             }
             AppState::ReferenceMaterial => {
                 if reference::render_reference_material(ctx) {
+                    self.state = AppState::MainMenu;
+                }
+            }
+            AppState::Settings => {
+                if self.render_settings(ctx) {
                     self.state = AppState::MainMenu;
                 }
             }
