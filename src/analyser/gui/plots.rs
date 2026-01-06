@@ -86,6 +86,7 @@ fn render_numeric_plot(
             .include_x(view_max + margin)
             .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
             .height(plot_height)
+            .width((ui.available_width() - 1.0).min(600.0).max(0.0))
             .show(ui, |plot_ui| {
                 plot_ui.set_plot_bounds(PlotBounds::from_min_max(
                     [view_min - margin, -max_count * 0.3],
@@ -289,7 +290,7 @@ fn render_horizontal_bar_chart(
     let limit = ((plot_height + spacing) / (row_height + spacing)).floor() as usize;
     let limit = limit.min(sorted.len()).max(1);
 
-    ui.allocate_ui(egui::vec2(ui.available_width(), plot_height), |ui| {
+    ui.allocate_ui(egui::vec2((ui.available_width() - 1.0).min(600.0), plot_height), |ui| {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = spacing;
             for (label, count) in sorted.iter().take(limit) {
@@ -312,14 +313,15 @@ fn render_horizontal_bar_chart(
 
                     // Estimate value width
                     let val_width = 35.0;
-                    let bar_width_max = (available_for_bar_and_val - val_width - 10.0).max(20.0);
+                    let spacing = ui.spacing().item_spacing.x;
+                    let bar_width = (available_for_bar_and_val - val_width - spacing - 1.0).max(4.0);
 
-                    let (rect, response) = ui.allocate_at_least(
-                        egui::vec2(bar_width_max, row_height),
+                    let (rect, response) = ui.allocate_exact_size(
+                        egui::vec2(bar_width, row_height),
                         egui::Sense::hover(),
                     );
 
-                    let fill_width = fraction * rect.width();
+                    let fill_width = (fraction * rect.width()).min(rect.width());
                     let painter = ui.painter();
 
                     // Bar background
@@ -511,6 +513,7 @@ fn render_temporal_plot(
             .include_x(view_max + margin)
             .set_margin_fraction(egui::Vec2::new(0.0, 0.1))
             .height(plot_height)
+            .width((ui.available_width() - 1.0).min(600.0).max(0.0))
             .show(ui, |plot_ui| {
                 plot_ui.set_plot_bounds(PlotBounds::from_min_max(
                     [view_min - margin, -max_count * 0.1],

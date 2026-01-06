@@ -10,80 +10,94 @@ use egui_extras::{Column, TableBuilder};
 use egui_phosphor::regular as icons;
 
 pub fn render_summary_table(app: &mut App, ui: &mut egui::Ui) {
-    let mut scroll_area = egui::ScrollArea::both()
-        .max_height(500.0)
-        .id_salt("summary_table_scroll");
-    if app.should_scroll_to_top {
-        scroll_area = scroll_area.scroll_offset(egui::Vec2::ZERO);
-    }
-
-    scroll_area.show(ui, |ui| {
-        let mut table = TableBuilder::new(ui)
-            .striped(true)
-            .resizable(true)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Min))
-            .column(Column::auto().at_least(30.0)) // Expand
-            .column(Column::auto().at_least(30.0)) // Active/Exclude
-            .column(Column::initial(120.0).at_least(100.0)) // Name
-            .column(Column::initial(100.0).at_least(80.0)) // Type
-            .column(Column::auto().at_least(80.0)) // Nulls
-            .column(Column::auto().at_least(80.0)) // Special
-            .column(Column::initial(250.0).at_least(150.0)) // Stats & Samples
-            .column(Column::initial(250.0).at_least(150.0)) // Technical Summary
-            .column(Column::initial(250.0).at_least(150.0)) // Stakeholder Insight
-            .column(Column::initial(100.0).at_least(100.0)) // Histogram
-            .column(Column::remainder()) // Spacer
-            .min_scrolled_height(0.0);
-
-        if app.should_scroll_to_top {
-            table = table.scroll_to_row(0, None);
-            app.should_scroll_to_top = false;
-        }
-
-        table
-            .header(25.0, |mut header| {
-                header.col(|ui| {
-                    ui.strong(icons::CARET_UP_DOWN);
+    crate::theme::card_frame(ui).show(ui, |ui| {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{} Column Analysis", icons::TABLE))
+                        .strong()
+                        .size(14.0),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let btn_text = if app.analysis_minimized {
+                        "Expand"
+                    } else {
+                        "Minimise"
+                    };
+                    if ui.button(btn_text).clicked() {
+                        app.analysis_minimized = !app.analysis_minimized;
+                    }
                 });
-                header.col(|ui| {
-                    ui.strong(icons::CHECK_CIRCLE);
-                });
-                header.col(|ui| {
-                    ui.strong("Name");
-                });
-                header.col(|ui| {
-                    ui.strong("Type");
-                });
-                header.col(|ui| {
-                    ui.strong("Nulls");
-                });
-                header.col(|ui| {
-                    ui.strong("Special");
-                });
-                header.col(|ui| {
-                    ui.strong("Stats & Samples");
-                });
-                header.col(|ui| {
-                    ui.strong("Technical Summary");
-                });
-                header.col(|ui| {
-                    ui.strong("Stakeholder Insight");
-                });
-                header.col(|ui| {
-                    ui.strong("Histogram");
-                });
-                header.col(|_| {});
-            })
-            .body(|mut body| {
-                for col in &app.model.summary.clone() {
-                    let is_expanded = app.expanded_rows.contains(&col.name);
-                    let row_height = (if is_expanded { 280.0 } else { 85.0 } as f32).max(35.0);
-
-                    body.row(row_height, |row| {
-                        render_column_row(app, row, col, is_expanded);
-                    });
-                }
             });
+
+            if !app.analysis_minimized {
+                ui.add_space(crate::theme::SPACING_TINY);
+                let mut table = TableBuilder::new(ui)
+                    .striped(true)
+                    .resizable(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Min))
+                    .column(Column::auto().at_least(30.0)) // Expand
+                    .column(Column::auto().at_least(30.0)) // Active/Exclude
+                    .column(Column::initial(120.0).at_least(100.0).at_most(300.0)) // Name
+                    .column(Column::initial(100.0).at_least(80.0).at_most(200.0)) // Type
+                    .column(Column::auto().at_least(80.0)) // Nulls
+                    .column(Column::auto().at_least(80.0)) // Special
+                    .column(Column::initial(250.0).at_least(150.0).at_most(500.0)) // Stats & Samples
+                    .column(Column::initial(250.0).at_least(150.0).at_most(600.0)) // Technical Summary
+                    .column(Column::initial(300.0).at_least(150.0).at_most(600.0)) // Stakeholder Insight
+                    .column(Column::remainder().at_least(100.0).at_most(500.0)) // Histogram
+                    .min_scrolled_height(0.0);
+
+                if app.should_scroll_to_top {
+                    table = table.scroll_to_row(0, None);
+                    app.should_scroll_to_top = false;
+                }
+
+                table
+                    .header(25.0, |mut header| {
+                        header.col(|ui| {
+                            ui.strong(icons::CARET_UP_DOWN);
+                        });
+                        header.col(|ui| {
+                            ui.strong(icons::CHECK_CIRCLE);
+                        });
+                        header.col(|ui| {
+                            ui.strong("Name");
+                        });
+                        header.col(|ui| {
+                            ui.strong("Type");
+                        });
+                        header.col(|ui| {
+                            ui.strong("Nulls");
+                        });
+                        header.col(|ui| {
+                            ui.strong("Special");
+                        });
+                        header.col(|ui| {
+                            ui.strong("Stats & Samples");
+                        });
+                        header.col(|ui| {
+                            ui.strong("Technical Summary");
+                        });
+                        header.col(|ui| {
+                            ui.strong("Stakeholder Insight");
+                        });
+                        header.col(|ui| {
+                            ui.strong("Histogram");
+                        });
+                    })
+                    .body(|mut body| {
+                        for col in &app.model.summary.clone() {
+                            let is_expanded = app.expanded_rows.contains(&col.name);
+                            let row_height = (if is_expanded { 280.0 } else { 85.0 } as f32).max(35.0);
+
+                            body.row(row_height, |row| {
+                                render_column_row(app, row, col, is_expanded);
+                            });
+                        }
+                    });
+            }
+        });
     });
 }
 
@@ -201,7 +215,6 @@ fn render_column_row(
             );
         });
     });
-    row.col(|_| {}); // Spacer
 }
 
 fn render_column_stats_cell(
@@ -213,7 +226,7 @@ fn render_column_stats_cell(
     ui.vertical(|ui| {
         // 1. Core Stats
         ui.scope(|ui| {
-            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
             match &col.stats {
                 ColumnStats::Numeric(s) => render_numeric_stats_info(app, ui, s),
                 ColumnStats::Text(s) => render_text_stats_info(ui, s),

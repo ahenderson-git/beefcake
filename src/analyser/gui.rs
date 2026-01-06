@@ -126,35 +126,8 @@ impl App {
                         });
 
                         if !self.model.summary.is_empty() {
-                            ui.separator();
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new(format!(
-                                        "{} Column Analysis",
-                                        icons::TABLE
-                                    ))
-                                    .strong()
-                                    .size(14.0),
-                                );
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        let btn_text = if self.analysis_minimized {
-                                            "Expand"
-                                        } else {
-                                            "Minimise"
-                                        };
-                                        if ui.button(btn_text).clicked() {
-                                            self.analysis_minimized = !self.analysis_minimized;
-                                        }
-                                    },
-                                );
-                            });
-
-                            if !self.analysis_minimized {
-                                ui.add_space(crate::theme::SPACING_TINY);
-                                render_summary_table(self, ui);
-                            }
+                            ui.add_space(crate::theme::SPACING_TINY);
+                            render_summary_table(self, ui);
                         }
 
                         if let Some(matrix) = &self.model.correlation_matrix {
@@ -172,39 +145,37 @@ impl App {
     fn render_load_summary(&mut self, ui: &mut egui::Ui) {
         if let Some(summary) = &self.load_summary {
             ui.add_space(crate::theme::SPACING_SMALL);
-            egui::Frame::group(ui.style())
-                .fill(ui.visuals().faint_bg_color)
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "{} File Summary",
-                                    icons::CLIPBOARD_TEXT
-                                ))
-                                .strong(),
-                            );
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    let btn_text = if self.summary_minimized {
-                                        "Expand"
-                                    } else {
-                                        "Minimise"
-                                    };
-                                    if ui.button(btn_text).clicked() {
-                                        self.summary_minimized = !self.summary_minimized;
-                                    }
-                                },
-                            );
-                        });
-                        if !self.summary_minimized {
-                            ui.separator();
-                            ui.label(summary);
-                        }
+            crate::theme::card_frame(ui).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} File Summary",
+                                icons::CLIPBOARD_TEXT
+                            ))
+                            .strong(),
+                        );
+                        ui.with_layout(
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                let btn_text = if self.summary_minimized {
+                                    "Expand"
+                                } else {
+                                    "Minimise"
+                                };
+                                if ui.button(btn_text).clicked() {
+                                    self.summary_minimized = !self.summary_minimized;
+                                }
+                            },
+                        );
                     });
+                    if !self.summary_minimized {
+                        ui.separator();
+                        ui.label(summary);
+                    }
                 });
+            });
         }
     }
 
