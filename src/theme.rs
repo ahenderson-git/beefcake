@@ -95,11 +95,7 @@ pub fn card_frame(ui: &egui::Ui) -> egui::Frame {
         .inner_margin(Margin::same(MARGIN_CARD as i8))
         .stroke(Stroke::new(
             1.0,
-            ui.visuals()
-                .widgets
-                .noninteractive
-                .bg_stroke
-                .color,
+            ui.visuals().widgets.noninteractive.bg_stroke.color,
         ))
 }
 

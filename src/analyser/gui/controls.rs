@@ -154,11 +154,7 @@ fn render_join_selectors(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) 
         })
         .show_ui(ui, |ui| {
             for col in &app.model.summary {
-                ui.selectable_value(
-                    &mut app.model.join_key_primary,
-                    col.name.clone(),
-                    &col.name,
-                );
+                ui.selectable_value(&mut app.model.join_key_primary, col.name.clone(), &col.name);
             }
         });
 
@@ -374,13 +370,12 @@ pub fn render_ml_panel(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
 
                             ui.horizontal(|ui| {
                                 let btn = ui.add_enabled(can_train, egui::Button::new(format!("{} Train Model", icons::ROCKET_LAUNCH)));
-                                if btn.clicked() {
-                                    if let Some(target) = app.model.ml_target.clone() {
+                                if btn.clicked()
+                                    && let Some(target) = app.model.ml_target.clone() {
                                         let (filtered_df, _) = app.get_filtered_data();
                                         app.controller.start_training(ctx.clone(), filtered_df, target.clone(), app.model.ml_model_kind);
                                         app.log_action("ML Training Started", &format!("Target: {target}"));
                                     }
-                                }
 
                                 if n_features == 0 && app.model.ml_target.is_some() {
                                     ui.label(egui::RichText::new(format!("{} No features", icons::WARNING)).color(egui::Color32::RED))

@@ -51,6 +51,7 @@ impl App {
         crate::utils::push_audit_log(&mut self.audit_log, action, details);
     }
 
+    #[expect(clippy::too_many_lines)]
     pub fn update(&mut self, ctx: &egui::Context, toasts: &mut egui_notify::Toasts) -> bool {
         self.handle_receivers(toasts);
 
@@ -84,12 +85,14 @@ impl App {
             });
 
         egui::CentralPanel::default()
-            .frame(crate::theme::central_panel_frame().inner_margin(egui::Margin {
-                left: crate::theme::PANEL_LEFT as i8,
-                right: crate::theme::PANEL_RIGHT as i8,
-                top: crate::theme::SPACING_LARGE as i8,
-                bottom: 0,
-            }))
+            .frame(
+                crate::theme::central_panel_frame().inner_margin(egui::Margin {
+                    left: crate::theme::PANEL_LEFT as i8,
+                    right: crate::theme::PANEL_RIGHT as i8,
+                    top: crate::theme::SPACING_LARGE as i8,
+                    bottom: 0,
+                }),
+            )
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt("analyser_scroll")
@@ -126,9 +129,12 @@ impl App {
                             ui.separator();
                             ui.horizontal(|ui| {
                                 ui.label(
-                                    egui::RichText::new(format!("{} Column Analysis", icons::TABLE))
-                                        .strong()
-                                        .size(14.0),
+                                    egui::RichText::new(format!(
+                                        "{} Column Analysis",
+                                        icons::TABLE
+                                    ))
+                                    .strong()
+                                    .size(14.0),
                                 );
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
@@ -179,16 +185,19 @@ impl App {
                                 ))
                                 .strong(),
                             );
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                let btn_text = if self.summary_minimized {
-                                    "Expand"
-                                } else {
-                                    "Minimise"
-                                };
-                                if ui.button(btn_text).clicked() {
-                                    self.summary_minimized = !self.summary_minimized;
-                                }
-                            });
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let btn_text = if self.summary_minimized {
+                                        "Expand"
+                                    } else {
+                                        "Minimise"
+                                    };
+                                    if ui.button(btn_text).clicked() {
+                                        self.summary_minimized = !self.summary_minimized;
+                                    }
+                                },
+                            );
                         });
                         if !self.summary_minimized {
                             ui.separator();

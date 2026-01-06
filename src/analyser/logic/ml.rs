@@ -65,10 +65,10 @@ pub fn train_model(
             .cast(&DataType::Float64)?;
         let ca = col.f64()?;
         for (row_idx, val) in ca.into_iter().enumerate() {
-            if let Some(v) = val {
-                if let Some(slot) = feature_data.get_mut(row_idx * n_features + col_idx) {
-                    *slot = v;
-                }
+            if let Some(v) = val
+                && let Some(slot) = feature_data.get_mut(row_idx * n_features + col_idx)
+            {
+                *slot = v;
             }
         }
     }

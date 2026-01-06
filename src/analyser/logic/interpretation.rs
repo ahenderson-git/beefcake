@@ -128,15 +128,14 @@ impl ColumnSummary {
                     advice
                         .push("Suitable for Linear Regression (as target or feature).".to_owned());
                 }
-                if let ColumnStats::Numeric(s) = &self.stats {
-                    if let Some(skew) = s.skew {
-                        if skew.abs() > SKEW_THRESHOLD {
-                            advice.push(
-                                "Consider Outlier Clipping (Winsorization) to improve model stability."
-                                    .to_owned(),
-                            );
-                        }
-                    }
+                if let ColumnStats::Numeric(s) = &self.stats
+                    && let Some(skew) = s.skew
+                    && skew.abs() > SKEW_THRESHOLD
+                {
+                    advice.push(
+                        "Consider Outlier Clipping (Winsorization) to improve model stability."
+                            .to_owned(),
+                    );
                 }
             }
             ColumnKind::Categorical | ColumnKind::Boolean => {
@@ -147,10 +146,10 @@ impl ColumnSummary {
                     "Recommend One-Hot encoding to use as a feature in ML models.".to_owned(),
                 );
 
-                if let ColumnStats::Categorical(freq) = &self.stats {
-                    if freq.len() > 20 {
-                        advice.push("High cardinality detected. Use Frequency Capping to group rare values before encoding.".to_owned());
-                    }
+                if let ColumnStats::Categorical(freq) = &self.stats
+                    && freq.len() > 20
+                {
+                    advice.push("High cardinality detected. Use Frequency Capping to group rare values before encoding.".to_owned());
                 }
             }
             ColumnKind::Text => {
@@ -266,12 +265,12 @@ impl ColumnSummary {
         }
 
         // Standard Deviation Reliability
-        if let Some(std_dev) = s.std_dev {
-            if std_dev > 0.0 {
-                let nonparametric_skew = (mean - median).abs() / std_dev;
-                if nonparametric_skew > NONPARAMETRIC_SKEW_THRESHOLD {
-                    signals.push("Standard deviation may be less reliable as an indicator of 'typical' spread because the mean is significantly offset by skew or outliers.");
-                }
+        if let Some(std_dev) = s.std_dev
+            && std_dev > 0.0
+        {
+            let nonparametric_skew = (mean - median).abs() / std_dev;
+            if nonparametric_skew > NONPARAMETRIC_SKEW_THRESHOLD {
+                signals.push("Standard deviation may be less reliable as an indicator of 'typical' spread because the mean is significantly offset by skew or outliers.");
             }
         }
     }
@@ -294,11 +293,11 @@ impl ColumnSummary {
             let mut has_gaps = false;
             if s.histogram.len() > 1 {
                 for window in s.histogram.windows(2) {
-                    if let [w0, w1] = window {
-                        if w1.0 - w0.0 > s.bin_width * 1.5 {
-                            has_gaps = true;
-                            break;
-                        }
+                    if let [w0, w1] = window
+                        && w1.0 - w0.0 > s.bin_width * 1.5
+                    {
+                        has_gaps = true;
+                        break;
                     }
                 }
             }
@@ -338,15 +337,16 @@ impl ColumnSummary {
         }
 
         // Gaussian vs Histogram height
-        if let Some(sigma) = s.std_dev {
-            if sigma > 0.0 && !s.histogram.is_empty() {
-                let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
-                let gauss_peak = (total_count as f64 * s.bin_width) / (sigma * (2.0 * PI).sqrt());
-                let max_bar = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
+        if let Some(sigma) = s.std_dev
+            && sigma > 0.0
+            && !s.histogram.is_empty()
+        {
+            let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
+            let gauss_peak = (total_count as f64 * s.bin_width) / (sigma * (2.0 * PI).sqrt());
+            let max_bar = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
 
-                if max_bar > gauss_peak * GAUSS_PEAK_CONCENTRATION {
-                    signals.push("The orange distribution curve is low because the data is more concentrated than a 'normal' distribution.");
-                }
+            if max_bar > gauss_peak * GAUSS_PEAK_CONCENTRATION {
+                signals.push("The orange distribution curve is low because the data is more concentrated than a 'normal' distribution.");
             }
         }
     }
@@ -362,12 +362,11 @@ impl ColumnSummary {
         if freq.len() == 2 {
             signals.push("Binary field; suggests a toggle or yes/no choice.");
         }
-        if freq.len() > 1 {
-            if let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min()) {
-                if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHOLD {
-                    signals.push("Value distribution is heavily uneven.");
-                }
-            }
+        if freq.len() > 1
+            && let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min())
+            && (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHOLD
+        {
+            signals.push("Value distribution is heavily uneven.");
         }
     }
 
@@ -482,12 +481,12 @@ impl ColumnSummary {
                 }
             }
 
-            if let Some(std_dev) = s.std_dev {
-                if std_dev > 0.0 {
-                    let nonparametric_skew = (mean - median).abs() / std_dev;
-                    if nonparametric_skew > NONPARAMETRIC_SKEW_THRESHOLD {
-                        insights.push("The 'average' is being heavily distorted by extreme outliers and might not represent a 'typical' case.");
-                    }
+            if let Some(std_dev) = s.std_dev
+                && std_dev > 0.0
+            {
+                let nonparametric_skew = (mean - median).abs() / std_dev;
+                if nonparametric_skew > NONPARAMETRIC_SKEW_THRESHOLD {
+                    insights.push("The 'average' is being heavily distorted by extreme outliers and might not represent a 'typical' case.");
                 }
             }
         }
@@ -501,15 +500,14 @@ impl ColumnSummary {
             insights.push("This column is constant; every record has the same category.");
         } else if freq.len() == 2 {
             insights.push("This captures a simple choice or binary state (like Yes/No).");
-        } else if freq.len() > 1 {
-            if let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min()) {
-                if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHOLD {
-                    insights.push("The distribution is uneven, with some categories appearing much more frequently than others.");
-                } else {
-                    insights.push(
-                        "The data is relatively well-distributed across different categories.",
-                    );
-                }
+        } else if freq.len() > 1
+            && let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min())
+        {
+            if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHOLD {
+                insights.push("The distribution is uneven, with some categories appearing much more frequently than others.");
+            } else {
+                insights
+                    .push("The data is relatively well-distributed across different categories.");
             }
         }
     }

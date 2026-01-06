@@ -29,20 +29,19 @@ pub fn calculate_file_health(summaries: &[ColumnSummary]) -> FileHealth {
             score -= 5.0;
         }
 
-        if let ColumnStats::Numeric(s) = &col.stats {
-            if let (Some(mean), Some(median), Some(min), Some(max)) =
+        if let ColumnStats::Numeric(s) = &col.stats
+            && let (Some(mean), Some(median), Some(min), Some(max)) =
                 (s.mean, s.median, s.min, s.max)
-            {
-                let range = max - min;
-                if range > 0.0 {
-                    let diff_ratio = (mean - median).abs() / range;
-                    if diff_ratio > 0.1 {
-                        risks.push(format!(
-                            "Column '{}' is heavily skewed; averages may be misleading.",
-                            col.name
-                        ));
-                        score -= 5.0;
-                    }
+        {
+            let range = max - min;
+            if range > 0.0 {
+                let diff_ratio = (mean - median).abs() / range;
+                if diff_ratio > 0.1 {
+                    risks.push(format!(
+                        "Column '{}' is heavily skewed; averages may be misleading.",
+                        col.name
+                    ));
+                    score -= 5.0;
                 }
             }
         }

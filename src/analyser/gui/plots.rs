@@ -140,10 +140,7 @@ fn create_histogram_bars(
         .map(|&(val, count)| {
             Bar::new(val, count as f64)
                 .width(s.bin_width)
-                .stroke(egui::Stroke::new(
-                    0.5,
-                    crate::theme::ACCENT_COLOR,
-                ))
+                .stroke(egui::Stroke::new(0.5, crate::theme::ACCENT_COLOR))
         })
         .collect()
 }
@@ -155,22 +152,22 @@ fn create_gaussian_points(
     margin: f64,
 ) -> Vec<[f64; 2]> {
     let mut curve_points = Vec::new();
-    if let (Some(mu), Some(sigma)) = (s.mean, s.std_dev) {
-        if sigma > 0.0 {
-            let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
-            let scale = total_count as f64 * s.bin_width;
-            let plot_min = view_min - margin;
-            let plot_max = view_max + margin;
-            if plot_max > plot_min {
-                let step = (plot_max - plot_min) / 100.0;
-                for i in 0..=100 {
-                    let x = plot_min + i as f64 * step;
-                    let z = (x - mu) / sigma;
-                    let y = scale
-                        * (1.0 / (sigma * (2.0 * std::f64::consts::PI).sqrt()))
-                        * (-0.5 * z * z).exp();
-                    curve_points.push([x, y]);
-                }
+    if let (Some(mu), Some(sigma)) = (s.mean, s.std_dev)
+        && sigma > 0.0
+    {
+        let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
+        let scale = total_count as f64 * s.bin_width;
+        let plot_min = view_min - margin;
+        let plot_max = view_max + margin;
+        if plot_max > plot_min {
+            let step = (plot_max - plot_min) / 100.0;
+            for i in 0..=100 {
+                let x = plot_min + i as f64 * step;
+                let z = (x - mu) / sigma;
+                let y = scale
+                    * (1.0 / (sigma * (2.0 * std::f64::consts::PI).sqrt()))
+                    * (-0.5 * z * z).exp();
+                curve_points.push([x, y]);
             }
         }
     }
@@ -188,40 +185,39 @@ fn create_box_plot_lines(
     let mut box_lines = Vec::new();
     if let (Some(q1), Some(median), Some(q3), Some(min), Some(max)) =
         (s.q1, s.median, s.q3, s.min, s.max)
+        && max > min
     {
-        if max > min {
-            let y_pos = -max_count * 0.15;
-            let y_h = max_count * 0.08;
-            box_lines.push(Line::new(
-                "Box",
-                vec![
-                    [q1, y_pos - y_h],
-                    [q3, y_pos - y_h],
-                    [q3, y_pos + y_h],
-                    [q1, y_pos + y_h],
-                    [q1, y_pos - y_h],
-                ],
-            ));
-            box_lines.push(Line::new(
-                "Median",
-                vec![[median, y_pos - y_h], [median, y_pos + y_h]],
-            ));
-            let w_min = if show_full_range {
-                min
-            } else {
-                min.max(view_min - margin)
-            };
-            let w_max = if show_full_range {
-                max
-            } else {
-                max.min(view_max + margin)
-            };
-            if w_min < q1 {
-                box_lines.push(Line::new("Whisker1", vec![[w_min, y_pos], [q1, y_pos]]));
-            }
-            if w_max > q3 {
-                box_lines.push(Line::new("Whisker2", vec![[q3, y_pos], [w_max, y_pos]]));
-            }
+        let y_pos = -max_count * 0.15;
+        let y_h = max_count * 0.08;
+        box_lines.push(Line::new(
+            "Box",
+            vec![
+                [q1, y_pos - y_h],
+                [q3, y_pos - y_h],
+                [q3, y_pos + y_h],
+                [q1, y_pos + y_h],
+                [q1, y_pos - y_h],
+            ],
+        ));
+        box_lines.push(Line::new(
+            "Median",
+            vec![[median, y_pos - y_h], [median, y_pos + y_h]],
+        ));
+        let w_min = if show_full_range {
+            min
+        } else {
+            min.max(view_min - margin)
+        };
+        let w_max = if show_full_range {
+            max
+        } else {
+            max.min(view_max + margin)
+        };
+        if w_min < q1 {
+            box_lines.push(Line::new("Whisker1", vec![[w_min, y_pos], [q1, y_pos]]));
+        }
+        if w_max > q3 {
+            box_lines.push(Line::new("Whisker2", vec![[q3, y_pos], [w_max, y_pos]]));
         }
     }
     box_lines

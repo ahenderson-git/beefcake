@@ -29,6 +29,7 @@ impl DbClient {
     }
 
     pub async fn init_schema(&self) -> Result<()> {
+        //noinspection SqlNoDataSourceInspection
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS analyses (
@@ -44,6 +45,7 @@ impl DbClient {
         .await
         .context("Failed to create 'analyses' table")?;
 
+        //noinspection SqlNoDataSourceInspection
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS column_summaries (
@@ -65,14 +67,17 @@ impl DbClient {
         .context("Failed to create 'column_summaries' table")?;
 
         // Ensure missing columns exist in case the table was created with an older version
+        //noinspection SqlNoDataSourceInspection
         sqlx::query("ALTER TABLE column_summaries ADD COLUMN IF NOT EXISTS interpretation TEXT")
             .execute(&self.pool)
             .await
             .context("Failed to add 'interpretation' column to 'column_summaries'")?;
+        //noinspection SqlNoDataSourceInspection
         sqlx::query("ALTER TABLE column_summaries ADD COLUMN IF NOT EXISTS business_summary TEXT")
             .execute(&self.pool)
             .await
             .context("Failed to add 'business_summary' column to 'column_summaries'")?;
+        //noinspection SqlNoDataSourceInspection
         sqlx::query("ALTER TABLE column_summaries ADD COLUMN IF NOT EXISTS ml_advice TEXT")
             .execute(&self.pool)
             .await
@@ -83,6 +88,7 @@ impl DbClient {
 
     pub async fn push_analysis(&self, params: AnalysisPush<'_>) -> Result<()> {
         // 1. Insert analysis metadata
+        //noinspection SqlNoDataSourceInspection
         let analysis_id: i32 = sqlx::query_scalar(
             "INSERT INTO analyses (file_path, file_size, health_score) VALUES ($1, $2, $3) RETURNING id"
         )
@@ -95,6 +101,7 @@ impl DbClient {
 
         // 2. Insert column summaries
         for col in params.summaries {
+            //noinspection SqlNoDataSourceInspection
             sqlx::query(
                 r#"
                 INSERT INTO column_summaries

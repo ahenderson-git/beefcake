@@ -1,15 +1,16 @@
 #![warn(clippy::all, rust_2018_idioms)]
+#![expect(clippy::print_stdout)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 use beefcake::analyser::db::DbClient;
-use beefcake::analyser::logic::{analyse_df, clean_df, load_df, save_df, ColumnCleanConfig};
+use beefcake::analyser::logic::{ColumnCleanConfig, analyse_df, clean_df, load_df, save_df};
 use clap::{Parser, Subcommand};
 use polars::prelude::DataFrame;
 use sqlx::postgres::PgConnectOptions;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::str::FromStr;
+use std::str::FromStr as _;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 
@@ -36,7 +37,7 @@ enum Commands {
         #[arg(long, default_value = "public")]
         schema: String,
 
-        /// Database connection URL (e.g. postgres://user:pass@localhost/db)
+        /// Database connection URL (e.g. <postgres://user:pass@localhost/db>)
         #[arg(long, env = "DATABASE_URL")]
         db_url: String,
 
@@ -106,7 +107,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     db_url,
                     clean,
                 } => {
-                    println!("Importing {:?} into table {}.{}...", file, schema, table);
+                    println!(
+                        "Importing {} into table {schema}.{table}...",
+                        file.display()
+                    );
                     let progress = Arc::new(AtomicU64::new(0));
                     let mut df = load_df(&file, &progress).context("Failed to load dataframe")?;
 
@@ -134,7 +138,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } => {
                     let input_path = PathBuf::from(&input);
                     if input_path.exists() {
-                        println!("Converting {:?} to {:?}...", input_path, output);
+                        println!(
+                            "Converting {} to {}...",
+                            input_path.display(),
+                            output.display()
+                        );
                         let progress = Arc::new(AtomicU64::new(0));
                         let mut df =
                             load_df(&input_path, &progress).context("Failed to load input file")?;
@@ -153,7 +161,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Commands::Clean { file, output } => {
-                    println!("Cleaning {:?} and saving to {:?}...", file, output);
+                    println!(
+                        "Cleaning {} and saving to {}...",
+                        file.display(),
+                        output.display()
+                    );
                     let progress = Arc::new(AtomicU64::new(0));
                     let df = load_df(&file, &progress).context("Failed to load input file")?;
                     let mut cleaned_df = auto_clean_df(df)?;

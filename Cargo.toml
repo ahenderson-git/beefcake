@@ -22,7 +22,7 @@ eframe = { version = "0.33.0", default-features = false, features = [
 ] }
 log = "0.4.27"
 serde = { version = "1.0.219", features = ["derive"] }
-rfd = { version = "0.16.0", features = ["xdg-portal"] }
+rfd = { version = "0.17.1", features = ["xdg-portal"] }
 anyhow = "1.0.100"
 env_logger = "0.11.8"
 crossbeam-channel = "0.5.15" # Add this for thread communication
@@ -32,14 +32,12 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono", "js
 tokio = { version = "1.0", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
 serde_json = "1.0"
-linfa = "0.7.1"
-linfa-linear = "0.7.1"
-linfa-trees = "0.7.1"
-linfa-logistic = "0.7.1"
-linfa-preprocessing = "0.7.1"
-ndarray = { version = "0.15", features = ["serde"] }
+linfa = "0.8.1"
+linfa-linear = "0.8.1"
+linfa-trees = "0.8.1"
+linfa-logistic = "0.8.1"
+ndarray = { version = "0.16.1", features = ["serde"] }
 secrecy = { version = "0.10", features = ["serde"] }
-keyring = "3.6.2"
 egui-phosphor = "0.11.0"
 egui-notify = "0.21.0"
 clap = { version = "4.5", features = ["derive", "env"] }
@@ -56,6 +54,9 @@ opt-level = 2
 
 [lints]
 workspace = true
+
+[workspace]
+members = ["."]
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -172,7 +173,7 @@ mem_forget = "warn"
 mismatching_type_param_order = "warn"
 missing_assert_message = "warn"
 missing_enforced_import_renames = "warn"
-missing_errors_doc = "warn"
+missing_errors_doc = "allow"
 missing_safety_doc = "warn"
 mixed_attributes_style = "warn"
 mut_mut = "warn"
@@ -218,7 +219,6 @@ string_add = "warn"
 string_add_assign = "warn"
 string_lit_as_bytes = "warn"
 string_lit_chars_any = "warn"
-string_to_string = "warn"
 suspicious_command_arg_space = "warn"
 suspicious_xor_used_as_pow = "warn"
 todo = "warn"
@@ -228,7 +228,7 @@ trailing_empty_array = "warn"
 trait_duplication_in_bounds = "warn"
 transmute_ptr_to_ptr = "warn"
 tuple_array_conversions = "warn"
-unchecked_duration_subtraction = "warn"
+unchecked_time_subtraction = "warn"
 undocumented_unsafe_blocks = "warn"
 unimplemented = "warn"
 uninhabited_references = "warn"

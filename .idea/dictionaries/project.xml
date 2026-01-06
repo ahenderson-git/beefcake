@@ -1,7 +1,60 @@
 <component name="ProjectDictionaryState">
   <dictionary name="project">
     <words>
+      <w>analyser</w>
+      <w>anyhow</w>
+      <w>autocfg</w>
+      <w>beefcake</w>
+      <w>boxplot</w>
+      <w>cfg</w>
+      <w>chrono</w>
+      <w>csv</w>
+      <w>dataframe</w>
+      <w>db</w>
+      <w>df</w>
+      <w>dtype</w>
       <w>eframe</w>
+      <w>egui</w>
+      <w>glow</w>
+      <w>gui</w>
+      <w>heck</w>
+      <w>heuristics</w>
+      <w>impute</w>
+      <w>itoa</w>
+      <w>jsonb</w>
+      <w>jsonl</w>
+      <w>kurtosis</w>
+      <w>lazyframe</w>
+      <w>libc</w>
+      <w>libm</w>
+      <w>memchr</w>
+      <w>ml</w>
+      <w>ndarray</w>
+      <w>ndjson</w>
+      <w>outliers</w>
+      <w>parquet</w>
+      <w>pearson</w>
+      <w>phosphor</w>
+      <w>polars</w>
+      <w>postgres</w>
+      <w>proc</w>
+      <w>quartiles</w>
+      <w>rfd</w>
+      <w>runtime</w>
+      <w>serde</w>
+      <w>shlex</w>
+      <w>skewness</w>
+      <w>sqlite</w>
+      <w>sqlx</w>
+      <w>strptime</w>
+      <w>syn</w>
+      <w>thiserror</w>
+      <w>timestamptz</w>
+      <w>tokio</w>
+      <w>wasm</w>
+      <w>wasm32</w>
+      <w>zerocopy</w>
+      <w>zerovec</w>
     </words>
   </dictionary>
 </component>

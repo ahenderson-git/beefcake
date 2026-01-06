@@ -81,11 +81,12 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
             }
 
             // Try Date
-            if let Ok(d) = s.cast(&PolarsDataType::Date) {
-                if d.null_count() == s.null_count() && !s.is_empty() {
-                    *col = Column::from(d);
-                    changed = true;
-                }
+            if let Ok(d) = s.cast(&PolarsDataType::Date)
+                && d.null_count() == s.null_count()
+                && !s.is_empty()
+            {
+                *col = Column::from(d);
+                changed = true;
             }
         }
     }
@@ -195,6 +196,7 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
 }
 
 #[expect(clippy::indexing_slicing)]
+#[expect(clippy::needless_range_loop)]
 pub fn calculate_correlation_matrix(df: &DataFrame) -> Result<Option<CorrelationMatrix>> {
     let numeric_cols: Vec<String> = df
         .get_column_names()
@@ -393,17 +395,17 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         }
 
         // 6. Categorical Refinement
-        if config.ml_preprocessing {
-            if let Some(threshold) = config.freq_threshold {
-                expr = when(
-                    expr.clone()
-                        .count()
-                        .over([col(old_name)])
-                        .lt(lit(threshold as u32)),
-                )
-                .then(lit("Other"))
-                .otherwise(expr);
-            }
+        if config.ml_preprocessing
+            && let Some(threshold) = config.freq_threshold
+        {
+            expr = when(
+                expr.clone()
+                    .count()
+                    .over([col(old_name)])
+                    .lt(lit(threshold as u32)),
+            )
+            .then(lit("Other"))
+            .otherwise(expr);
         }
 
         let needs_update =
@@ -835,38 +837,37 @@ fn analyse_text_or_fallback(name: &str, col: &Column) -> Result<(ColumnKind, Col
         && distinct > 0
         && distinct <= 25
         && (distinct < row_count || row_count == 1)
+        && let Some(vc) = &value_counts_df
     {
-        if let Some(vc) = &value_counts_df {
-            let values = vc.column(name)?.as_materialized_series();
-            let counts = vc.column("counts")?.as_materialized_series();
+        let values = vc.column(name)?.as_materialized_series();
+        let counts = vc.column("counts")?.as_materialized_series();
 
-            let mut freq = HashMap::new();
-            let v_ca = values.cast(&PolarsDataType::String)?;
-            let v_ca = v_ca.str()?;
-            let c_ca = counts.u32()?;
+        let mut freq = HashMap::new();
+        let v_ca = values.cast(&PolarsDataType::String)?;
+        let v_ca = v_ca.str()?;
+        let c_ca = counts.u32()?;
 
-            for (v, c) in v_ca.into_iter().zip(c_ca.into_iter()) {
-                if let (Some(v_str), Some(c_val)) = (v, c) {
-                    freq.insert(v_str.to_owned(), c_val as usize);
-                }
+        for (v, c) in v_ca.into_iter().zip(c_ca.into_iter()) {
+            if let (Some(v_str), Some(c_val)) = (v, c) {
+                freq.insert(v_str.to_owned(), c_val as usize);
             }
-
-            return Ok((
-                ColumnKind::Categorical,
-                ColumnStats::Categorical(freq),
-                has_special,
-            ));
         }
+
+        return Ok((
+            ColumnKind::Categorical,
+            ColumnStats::Categorical(freq),
+            has_special,
+        ));
     }
 
     let top_value = if let Some(vc) = &value_counts_df {
         let values = vc.column(name)?.as_materialized_series();
         let counts = vc.column("counts")?.as_materialized_series();
 
-        let v = values
-            .cast(&PolarsDataType::String)
-            .ok()
-            .and_then(|s| s.str().ok().and_then(|ca| ca.get(0).map(|s| s.to_owned())));
+        let v = values.cast(&PolarsDataType::String).ok().and_then(|s| {
+            let ca = s.str().ok()?;
+            ca.get(0).map(|s| s.to_owned())
+        });
         let c = counts
             .u32()
             .ok()
@@ -920,17 +921,17 @@ fn check_special_characters(
     dtype: &PolarsDataType,
     value_counts_df: &Option<DataFrame>,
 ) -> Result<bool> {
-    if dtype.is_string() {
-        if let Some(vc) = value_counts_df {
-            let values = vc.column(name)?.as_materialized_series();
-            let v_ca = values.cast(&PolarsDataType::String)?;
-            let v_ca = v_ca.str()?;
-            for v in v_ca.into_iter().flatten() {
-                if v.chars()
-                    .any(|c| c == '\r' || (c.is_control() && c != '\n' && c != '\t'))
-                {
-                    return Ok(true);
-                }
+    if dtype.is_string()
+        && let Some(vc) = value_counts_df
+    {
+        let values = vc.column(name)?.as_materialized_series();
+        let v_ca = values.cast(&PolarsDataType::String)?;
+        let v_ca = v_ca.str()?;
+        for v in v_ca.into_iter().flatten() {
+            if v.chars()
+                .any(|c| c == '\r' || (c.is_control() && c != '\n' && c != '\t'))
+            {
+                return Ok(true);
             }
         }
     }

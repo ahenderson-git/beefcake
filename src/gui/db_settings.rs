@@ -50,12 +50,14 @@ impl BeefcakeApp {
             });
 
         egui::CentralPanel::default()
-            .frame(crate::theme::central_panel_frame().inner_margin(egui::Margin {
-                left: crate::theme::PANEL_LEFT as i8,
-                right: crate::theme::PANEL_RIGHT as i8,
-                top: crate::theme::SPACING_LARGE as i8,
-                bottom: 0,
-            }))
+            .frame(
+                crate::theme::central_panel_frame().inner_margin(egui::Margin {
+                    left: crate::theme::PANEL_LEFT as i8,
+                    right: crate::theme::PANEL_RIGHT as i8,
+                    top: crate::theme::SPACING_LARGE as i8,
+                    bottom: 0,
+                }),
+            )
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     self.render_db_grid(ui, ctx);
@@ -169,7 +171,8 @@ impl BeefcakeApp {
                             ui.label("Profile Name:");
                             ui.text_edit_singleline(&mut self.db_name_input);
                             ui.add_space(crate::theme::SPACING_TINY);
-                            if ui.button("Confirm Save").clicked() && !self.db_name_input.is_empty() {
+                            if ui.button("Confirm Save").clicked() && !self.db_name_input.is_empty()
+                            {
                                 let config = DbConfig {
                                     name: self.db_name_input.clone(),
                                     db_type: self.pg_type.clone(),
@@ -231,27 +234,27 @@ impl BeefcakeApp {
                     }
                 });
 
-            if let Some(i) = to_load {
-                if let Some(config) = self.saved_configs.get(i) {
-                    self.pg_type = config.db_type.clone();
-                    self.pg_host = config.host.clone();
-                    self.pg_port = config.port.clone();
-                    self.pg_user = config.user.clone();
-                    self.pg_password = config.password.clone();
-                    self.pg_database = config.database.clone();
-                    self.pg_schema = config.schema.clone();
-                    self.pg_table = config.table.clone();
-                    self.save_password = !config.password.expose_secret().is_empty();
-                    self.status = format!("Loaded profile: {}", config.name);
-                    self.log_action("Database", &format!("Loaded profile: {}", config.name));
-                }
+            if let Some(i) = to_load
+                && let Some(config) = self.saved_configs.get(i)
+            {
+                self.pg_type = config.db_type.clone();
+                self.pg_host = config.host.clone();
+                self.pg_port = config.port.clone();
+                self.pg_user = config.user.clone();
+                self.pg_password = config.password.clone();
+                self.pg_database = config.database.clone();
+                self.pg_schema = config.schema.clone();
+                self.pg_table = config.table.clone();
+                self.save_password = !config.password.expose_secret().is_empty();
+                self.status = format!("Loaded profile: {}", config.name);
+                self.log_action("Database", &format!("Loaded profile: {}", config.name));
             }
 
-            if let Some(i) = to_remove {
-                if i < self.saved_configs.len() {
-                    let removed = self.saved_configs.remove(i);
-                    self.log_action("Database", &format!("Removed profile: {}", removed.name));
-                }
+            if let Some(i) = to_remove
+                && i < self.saved_configs.len()
+            {
+                let removed = self.saved_configs.remove(i);
+                self.log_action("Database", &format!("Removed profile: {}", removed.name));
             }
         }
     }

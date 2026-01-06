@@ -291,10 +291,7 @@ function Clean-BeefcakeData {
                                         {
                                             to_load = Some(i);
                                         }
-                                        if ui
-                                            .button(icons::PLAY)
-                                            .on_hover_text("Run now")
-                                            .clicked()
+                                        if ui.button(icons::PLAY).on_hover_text("Run now").clicked()
                                         {
                                             to_run = Some(i);
                                         }
@@ -328,11 +325,11 @@ function Clean-BeefcakeData {
                 }
             }
 
-            if let Some(i) = to_remove {
-                if i < self.saved_ps_scripts.len() {
-                    let removed = self.saved_ps_scripts.remove(i);
-                    self.log_action("PowerShell", &format!("Removed script: {}", removed.name));
-                }
+            if let Some(i) = to_remove
+                && i < self.saved_ps_scripts.len()
+            {
+                let removed = self.saved_ps_scripts.remove(i);
+                self.log_action("PowerShell", &format!("Removed script: {}", removed.name));
             }
         });
     }
@@ -447,9 +444,10 @@ function Clean-BeefcakeData {
             formatted.push('\n');
 
             // Update indent level for NEXT line
-            indent_level = (indent_level as i32 + open_braces as i32 - close_braces as i32).max(0) as usize;
+            indent_level =
+                (indent_level as i32 + open_braces as i32 - close_braces as i32).max(0) as usize;
         }
-        self.ps_script = formatted.trim().to_string();
+        self.ps_script = formatted.trim().to_owned();
     }
 
     pub fn start_ps_execution(&mut self, ctx: egui::Context, script: String, name: Option<String>) {
@@ -499,14 +497,16 @@ mod tests {
 
     #[test]
     fn test_format_ps_code() {
-        let mut app = BeefcakeApp::default();
-        app.ps_script = "if ($true) {\ncommand\n}".to_string();
+        let mut app = BeefcakeApp {
+            ps_script: "if ($true) {\ncommand\n}".to_owned(),
+            ..BeefcakeApp::default()
+        };
         app.format_ps_code();
         // The formatter adds 4 spaces and a newline at the end of the last line
         // trim() is called at the end of format_ps_code
         assert_eq!(app.ps_script, "if ($true) {\n    command\n}");
-        
-        app.ps_script = "} else {".to_string();
+
+        app.ps_script = "} else {".to_owned();
         app.format_ps_code();
         assert_eq!(app.ps_script, "} else {");
     }

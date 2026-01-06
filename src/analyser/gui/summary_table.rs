@@ -87,6 +87,7 @@ pub fn render_summary_table(app: &mut App, ui: &mut egui::Ui) {
     });
 }
 
+#[expect(clippy::too_many_lines)]
 fn render_column_row(
     app: &mut App,
     mut row: egui_extras::TableRow<'_, '_>,
@@ -531,12 +532,11 @@ fn render_numeric_stats_info(app: &App, ui: &mut egui::Ui, s: &NumericStats) {
             ui.label("Skew:").on_hover_text("Measures lack of symmetry. Positive = tail on right, Negative = tail on left. |Skew| > 1 is high.");
             ui.label(fmt_opt(s.skew));
 
-            if let (Some(mean), Some(median)) = (s.mean, s.median) {
-                if median.abs() > 1e-9 && (mean - median).abs() / median.abs() > 0.1 {
+            if let (Some(mean), Some(median)) = (s.mean, s.median)
+                && median.abs() > 1e-9 && (mean - median).abs() / median.abs() > 0.1 {
                     ui.label(egui::RichText::new(icons::WARNING).color(egui::Color32::YELLOW))
                         .on_hover_text("Gap > 10%: Outliers likely influencing the average");
                 }
-            }
         });
         ui.horizontal(|ui| {
             let pct = app.model.trim_pct * 100.0;
@@ -548,15 +548,14 @@ fn render_numeric_stats_info(app: &App, ui: &mut egui::Ui, s: &NumericStats) {
             ui.label("Std Dev:").on_hover_text("Typical deviation from the average. High values mean the data is spread out.");
             ui.label(fmt_opt(s.std_dev));
 
-            if let (Some(mean), Some(median), Some(std_dev)) = (s.mean, s.median, s.std_dev) {
-                if std_dev > 0.0 {
+            if let (Some(mean), Some(median), Some(std_dev)) = (s.mean, s.median, s.std_dev)
+                && std_dev > 0.0 {
                     let nonparametric_skew = (mean - median).abs() / std_dev;
                     if nonparametric_skew > 0.3 {
                         ui.label(egui::RichText::new(icons::WARNING).color(egui::Color32::YELLOW))
                             .on_hover_text("Standard deviation may be less reliable because the mean is heavily influenced by outliers or skew.");
                     }
                 }
-            }
 
             ui.label("|");
             ui.label("IQR:").on_hover_text("Interquartile Range: The range of the middle 50% of your data.");

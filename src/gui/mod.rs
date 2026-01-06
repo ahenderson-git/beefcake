@@ -14,20 +14,15 @@ pub use dashboard::ListItem;
 pub use db_settings::DbConfig;
 pub use powershell::PsScript;
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Default)]
 pub enum AppState {
+    #[default]
     MainMenu,
     Analyser(Box<crate::analyser::App>),
     ReferenceMaterial,
     DatabaseSettings,
     PowerShellModule,
     Settings,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self::MainMenu
-    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -166,20 +161,22 @@ impl BeefcakeApp {
                             .color(crate::theme::PRIMARY_COLOR),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            egui::RichText::new("Professional Grade Analysis & Automation"),
-                        );
+                        ui.label(egui::RichText::new(
+                            "Professional Grade Analysis & Automation",
+                        ));
                     });
                 });
             });
 
         egui::CentralPanel::default()
-            .frame(crate::theme::central_panel_frame().inner_margin(egui::Margin {
-                left: crate::theme::PANEL_LEFT as i8,
-                right: crate::theme::PANEL_RIGHT as i8,
-                top: crate::theme::SPACING_LARGE as i8,
-                bottom: crate::theme::SPACING_LARGE as i8,
-            }))
+            .frame(
+                crate::theme::central_panel_frame().inner_margin(egui::Margin {
+                    left: crate::theme::PANEL_LEFT as i8,
+                    right: crate::theme::PANEL_RIGHT as i8,
+                    top: crate::theme::SPACING_LARGE as i8,
+                    bottom: crate::theme::SPACING_LARGE as i8,
+                }),
+            )
             .show(ctx, |ui| {
                 let spacing = crate::theme::SPACING_LARGE;
                 let available_width = ui.available_width();
@@ -372,92 +369,86 @@ impl BeefcakeApp {
     }
 
     fn handle_receivers(&mut self) {
-        if let Some(rx) = &self.ps_rx {
-            if let Ok(result) = rx.try_recv() {
-                self.is_running_ps = false;
-                match result {
-                    Ok((code, output)) => {
-                        self.ps_last_output = output;
-                        let script_info = self
-                            .running_ps_script_name
-                            .as_ref()
-                            .map(|n| format!(" '{n}'"))
-                            .unwrap_or_default();
+        if let Some(rx) = &self.ps_rx
+            && let Ok(result) = rx.try_recv()
+        {
+            self.is_running_ps = false;
+            match result {
+                Ok((code, output)) => {
+                    self.ps_last_output = output;
+                    let script_info = self
+                        .running_ps_script_name
+                        .as_ref()
+                        .map(|n| format!(" '{n}'"))
+                        .unwrap_or_default();
 
-                        if code == 0 {
-                            self.status = format!(
-                                "{} PowerShell script{script_info} finished successfully.",
-                                icons::CHECK_CIRCLE
-                            );
-                            self.toasts.success(format!(
-                                "PowerShell script{script_info} finished successfully."
-                            ));
-                            self.log_action(
-                                "PowerShell",
-                                &format!("Execution success{script_info}"),
-                            );
-                        } else {
-                            self.status = format!(
-                                "{} PowerShell script{script_info} failed with exit code: {code}",
-                                icons::X_CIRCLE
-                            );
-                            self.toasts.error(format!(
-                                "PowerShell script{script_info} failed with exit code: {code}"
-                            ));
-                            self.log_action(
-                                "PowerShell",
-                                &format!("Execution failure{script_info} (code: {code})"),
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        let script_info = self
-                            .running_ps_script_name
-                            .as_ref()
-                            .map(|n| format!(" '{n}'"))
-                            .unwrap_or_default();
-
+                    if code == 0 {
                         self.status = format!(
-                            "{} PowerShell{script_info} execution error: {e}",
-                            icons::X_CIRCLE
-                        );
-                        self.toasts
-                            .error(format!("PowerShell{script_info} execution error: {e}"));
-                        self.log_action(
-                            "PowerShell",
-                            &format!("Execution error{script_info}: {e}"),
-                        );
-                        crate::utils::push_error_log(&mut self.error_log, &e, "PowerShell");
-                    }
-                }
-                self.ps_rx = None;
-                self.running_ps_script_name = None;
-            }
-        }
-
-        if let Some(rx) = &self.test_rx {
-            if let Ok(result) = rx.try_recv() {
-                self.is_testing = false;
-                match result {
-                    Ok(_) => {
-                        self.status = format!(
-                            "{} Database connection test successful!",
+                            "{} PowerShell script{script_info} finished successfully.",
                             icons::CHECK_CIRCLE
                         );
-                        self.toasts.success("Database connection test successful!");
-                        self.log_action("Database", "Test connection success");
-                    }
-                    Err(e) => {
-                        self.status =
-                            format!("{} Database connection test failed: {e}", icons::X_CIRCLE);
-                        self.toasts
-                            .error(format!("Database connection test failed: {e}"));
-                        self.log_action("Database", "Test connection failure");
-                        crate::utils::push_error_log(&mut self.error_log, &e, "Database Test");
+                        self.toasts.success(format!(
+                            "PowerShell script{script_info} finished successfully."
+                        ));
+                        self.log_action("PowerShell", &format!("Execution success{script_info}"));
+                    } else {
+                        self.status = format!(
+                            "{} PowerShell script{script_info} failed with exit code: {code}",
+                            icons::X_CIRCLE
+                        );
+                        self.toasts.error(format!(
+                            "PowerShell script{script_info} failed with exit code: {code}"
+                        ));
+                        self.log_action(
+                            "PowerShell",
+                            &format!("Execution failure{script_info} (code: {code})"),
+                        );
                     }
                 }
-                self.test_rx = None;
+                Err(e) => {
+                    let script_info = self
+                        .running_ps_script_name
+                        .as_ref()
+                        .map(|n| format!(" '{n}'"))
+                        .unwrap_or_default();
+
+                    self.status = format!(
+                        "{} PowerShell{script_info} execution error: {e}",
+                        icons::X_CIRCLE
+                    );
+                    self.toasts
+                        .error(format!("PowerShell{script_info} execution error: {e}"));
+                    self.log_action("PowerShell", &format!("Execution error{script_info}: {e}"));
+                    crate::utils::push_error_log(&mut self.error_log, &e, "PowerShell");
+                }
             }
+            self.ps_rx = None;
+            self.running_ps_script_name = None;
+        }
+
+        if let Some(rx) = &self.test_rx
+            && let Ok(result) = rx.try_recv()
+        {
+            self.is_testing = false;
+            match result {
+                Ok(_) => {
+                    self.status = format!(
+                        "{} Database connection test successful!",
+                        icons::CHECK_CIRCLE
+                    );
+                    self.toasts.success("Database connection test successful!");
+                    self.log_action("Database", "Test connection success");
+                }
+                Err(e) => {
+                    self.status =
+                        format!("{} Database connection test failed: {e}", icons::X_CIRCLE);
+                    self.toasts
+                        .error(format!("Database connection test failed: {e}"));
+                    self.log_action("Database", "Test connection failure");
+                    crate::utils::push_error_log(&mut self.error_log, &e, "Database Test");
+                }
+            }
+            self.test_rx = None;
         }
     }
 
