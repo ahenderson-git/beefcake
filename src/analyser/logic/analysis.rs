@@ -14,7 +14,37 @@ use super::types::{
     TextStats,
 };
 
-pub type AnalysisReceiver = crossbeam_channel::Receiver<Result<AnalysisResponse>>;
+pub fn run_full_analysis(
+    df: DataFrame,
+    file_path: String,
+    file_size: u64,
+    trim_pct: f64,
+    start_time: std::time::Instant,
+) -> Result<AnalysisResponse> {
+    let summary = analyse_df(&df, trim_pct)?;
+    let health = super::health::calculate_file_health(&summary);
+    let correlation_matrix = calculate_correlation_matrix(&df)?;
+    let row_count = df.height();
+    let column_count = df.width();
+    let file_name = std::path::Path::new(&file_path)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Unknown")
+        .to_string();
+
+    Ok(AnalysisResponse {
+        file_name,
+        file_path,
+        file_size,
+        row_count,
+        column_count,
+        summary,
+        health,
+        duration: start_time.elapsed(),
+        df,
+        correlation_matrix,
+    })
+}
 
 pub fn load_df(path: &std::path::Path, progress: &Arc<AtomicU64>) -> Result<DataFrame> {
     let ext = path
@@ -269,144 +299,22 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         let mut expr = col(old_name);
 
         // 1. Basic Cleaning: Text operations (Must happen before casting)
-        if config.advanced_cleaning {
-            if config.trim_whitespace {
-                expr = expr.str().strip_chars(lit(Null {}));
-            }
-            if config.remove_special_chars {
-                expr = expr.str().replace_all(lit(r"[\r\x00-\x1F]"), lit(""), true);
-            }
-            if config.remove_non_ascii {
-                expr = expr.str().replace_all(lit(r"[^\x00-\x7F]"), lit(""), true);
-            }
-            if config.standardize_nulls {
-                let null_patterns = ["n/a", "null", "none", "-", "nan"];
-                let patterns_s = Series::new("p".into(), &null_patterns);
-                expr = when(expr.clone().str().to_lowercase().is_in(lit(patterns_s)))
-                    .then(lit(Null {}))
-                    .otherwise(expr);
-            }
-            if config.extract_numbers {
-                expr = expr
-                    .str()
-                    .replace_all(lit(r"[$,£€]"), lit(""), true)
-                    .str()
-                    .replace_all(lit(","), lit(""), true);
-            }
-            if !config.regex_find.is_empty() {
-                expr = expr.str().replace_all(
-                    lit(config.regex_find.as_str()),
-                    lit(config.regex_replace.as_str()),
-                    true,
-                );
-            }
-            match config.text_case {
-                TextCase::Lowercase => expr = expr.str().to_lowercase(),
-                TextCase::Uppercase => expr = expr.str().to_uppercase(),
-                TextCase::TitleCase | TextCase::None => {}
-            }
-        }
+        expr = apply_text_cleaning(expr, config);
 
         // 2. Change Datatypes
-        if let Some(kind) = config.target_dtype {
-            if kind == ColumnKind::Temporal && !config.temporal_format.is_empty() {
-                expr = expr.str().to_datetime(
-                    Some(PolarsTimeUnit::Microseconds),
-                    None,
-                    StrptimeOptions {
-                        format: Some(config.temporal_format.clone().into()),
-                        strict: false,
-                        cache: true,
-                        exact: true,
-                    },
-                    lit(Null {}),
-                );
-            } else {
-                let dtype = match kind {
-                    ColumnKind::Numeric => PolarsDataType::Float64,
-                    ColumnKind::Boolean => PolarsDataType::Boolean,
-                    ColumnKind::Temporal => {
-                        PolarsDataType::Datetime(PolarsTimeUnit::Microseconds, None)
-                    }
-                    _ => PolarsDataType::String,
-                };
-                expr = expr.cast(dtype);
-            }
-
-            if kind == ColumnKind::Temporal && config.timezone_utc {
-                expr = expr.dt().replace_time_zone(
-                    Some("UTC".into()),
-                    lit(Null {}),
-                    NonExistentStrategy::Null,
-                );
-            }
-        }
+        expr = apply_dtype_casting(expr, config);
 
         // 3. Imputation (After casting so that Numeric/Boolean specific logic works)
-        if config.ml_preprocessing {
-            match config.impute_mode {
-                ImputeMode::None => {}
-                ImputeMode::Zero => {
-                    expr = expr.fill_null(lit(0));
-                }
-                ImputeMode::Mean => {
-                    expr = expr.clone().fill_null(expr.clone().mean());
-                }
-                ImputeMode::Median => {
-                    expr = expr.clone().fill_null(expr.clone().median());
-                }
-                ImputeMode::Mode => {
-                    expr = expr.clone().fill_null(expr.clone().mode().first());
-                }
-            }
-        }
+        expr = apply_imputation(expr, config);
 
         // 4. Numeric Refinement (Rounding/Clipping)
-        if config.ml_preprocessing {
-            if let Some(decimals) = config.rounding {
-                expr = expr.round(decimals);
-            }
-            if config.clip_outliers {
-                let lower = expr
-                    .clone()
-                    .quantile(lit(0.05), PolarsQuantileMethod::Linear);
-                let upper = expr
-                    .clone()
-                    .quantile(lit(0.95), PolarsQuantileMethod::Linear);
-                expr = expr.clip(lower, upper);
-            }
-        }
+        expr = apply_numeric_refinement(expr, config);
 
         // 5. Normalization
-        if config.ml_preprocessing {
-            match config.normalization {
-                NormalizationMethod::None => {}
-                NormalizationMethod::ZScore => {
-                    let mean = expr.clone().mean();
-                    let std = expr.clone().std(1);
-                    expr = (expr - mean) / std;
-                }
-                NormalizationMethod::MinMax => {
-                    let min = expr.clone().min();
-                    let max = expr.clone().max();
-                    expr = (expr.clone() - min.clone()) / (max - min);
-                }
-            }
-        }
+        expr = apply_normalization(expr, config);
 
         // 6. Categorical Refinement
-        if config.ml_preprocessing
-            && let Some(threshold) = config.freq_threshold
-        {
-            expr = when(
-                expr.clone()
-                    .count()
-                    .over([col(old_name)])
-                    .lt(lit(threshold as u32)),
-            )
-            .then(lit("Other"))
-            .otherwise(expr);
-        }
+        expr = apply_categorical_refinement(expr, config, old_name);
 
         let needs_update =
             config.advanced_cleaning || config.target_dtype.is_some() || config.ml_preprocessing;
@@ -437,45 +345,228 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         lf = lf.rename(old_names, new_names, false);
     }
 
-    let mut result_df = lf
+    let result_df = lf
         .collect()
         .context("Failed to apply cleaning steps to DataFrame")?;
 
     // 6. One-Hot Encoding (Manual Implementation)
-    if !one_hot_cols.is_empty() {
-        for col_name in one_hot_cols {
-            let column = result_df
-                .column(&col_name)
-                .context("Failed to access column for One-Hot encoding")?
-                .as_materialized_series();
-            let s_str = column
-                .cast(&PolarsDataType::String)
-                .context("Failed to cast column to string for One-Hot encoding")?;
-            let s_str = s_str
-                .str()
-                .context("Failed to access string data for One-Hot encoding")?;
-            let unique_values = s_str
-                .unique()
-                .context("Failed to get unique values for One-Hot encoding")?;
+    apply_one_hot_encoding(result_df, one_hot_cols)
+}
 
-            for val in unique_values.into_iter().flatten() {
-                let dummy_col_name = format!("{col_name}_{val}");
-                let dummy_series = s_str
-                    .equal(val)
-                    .into_series()
-                    .cast(&PolarsDataType::Int32)
-                    .context("Failed to create binary series for One-Hot encoding")?;
-                result_df
-                    .with_column(Column::from(dummy_series).with_name(dummy_col_name.into()))
-                    .context("Failed to add One-Hot column to DataFrame")?;
-            }
-            result_df
-                .drop_in_place(&col_name)
-                .context("Failed to drop original column after One-Hot encoding")?;
-        }
+pub fn auto_clean_df(df: DataFrame) -> Result<DataFrame> {
+    let summaries = analyse_df(&df, 0.0).context("Failed to analyse dataframe for cleaning")?;
+    let mut configs = HashMap::new();
+    for summary in summaries {
+        let mut config = ColumnCleanConfig {
+            new_name: summary.name.clone(),
+            ..Default::default()
+        };
+        summary.apply_advice_to_config(&mut config);
+        configs.insert(summary.name.clone(), config);
+    }
+    clean_df(df, &configs).context("Failed to clean dataframe")
+}
+
+fn apply_text_cleaning(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+    if !config.advanced_cleaning {
+        return expr;
     }
 
-    Ok(result_df)
+    if config.trim_whitespace {
+        expr = expr.str().strip_chars(lit(Null {}));
+    }
+    if config.remove_special_chars {
+        expr = expr.str().replace_all(lit(r"[\r\x00-\x1F]"), lit(""), true);
+    }
+    if config.remove_non_ascii {
+        expr = expr.str().replace_all(lit(r"[^\x00-\x7F]"), lit(""), true);
+    }
+    if config.standardize_nulls {
+        let null_patterns = ["n/a", "null", "none", "-", "nan"];
+        let patterns_s = Series::new("p".into(), &null_patterns);
+        expr = when(expr.clone().str().to_lowercase().is_in(lit(patterns_s)))
+            .then(lit(Null {}))
+            .otherwise(expr);
+    }
+    if config.extract_numbers {
+        expr = expr
+            .str()
+            .replace_all(lit(r"[$,£€]"), lit(""), true)
+            .str()
+            .replace_all(lit(","), lit(""), true);
+    }
+    if !config.regex_find.is_empty() {
+        expr = expr.str().replace_all(
+            lit(config.regex_find.as_str()),
+            lit(config.regex_replace.as_str()),
+            true,
+        );
+    }
+    match config.text_case {
+        TextCase::Lowercase => expr = expr.str().to_lowercase(),
+        TextCase::Uppercase => expr = expr.str().to_uppercase(),
+        TextCase::TitleCase | TextCase::None => {}
+    }
+    expr
+}
+
+fn apply_dtype_casting(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+    let Some(kind) = config.target_dtype else {
+        return expr;
+    };
+
+    if kind == ColumnKind::Temporal && !config.temporal_format.is_empty() {
+        expr = expr.str().to_datetime(
+            Some(PolarsTimeUnit::Microseconds),
+            None,
+            StrptimeOptions {
+                format: Some(config.temporal_format.clone().into()),
+                strict: false,
+                cache: true,
+                exact: true,
+            },
+            lit(Null {}),
+        );
+    } else {
+        let dtype = match kind {
+            ColumnKind::Numeric => PolarsDataType::Float64,
+            ColumnKind::Boolean => PolarsDataType::Boolean,
+            ColumnKind::Temporal => PolarsDataType::Datetime(PolarsTimeUnit::Microseconds, None),
+            _ => PolarsDataType::String,
+        };
+        expr = expr.cast(dtype);
+    }
+
+    if kind == ColumnKind::Temporal && config.timezone_utc {
+        expr = expr.dt().replace_time_zone(
+            Some("UTC".into()),
+            lit(Null {}),
+            NonExistentStrategy::Null,
+        );
+    }
+    expr
+}
+
+fn apply_imputation(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+    if !config.ml_preprocessing {
+        return expr;
+    }
+
+    match config.impute_mode {
+        ImputeMode::None => {}
+        ImputeMode::Zero => {
+            expr = expr.fill_null(lit(0));
+        }
+        ImputeMode::Mean => {
+            expr = expr.clone().fill_null(expr.clone().mean());
+        }
+        ImputeMode::Median => {
+            expr = expr.clone().fill_null(expr.clone().median());
+        }
+        ImputeMode::Mode => {
+            expr = expr.clone().fill_null(expr.clone().mode().first());
+        }
+    }
+    expr
+}
+
+fn apply_numeric_refinement(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+    if !config.ml_preprocessing {
+        return expr;
+    }
+
+    if let Some(decimals) = config.rounding {
+        expr = expr.round(decimals);
+    }
+    if config.clip_outliers {
+        let lower = expr
+            .clone()
+            .quantile(lit(0.05), PolarsQuantileMethod::Linear);
+        let upper = expr
+            .clone()
+            .quantile(lit(0.95), PolarsQuantileMethod::Linear);
+        expr = expr.clip(lower, upper);
+    }
+    expr
+}
+
+fn apply_normalization(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+    if !config.ml_preprocessing {
+        return expr;
+    }
+
+    match config.normalization {
+        NormalizationMethod::None => {}
+        NormalizationMethod::ZScore => {
+            let mean = expr.clone().mean();
+            let std = expr.clone().std(1);
+            expr = (expr - mean) / std;
+        }
+        NormalizationMethod::MinMax => {
+            let min = expr.clone().min();
+            let max = expr.clone().max();
+            expr = (expr.clone() - min.clone()) / (max - min);
+        }
+    }
+    expr
+}
+
+fn apply_categorical_refinement(mut expr: Expr, config: &ColumnCleanConfig, old_name: &str) -> Expr {
+    if config.ml_preprocessing
+        && let Some(threshold) = config.freq_threshold
+    {
+        expr = when(
+            expr.clone()
+                .count()
+                .over([col(old_name)])
+                .lt(lit(threshold as u32)),
+        )
+        .then(lit("Other"))
+        .otherwise(expr);
+    }
+    expr
+}
+
+fn apply_one_hot_encoding(mut df: DataFrame, one_hot_cols: Vec<String>) -> Result<DataFrame> {
+    let mut new_columns = Vec::new();
+    let mut cols_to_drop = Vec::new();
+
+    for col_name in one_hot_cols {
+        let column = df
+            .column(&col_name)
+            .context("Failed to access column for One-Hot encoding")?
+            .as_materialized_series();
+        let s_str = column
+            .cast(&PolarsDataType::String)
+            .context("Failed to cast column to string for One-Hot encoding")?;
+        let s_str = s_str
+            .str()
+            .context("Failed to access string data for One-Hot encoding")?;
+        let unique_values = s_str
+            .unique()
+            .context("Failed to get unique values for One-Hot encoding")?;
+
+        for val in unique_values.into_iter().flatten() {
+            let dummy_col_name = format!("{col_name}_{val}");
+            let dummy_series = s_str
+                .equal(val)
+                .into_series()
+                .cast(&PolarsDataType::Int32)
+                .context("Failed to create binary series for One-Hot encoding")?;
+            new_columns.push(Column::from(dummy_series).with_name(dummy_col_name.into()));
+        }
+        cols_to_drop.push(col_name);
+    }
+
+    if !new_columns.is_empty() {
+        df.hstack_mut(&new_columns)?;
+    }
+
+    for col_name in cols_to_drop {
+        df.drop_in_place(&col_name)?;
+    }
+
+    Ok(df)
 }
 
 fn analyse_boolean(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
@@ -737,6 +828,8 @@ fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
     let max_ts = ts_ca.max();
 
     let p05 = ts_ca.quantile(0.05, PolarsQuantileMethod::Linear)?;
+    let q1 = ts_ca.quantile(0.25, PolarsQuantileMethod::Linear)?;
+    let q3 = ts_ca.quantile(0.75, PolarsQuantileMethod::Linear)?;
     let p95 = ts_ca.quantile(0.95, PolarsQuantileMethod::Linear)?;
 
     let is_sorted = series.is_sorted(SortOptions {
@@ -748,49 +841,15 @@ fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
         ..Default::default()
     })?;
 
-    let mut histogram = Vec::new();
-    let mut final_bin_width = 1.0;
-
-    if let (Some(min_v), Some(max_v)) = (min_ts, max_ts) {
-        let n = ts_ca.len() - ts_ca.null_count();
-        if n > 0 {
-            let mut bin_width = (max_v - min_v) as f64 / 50.0;
-            if bin_width <= 0.0 {
-                bin_width = 1.0;
-            }
-
-            if min_v < max_v {
-                let mut bin_counts: HashMap<i64, usize> = HashMap::new();
-                for val in ts_ca.into_iter().flatten() {
-                    let b = ((val - min_v) as f64 / bin_width).floor() as i64;
-                    *bin_counts.entry(b).or_insert(0) += 1;
-                }
-
-                while bin_counts.len() > 1000 {
-                    bin_width *= 2.0;
-                    let mut new_counts = HashMap::new();
-                    #[expect(clippy::iter_over_hash_type)]
-                    for (b, count) in bin_counts {
-                        let new_b = if b >= 0 { b / 2 } else { (b - 1) / 2 };
-                        *new_counts.entry(new_b).or_insert(0) += count;
-                    }
-                    bin_counts = new_counts;
-                }
-
-                final_bin_width = bin_width;
-                #[expect(clippy::iter_over_hash_type)]
-                for (b, count) in bin_counts {
-                    let center = min_v as f64 + (b as f64 + 0.5) * bin_width;
-                    histogram.push((center, count));
-                }
-                histogram
-                    .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-            } else {
-                final_bin_width = 1.0;
-                histogram.push((min_v as f64, n));
-            }
-        }
-    }
+    let f64_ts = ts_ca.cast(&PolarsDataType::Float64)?;
+    let f64_ts_ca = f64_ts.f64()?;
+    let (final_bin_width, histogram) = calculate_histogram(
+        f64_ts_ca,
+        min_ts.map(|v| v as f64),
+        max_ts.map(|v| v as f64),
+        q1,
+        q3,
+    );
 
     Ok((
         ColumnKind::Temporal,

@@ -3,7 +3,7 @@ use linfa::prelude::*;
 use linfa_linear::LinearRegression;
 use linfa_logistic::LogisticRegression;
 use linfa_trees::DecisionTree;
-use ndarray::{Array1, Array2};
+use ndarray::Array1;
 use polars::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -55,25 +55,13 @@ pub fn train_model(
         ));
     }
 
-    let mut feature_data = vec![0.0; df.height() * feature_cols.len()];
-    let n_features = feature_cols.len();
-    for (col_idx, name) in feature_cols.iter().enumerate() {
-        let col = df
-            .column(name)
-            .context("Feature column missing")?
-            .as_materialized_series()
-            .cast(&DataType::Float64)?;
-        let ca = col.f64()?;
-        for (row_idx, val) in ca.into_iter().enumerate() {
-            if let Some(v) = val
-                && let Some(slot) = feature_data.get_mut(row_idx * n_features + col_idx)
-            {
-                *slot = v;
-            }
-        }
-    }
-
-    let x = Array2::from_shape_vec((df.height(), feature_cols.len()), feature_data)
+    let x = df.select(&feature_cols)?
+        .iter()
+        .map(|s| s.cast(&DataType::Float64).map(Column::from))
+        .collect::<PolarsResult<Vec<_>>>()
+        .map(DataFrame::new)?
+        .map_err(|e| anyhow!("Failed to cast features: {e}"))?
+        .to_ndarray::<Float64Type>(IndexOrder::C)
         .context("Failed to create feature matrix")?;
     progress.store(60, Ordering::SeqCst);
 

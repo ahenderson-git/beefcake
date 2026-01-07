@@ -8,14 +8,35 @@ pub struct CorrelationMatrix {
     pub data: Vec<Vec<f64>>,
 }
 
+#[derive(Serialize)]
 pub struct AnalysisResponse {
+    pub file_name: String,
     pub file_path: String,
     pub file_size: u64,
+    pub row_count: usize,
+    pub column_count: usize,
     pub summary: Vec<ColumnSummary>,
     pub health: FileHealth,
+    #[serde(with = "duration_serde", rename = "analysis_duration")]
     pub duration: std::time::Duration,
+    #[serde(skip)]
     pub df: DataFrame,
     pub correlation_matrix: Option<CorrelationMatrix>,
+}
+
+mod duration_serde {
+    use serde::{ser::SerializeStruct, Serializer};
+    use std::time::Duration;
+
+    pub fn serialize<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Duration", 2)?;
+        state.serialize_field("secs", &duration.as_secs())?;
+        state.serialize_field("nanos", &duration.subsec_nanos())?;
+        state.end()
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize, Debug)]

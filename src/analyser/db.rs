@@ -2,7 +2,7 @@ use crate::analyser::logic::{ColumnSummary, FileHealth};
 use anyhow::{Context as _, Result};
 use polars::prelude::*;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use sqlx::{Pool, Postgres, QueryBuilder};
+use sqlx::{Pool, Postgres};
 
 pub struct DbClient {
     pool: Pool<Postgres>,
@@ -183,133 +183,32 @@ impl DbClient {
             .await
             .context(format!("Failed to create data table '{full_identifier}'"))?;
 
-        // Batch insert data using QueryBuilder
-        let batch_size = 1000;
-        let column_names: Vec<String> = schema.iter().map(|(n, _)| n.to_string()).collect();
+        // Fast data transfer using PostgreSQL COPY
+        let mut conn = self.pool.acquire().await?;
 
-        for chunk_start in (0..df.height()).step_by(batch_size) {
-            let chunk_end = (chunk_start + batch_size).min(df.height());
-            let mut query_builder: QueryBuilder<'_, Postgres> =
-                QueryBuilder::new(format!("INSERT INTO {full_identifier} ("));
+        let mut buf = Vec::new();
+        CsvWriter::new(&mut buf)
+            .include_header(false)
+            .with_separator(b',')
+            .with_null_value("".to_owned())
+            .finish(&mut df.clone())
+            .context("Failed to serialize dataframe to CSV for COPY")?;
 
-            for (i, name) in column_names.iter().enumerate() {
-                query_builder.push(quote(name));
-                if i < column_names.len() - 1 {
-                    query_builder.push(", ");
-                }
-            }
-            query_builder.push(") ");
+        let mut writer = conn
+            .copy_in_raw(&format!(
+                "COPY {full_identifier} FROM STDIN WITH (FORMAT csv, NULL '')"
+            ))
+            .await
+            .context("Failed to initiate COPY command")?;
 
-            query_builder.push_values(chunk_start..chunk_end, |mut b, row_idx| {
-                for col_idx in 0..df.width() {
-                    let series = df
-                        .get_columns()
-                        .get(col_idx)
-                        .expect("col_idx is within bounds");
-                    let val = series.get(row_idx).unwrap_or(AnyValue::Null);
-
-                    match val {
-                        AnyValue::Int8(v) => {
-                            b.push_bind(v as i64);
-                        }
-                        AnyValue::Int16(v) => {
-                            b.push_bind(v as i64);
-                        }
-                        AnyValue::Int32(v) => {
-                            b.push_bind(v as i64);
-                        }
-                        AnyValue::Int64(v) => {
-                            b.push_bind(v);
-                        }
-                        AnyValue::UInt8(v) => {
-                            b.push_bind(v as i64);
-                        }
-                        AnyValue::UInt16(v) => {
-                            b.push_bind(v as i64);
-                        }
-                        AnyValue::UInt32(v) => {
-                            b.push_bind(v as i64);
-                        }
-                        AnyValue::UInt64(v) => {
-                            b.push_bind(v as i64);
-                        }
-                        AnyValue::Float32(v) => {
-                            b.push_bind(v as f64);
-                        }
-                        AnyValue::Float64(v) => {
-                            b.push_bind(v);
-                        }
-                        AnyValue::String(v) => {
-                            b.push_bind(v);
-                        }
-                        AnyValue::StringOwned(v) => {
-                            b.push_bind(v.to_string());
-                        }
-                        AnyValue::Boolean(v) => {
-                            b.push_bind(v);
-                        }
-                        AnyValue::Date(v) => {
-                            let date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1)
-                                .expect("1970-01-01 is a valid date")
-                                + chrono::TimeDelta::try_days(v as i64).unwrap_or_default();
-                            b.push_bind(date);
-                        }
-                        AnyValue::Datetime(v, tu, _) => {
-                            let dt = match tu {
-                                TimeUnit::Nanoseconds => chrono::DateTime::from_timestamp(
-                                    v / 1_000_000_000,
-                                    (v % 1_000_000_000) as u32,
-                                ),
-                                TimeUnit::Microseconds => chrono::DateTime::from_timestamp(
-                                    v / 1_000_000,
-                                    ((v % 1_000_000) * 1000) as u32,
-                                ),
-                                TimeUnit::Milliseconds => chrono::DateTime::from_timestamp(
-                                    v / 1000,
-                                    ((v % 1000) * 1_000_000) as u32,
-                                ),
-                            };
-                            b.push_bind(dt);
-                        }
-                        AnyValue::Null => match series.dtype() {
-                            DataType::Int8
-                            | DataType::Int16
-                            | DataType::Int32
-                            | DataType::Int64
-                            | DataType::UInt8
-                            | DataType::UInt16
-                            | DataType::UInt32
-                            | DataType::UInt64 => {
-                                b.push_bind(None::<i64>);
-                            }
-                            DataType::Float32 | DataType::Float64 => {
-                                b.push_bind(None::<f64>);
-                            }
-                            DataType::Boolean => {
-                                b.push_bind(None::<bool>);
-                            }
-                            DataType::Date => {
-                                b.push_bind(None::<chrono::NaiveDate>);
-                            }
-                            DataType::Datetime(_, _) => {
-                                b.push_bind(None::<chrono::DateTime<chrono::Utc>>);
-                            }
-                            _ => {
-                                b.push_bind(None::<String>);
-                            }
-                        },
-                        _ => {
-                            b.push_bind(val.to_string());
-                        }
-                    }
-                }
-            });
-
-            let query = query_builder.build();
-            query.execute(&self.pool).await.context(format!(
-                "Failed to insert batch starting at row {chunk_start} into '{full_identifier}'"
-            ))?;
-        }
+        writer
+            .send(buf)
+            .await
+            .context("Failed to send data via COPY")?;
+        writer
+            .finish()
+            .await
+            .context("Failed to finish COPY command")?;
 
         Ok(())
     }

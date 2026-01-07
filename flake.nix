@@ -1,5 +1,5 @@
 {
-  description = "eframe devShell";
+  description = "beefcake devShell";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -17,7 +17,6 @@
           buildInputs = [
             # Rust
             rust-bin.stable.latest.default
-            trunk
 
             # misc. libraries
             openssl

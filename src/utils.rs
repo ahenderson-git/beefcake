@@ -1,8 +1,13 @@
-use eframe::egui;
-use egui_phosphor::regular as icons;
 use regex::Regex;
+use secrecy::SecretString;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use tokio::runtime::Runtime;
+use chrono::Local;
+
+pub const DATA_INPUT_DIR: &str = "data/input";
+pub const DATA_PROCESSED_DIR: &str = "data/processed";
 
 pub static TOKIO_RUNTIME: LazyLock<Runtime> =
     LazyLock::new(|| Runtime::new().expect("Failed to create Tokio runtime"));
@@ -16,99 +21,102 @@ pub fn strip_ansi(input: &str) -> String {
     ANSI_RE.replace_all(input, "").into_owned()
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub struct AuditEntry {
-    pub timestamp: chrono::DateTime<chrono::Local>,
-    pub action: String,
-    pub details: String,
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct DbConnection {
+    pub id: String,
+    pub name: String,
+    pub settings: DbSettings,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Default)]
+pub struct AppConfig {
+    pub connections: Vec<DbConnection>,
+    pub active_import_id: Option<String>,
+    pub active_export_id: Option<String>,
+}
+
+pub fn get_config_path() -> PathBuf {
+    dirs::home_dir()
+        .map(|p| p.join(".beefcake_config.json"))
+        .unwrap_or_else(|| PathBuf::from("beefcake_config.json"))
+}
+
+pub fn load_app_config() -> AppConfig {
+    let path = get_config_path();
+    if let Ok(content) = fs::read_to_string(path) {
+        serde_json::from_str(&content).unwrap_or_default()
+    } else {
+        AppConfig::default()
+    }
+}
+
+pub fn save_app_config(config: &AppConfig) -> anyhow::Result<()> {
+    let path = get_config_path();
+    let content = serde_json::to_string_pretty(config)?;
+    fs::write(path, content)?;
+    Ok(())
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
-pub struct DetailedError {
-    pub timestamp: chrono::DateTime<chrono::Local>,
-    pub task: String,
-    pub message: String,
-    pub chain: Vec<String>,
-    pub suggestions: Vec<String>,
+pub struct DbSettings {
+    pub db_type: String,
+    pub host: String,
+    pub port: String,
+    pub user: String,
+    #[serde(
+        serialize_with = "serialize_password",
+        deserialize_with = "deserialize_password"
+    )]
+    pub password: SecretString,
+    pub database: String,
+    pub schema: String,
+    pub table: String,
 }
 
-pub fn get_error_diagnostics(err: &anyhow::Error, task: &str) -> DetailedError {
-    let mut chain = Vec::new();
-    for cause in err.chain().skip(1) {
-        chain.push(cause.to_string());
-    }
+fn serialize_password<S>(password: &SecretString, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use secrecy::ExposeSecret as _;
+    serializer.serialize_str(password.expose_secret())
+}
 
-    let message = err.to_string();
-    let suggestions = generate_suggestions(&message, &chain);
+fn deserialize_password<'de, D>(deserializer: D) -> Result<SecretString, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize as _;
+    let s = String::deserialize(deserializer)?;
+    Ok(SecretString::from(s))
+}
 
-    DetailedError {
-        timestamp: chrono::Local::now(),
-        task: task.to_owned(),
-        message,
-        chain,
-        suggestions,
+impl Default for DbSettings {
+    fn default() -> Self {
+        Self {
+            db_type: "postgres".to_owned(),
+            host: "localhost".to_owned(),
+            port: "5432".to_owned(),
+            user: "postgres".to_owned(),
+            password: SecretString::default(),
+            database: String::new(),
+            schema: "public".to_owned(),
+            table: String::new(),
+        }
     }
 }
 
-fn generate_suggestions(message: &str, chain: &[String]) -> Vec<String> {
-    let mut suggestions = Vec::new();
-    let full_text = format!("{} {}", message, chain.join(" ")).to_lowercase();
-
-    if full_text.contains("connection refused")
-        || full_text.contains("timeout")
-        || full_text.contains("no such host")
-    {
-        suggestions.push("Check if the database server is running and reachable.".to_owned());
-        suggestions.push("Verify your host, port, and firewall settings.".to_owned());
+impl DbSettings {
+    pub fn connection_string(&self) -> String {
+        use secrecy::ExposeSecret as _;
+        format!(
+            "postgres://{}:{}@{}:{}/{}",
+            self.user,
+            self.password.expose_secret(),
+            self.host,
+            self.port,
+            self.database
+        )
     }
-    if full_text.contains("authentication failed")
-        || full_text.contains("password")
-        || full_text.contains("role")
-    {
-        suggestions.push("Double-check your database username and password.".to_owned());
-        suggestions.push(
-            "Ensure the user has sufficient permissions for the target database/schema.".to_owned(),
-        );
-    }
-    if full_text.contains("one-hot")
-        || full_text.contains("categorical")
-        || full_text.contains("float")
-    {
-        suggestions.push(
-            "Try applying One-Hot encoding to your categorical columns before training.".to_owned(),
-        );
-        suggestions.push(
-            "Ensure there are no unexpected non-numeric values in numeric columns.".to_owned(),
-        );
-    }
-    if full_text.contains("csv") && (full_text.contains("parse") || full_text.contains("delimiter"))
-    {
-        suggestions.push(
-            "Check if the CSV file has a valid header and consistent column count.".to_owned(),
-        );
-        suggestions.push(
-            "Verify the delimiter (comma, semicolon, etc.) is correctly detected.".to_owned(),
-        );
-    }
-    if full_text.contains("parquet") {
-        suggestions
-            .push("The Parquet file might be corrupted or in an unsupported version.".to_owned());
-    }
-    if full_text.contains("memory") || full_text.contains("allocation") {
-        suggestions
-            .push("The dataset might be too large for the available system memory.".to_owned());
-        suggestions
-            .push("Try closing other applications or using a machine with more RAM.".to_owned());
-    }
-
-    if suggestions.is_empty() {
-        suggestions.push(
-            "Consult the application logs or search for the error message online for more details."
-                .to_owned(),
-        );
-    }
-
-    suggestions
 }
 
 /// Formats an optional f64 to 4 decimal places, or returns "—" if None or non-finite.
@@ -150,51 +158,6 @@ pub fn fmt_num_human(num: usize) -> String {
     }
 }
 
-/// Renders a colored status message based on its content.
-pub fn render_status_message(ui: &mut egui::Ui, status: &str) {
-    if status.is_empty() {
-        return;
-    }
-
-    let color = if status.contains("failed")
-        || status.contains("Error")
-        || status.contains("❌")
-        || status.contains(icons::X_CIRCLE)
-    {
-        egui::Color32::RED
-    } else if status.contains("successful")
-        || status.contains("Successfully")
-        || status.contains("✅")
-        || status.contains(icons::CHECK_CIRCLE)
-        || status.contains("saved")
-        || status.contains("loaded")
-        || status.contains("deleted")
-    {
-        egui::Color32::from_rgb(129, 178, 154)
-    } else {
-        ui.visuals().text_color()
-    };
-
-    ui.label(egui::RichText::new(status).color(color).strong());
-}
-
-/// Helper to push a new entry to an audit log.
-pub fn push_audit_log(log: &mut Vec<AuditEntry>, action: &str, details: &str) {
-    log.push(AuditEntry {
-        timestamp: chrono::Local::now(),
-        action: action.to_owned(),
-        details: details.to_owned(),
-    });
-}
-
-/// Helper to push a new entry to an error diagnostics log.
-pub fn push_error_log(log: &mut Vec<DetailedError>, err: &anyhow::Error, task: &str) {
-    log.push(get_error_diagnostics(err, task));
-    if log.len() > 50 {
-        log.remove(0);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -220,4 +183,25 @@ mod tests {
         let input2 = "Normal text \x1b[32mGreen\x1b[0m and \x1b[1mBold\x1b[0m";
         assert_eq!(strip_ansi(input2), "Normal text Green and Bold");
     }
+}
+
+pub fn archive_processed_file(file_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
+    let original = file_path.as_ref();
+    let processed_dir = Path::new(DATA_PROCESSED_DIR);
+
+    // Ensure directory exists
+    fs::create_dir_all(processed_dir)?;
+
+    // Create new filename: YYYYMMDD_HHMMSS_filename.ext
+    let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let filename = original
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("Invalid file name"))?
+        .to_string_lossy();
+
+    let destination = processed_dir.join(format!("{}_{}", timestamp, filename));
+
+    // Move the file
+    fs::rename(original, &destination)?;
+    Ok(destination)
 }
