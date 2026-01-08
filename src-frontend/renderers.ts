@@ -1,4 +1,4 @@
-import { AnalysisResponse, AppConfig, ColumnSummary, View } from "./types";
+import { AnalysisResponse, AppConfig, ColumnCleanConfig, ColumnSummary, View } from "./types";
 import { escapeHtml, fmtBytes, fmtDuration } from "./utils";
 
 export function renderDashboardView(state: any): string {
@@ -8,6 +8,41 @@ export function renderDashboardView(state: any): string {
         <h1>beefcake <small>v0.1.0</small></h1>
         <p>Advanced Data Analysis & ETL Pipeline</p>
       </div>
+      <div class="info-box">
+        <div class="info-section">
+          <h3>What is beefcake?</h3>
+          <p>
+            <strong>beefcake</strong> (v0.1.0) is a high-performance desktop application designed as an 
+            <strong>Advanced Data Analysis and ETL (Extract, Transform, Load) Pipeline</strong>. 
+            Built with <strong>Tauri</strong>, it leverages the speed of <strong>Rust</strong> and <strong>Polars</strong> 
+            to provide a robust environment for inspecting, cleaning, and moving data from local files into production-ready databases.
+          </p>
+        </div>
+        
+        <div class="info-grid">
+          <div class="info-item">
+            <strong><i class="ph ph-stethoscope"></i> Data Profiling</strong>
+            <span>Automatic health scores, risk identification, and detailed column statistics.</span>
+          </div>
+          <div class="info-item">
+            <strong><i class="ph ph-magic-wand"></i> Smart Cleaning</strong>
+            <span>Interactive tools for normalization, imputation, case conversion, and encoding.</span>
+          </div>
+          <div class="info-item">
+            <strong><i class="ph ph-database"></i> Seamless ETL</strong>
+            <span>Push cleaned data directly to PostgreSQL with high-speed COPY commands.</span>
+          </div>
+          <div class="info-item">
+            <strong><i class="ph ph-brain"></i> ML Insights</strong>
+            <span>Train predictive models (Regression, Trees) directly on your analyzed datasets.</span>
+          </div>
+        </div>
+        
+        <div class="info-footer">
+          <p><i class="ph ph-terminal-window"></i> <strong>Technical Foundation:</strong> High-performance processing powered by Rust & Polars DataFrames.</p>
+        </div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card">
           <h3>Local Storage</h3>
@@ -38,10 +73,19 @@ export function renderDashboardView(state: any): string {
 }
 
 export function renderAnalyserHeader(response: AnalysisResponse, trimPct: number): string {
+  const healthScore = Math.round(response.health.score * 100);
+  const healthClass = healthScore > 80 ? 'ok' : (healthScore > 50 ? 'warn' : 'error');
+
   return `
     <div class="analyser-header">
       <div class="file-info">
-        <h2>${escapeHtml(response.file_name)}</h2>
+        <div class="title-row">
+          <h2>${escapeHtml(response.file_name)}</h2>
+          <div class="health-score-badge ${healthClass}" title="${response.health.risks.join('\n')}">
+            <i class="ph ph-heartbeat"></i>
+            Health: ${healthScore}%
+          </div>
+        </div>
         <div class="meta-tags">
           <span class="tag">${fmtBytes(response.file_size)}</span>
           <span class="tag">${response.row_count.toLocaleString()} rows</span>
@@ -63,12 +107,73 @@ export function renderAnalyserHeader(response: AnalysisResponse, trimPct: number
   `;
 }
 
-export function renderAnalyser(response: AnalysisResponse, expandedRows: Set<string>): string {
+export function renderAnalyser(response: AnalysisResponse, expandedRows: Set<string>, configs: Map<string, ColumnCleanConfig>): string {
+  const allActive = Array.from(configs.values()).every(c => c.active !== false);
+
   return `
     <div class="analyser-view">
       <div id="analyser-header-container"></div>
-      <div class="summary-grid">
-        ${response.summary.map(col => renderSummaryCard(col, expandedRows.has(col.name))).join('')}
+      <div class="table-container">
+        <table class="analyser-table">
+          <thead>
+            <tr>
+              <th class="col-active">
+                <input type="checkbox" class="header-action" data-action="active-all" title="Toggle all active" ${allActive ? 'checked' : ''}>
+              </th>
+              <th class="col-name">Column</th>
+              <th class="col-stats">Stats</th>
+              <th class="col-impute">
+                Imputation
+                <select class="header-action" data-action="impute-all">
+                  <option value="">Set all...</option>
+                  <option value="None">None</option>
+                  <option value="Mean">Mean</option>
+                  <option value="Median">Median</option>
+                  <option value="Zero">Zero</option>
+                  <option value="Mode">Mode</option>
+                </select>
+              </th>
+              <th class="col-round">
+                Rounding
+                <select class="header-action" data-action="round-all">
+                  <option value="">Set all...</option>
+                  <option value="none">None</option>
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                </select>
+              </th>
+              <th class="col-norm">
+                Normalization
+                <select class="header-action" data-action="norm-all">
+                  <option value="">Set all...</option>
+                  <option value="None">None</option>
+                  <option value="ZScore">Z-Score</option>
+                  <option value="MinMax">Min-Max</option>
+                </select>
+              </th>
+              <th class="col-case">
+                Case
+                <select class="header-action" data-action="case-all">
+                  <option value="">Set all...</option>
+                  <option value="None">None</option>
+                  <option value="Lowercase">Lower</option>
+                  <option value="Uppercase">Upper</option>
+                  <option value="TitleCase">Title</option>
+                </select>
+              </th>
+              <th class="col-onehot">
+                One-Hot
+                <input type="checkbox" class="header-action" data-action="onehot-all" title="Toggle all">
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            ${response.summary.map(col => renderAnalyserRow(col, expandedRows.has(col.name), configs.get(col.name))).join('')}
+          </tbody>
+        </table>
       </div>
     </div>
   `;
@@ -84,39 +189,90 @@ export function renderEmptyAnalyser(): string {
   `;
 }
 
-export function renderSummaryCard(col: ColumnSummary, isExpanded: boolean): string {
+export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, config?: ColumnCleanConfig): string {
   const nullPct = ((col.nulls / col.count) * 100).toFixed(1);
   const healthClass = col.nulls > col.count * 0.1 ? 'warn' : 'ok';
 
   let statsHtml = '';
   if (col.stats.Numeric) {
     const s = col.stats.Numeric;
-    statsHtml = `
-      <div class="stats-mini">
-        <span>Min: ${s.min?.toFixed(2) ?? '—'}</span>
-        <span>Max: ${s.max?.toFixed(2) ?? '—'}</span>
-        <span>Mean: ${s.mean?.toFixed(2) ?? '—'}</span>
-      </div>
-    `;
+    statsHtml = `Min: ${s.min?.toFixed(2) ?? '—'} Max: ${s.max?.toFixed(2) ?? '—'} Mean: ${s.mean?.toFixed(2) ?? '—'}`;
   } else if (col.stats.Categorical) {
-    statsHtml = `<div class="stats-mini">Categorical (${Object.keys(col.stats.Categorical).length} unique)</div>`;
+    statsHtml = `Categorical (${Object.keys(col.stats.Categorical).length} unique)`;
   } else if (col.stats.Temporal) {
-    statsHtml = `<div class="stats-mini">Temporal Range: ${col.stats.Temporal.min} - ${col.stats.Temporal.max}</div>`;
+    statsHtml = `Range: ${col.stats.Temporal.min} - ${col.stats.Temporal.max}`;
+  } else if (col.stats.Boolean) {
+    const s = col.stats.Boolean;
+    statsHtml = `True: ${s.true_count} False: ${s.false_count}`;
+  } else if (col.stats.Text) {
+    const s = col.stats.Text;
+    statsHtml = `Avg Len: ${s.avg_length.toFixed(1)}`;
   }
 
+  const c = config || {} as ColumnCleanConfig;
+  const isActive = c.active !== false;
+
   return `
-    <div class="summary-card ${isExpanded ? 'expanded' : ''}" data-col="${escapeHtml(col.name)}">
-      <div class="card-header">
-        <div class="col-name">
-          <i class="ph ph-caret-${isExpanded ? 'down' : 'right'}"></i>
+    <tr class="analyser-row ${isExpanded ? 'expanded' : ''} ${isActive ? '' : 'inactive'}" data-col="${escapeHtml(col.name)}">
+      <td class="col-active">
+        <input type="checkbox" class="row-action" data-col="${escapeHtml(col.name)}" data-prop="active" ${isActive ? 'checked' : ''}>
+      </td>
+      <td class="col-name">
+        <div class="name-wrapper">
+          <i class="ph ph-caret-${isExpanded ? 'down' : 'right'} expand-toggle"></i>
           <strong>${col.name}</strong>
           <span class="kind-tag">${col.kind}</span>
         </div>
-        ${statsHtml}
+      </td>
+      <td class="col-stats">
+        <div class="stats-mini">${statsHtml}</div>
         <div class="health-tag ${healthClass}">${nullPct}% nulls</div>
-      </div>
-      ${isExpanded ? renderExpandedDetails(col) : ''}
-    </div>
+      </td>
+      <td class="col-impute">
+        <select class="row-action" data-col="${escapeHtml(col.name)}" data-prop="impute_mode" ${isActive ? '' : 'disabled'}>
+          <option value="None" ${c.impute_mode === 'None' ? 'selected' : ''}>None</option>
+          <option value="Mean" ${c.impute_mode === 'Mean' ? 'selected' : ''}>Mean</option>
+          <option value="Median" ${c.impute_mode === 'Median' ? 'selected' : ''}>Median</option>
+          <option value="Zero" ${c.impute_mode === 'Zero' ? 'selected' : ''}>Zero</option>
+          <option value="Mode" ${c.impute_mode === 'Mode' ? 'selected' : ''}>Mode</option>
+        </select>
+      </td>
+      <td class="col-round">
+        <select class="row-action" data-col="${escapeHtml(col.name)}" data-prop="rounding" ${isActive ? '' : 'disabled'}>
+          <option value="none" ${c.rounding === null ? 'selected' : ''}>None</option>
+          <option value="0" ${c.rounding === 0 ? 'selected' : ''}>0</option>
+          <option value="1" ${c.rounding === 1 ? 'selected' : ''}>1</option>
+          <option value="2" ${c.rounding === 2 ? 'selected' : ''}>2</option>
+          <option value="3" ${c.rounding === 3 ? 'selected' : ''}>3</option>
+          <option value="4" ${c.rounding === 4 ? 'selected' : ''}>4</option>
+        </select>
+      </td>
+      <td class="col-norm">
+        <select class="row-action" data-col="${escapeHtml(col.name)}" data-prop="normalization" ${isActive ? '' : 'disabled'}>
+          <option value="None" ${c.normalization === 'None' ? 'selected' : ''}>None</option>
+          <option value="ZScore" ${c.normalization === 'ZScore' ? 'selected' : ''}>Z-Score</option>
+          <option value="MinMax" ${c.normalization === 'MinMax' ? 'selected' : ''}>Min-Max</option>
+        </select>
+      </td>
+      <td class="col-case">
+        <select class="row-action" data-col="${escapeHtml(col.name)}" data-prop="text_case" ${isActive ? '' : 'disabled'}>
+          <option value="None" ${c.text_case === 'None' ? 'selected' : ''}>None</option>
+          <option value="Lowercase" ${c.text_case === 'Lowercase' ? 'selected' : ''}>Lower</option>
+          <option value="Uppercase" ${c.text_case === 'Uppercase' ? 'selected' : ''}>Upper</option>
+          <option value="TitleCase" ${c.text_case === 'TitleCase' ? 'selected' : ''}>Title</option>
+        </select>
+      </td>
+      <td class="col-onehot">
+        <input type="checkbox" class="row-action" data-col="${escapeHtml(col.name)}" data-prop="one_hot_encode" ${c.one_hot_encode ? 'checked' : ''} ${isActive ? '' : 'disabled'}>
+      </td>
+    </tr>
+    ${isExpanded ? `
+      <tr class="details-row ${isActive ? '' : 'inactive'}">
+        <td colspan="8">
+          ${renderExpandedDetails(col)}
+        </td>
+      </tr>
+    ` : ''}
   `;
 }
 
@@ -126,23 +282,59 @@ function renderExpandedDetails(col: ColumnSummary): string {
   if (col.stats.Numeric) {
     const s = col.stats.Numeric;
     detailsHtml = `
-      <div class="details-grid">
-        <div class="detail-item">
-          <label>Std Dev</label>
-          <span>${s.std_dev?.toFixed(4) ?? '—'}</span>
+      <div class="details-grid-wrapper">
+        <div class="details-grid">
+          <div class="detail-item">
+            <label>Std Dev</label>
+            <span>${s.std_dev?.toFixed(4) ?? '—'}</span>
+          </div>
+          <div class="detail-item">
+            <label>Skew</label>
+            <span>${s.skew?.toFixed(4) ?? '—'}</span>
+          </div>
+          <div class="detail-item">
+            <label>P05 / P95</label>
+            <span>${s.p05?.toFixed(2) ?? '—'} / ${s.p95?.toFixed(2) ?? '—'}</span>
+          </div>
+          <div class="detail-item">
+            <label>Trimmed Mean</label>
+            <span>${s.trimmed_mean?.toFixed(2) ?? '—'}</span>
+          </div>
         </div>
-        <div class="detail-item">
-          <label>Skew</label>
-          <span>${s.skew?.toFixed(4) ?? '—'}</span>
+        ${s.histogram ? `
+          <div class="histogram-container">
+            <canvas id="chart-${col.name}"></canvas>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  } else if (col.stats.Temporal) {
+    const s = col.stats.Temporal;
+    detailsHtml = `
+      <div class="details-grid-wrapper">
+        <div class="details-grid">
+          <div class="detail-item">
+            <label>Min</label>
+            <span>${s.min ?? '—'}</span>
+          </div>
+          <div class="detail-item">
+            <label>Max</label>
+            <span>${s.max ?? '—'}</span>
+          </div>
+          <div class="detail-item">
+            <label>Distinct</label>
+            <span>${s.distinct_count}</span>
+          </div>
+          <div class="detail-item">
+            <label>Sorted</label>
+            <span>${s.is_sorted ? 'Yes' : (s.is_sorted_rev ? 'Reverse' : 'No')}</span>
+          </div>
         </div>
-        <div class="detail-item">
-          <label>P05 / P95</label>
-          <span>${s.p05?.toFixed(2) ?? '—'} / ${s.p95?.toFixed(2) ?? '—'}</span>
-        </div>
-        <div class="detail-item">
-          <label>Trimmed Mean</label>
-          <span>${s.trimmed_mean?.toFixed(2) ?? '—'}</span>
-        </div>
+        ${s.histogram ? `
+          <div class="histogram-container">
+            <canvas id="chart-${col.name}"></canvas>
+          </div>
+        ` : ''}
       </div>
     `;
   } else if (col.stats.Categorical) {
@@ -186,7 +378,7 @@ function renderExpandedDetails(col: ColumnSummary): string {
   `;
 }
 
-export function renderPowerShellView(): string {
+export function renderPowerShellView(fontSize: number): string {
   return `
     <div class="powershell-view">
       <div class="ps-header">
@@ -195,6 +387,16 @@ export function renderPowerShellView(): string {
           PowerShell Core
         </div>
         <div class="ps-actions">
+          <div class="ps-font-controls">
+            <button id="btn-dec-font" class="btn-icon" title="Decrease Font Size">
+              <i class="ph ph-minus"></i>
+            </button>
+            <span id="ps-font-size-label">${fontSize}</span>
+            <button id="btn-inc-font" class="btn-icon" title="Increase Font Size">
+              <i class="ph ph-plus"></i>
+            </button>
+          </div>
+          <div class="ps-divider"></div>
           <button id="btn-load-ps" class="btn-secondary">
             <i class="ph ph-folder-open"></i> Load
           </button>
@@ -260,31 +462,22 @@ export function renderCliHelpView(): string {
         <div class="cleaning-grid">
           <div class="cleaning-item">
             <strong>Text Processing</strong>
-            <p>Trims whitespace, removes special characters, standardizes NULL values, and handles case conversion.</p>
+            <p>Trims whitespace, removes special characters (including non-ASCII), standardizes NULL values, and extracts numeric values from strings.</p>
           </div>
           <div class="cleaning-item">
             <strong>Smart Casting</strong>
-            <p>Automatically detects and converts data to Numeric, Boolean, or Temporal types with timezone support.</p>
-          </div>
-          <div class="cleaning-item">
-            <strong>Imputation</strong>
-            <p>Handles missing values by filling them with Mean, Median, Mode, Zero, or custom constants.</p>
-          </div>
-          <div class="cleaning-item">
-            <strong>Refinement</strong>
-            <p>Applies rounding, outlier clipping, and normalization (Min-Max or Z-Score).</p>
-          </div>
-          <div class="cleaning-item">
-            <strong>Categorical</strong>
-            <p>Groups rare values into "Other" and supports One-Hot Encoding for ML pipelines.</p>
+            <p>Automatically detects and converts data to Numeric, Boolean, or Temporal (Date/Time) types with custom format and UTC support.</p>
           </div>
         </div>
+        <p style="margin-top: var(--spacing-medium); font-size: 0.85rem; color: #888; font-style: italic;">
+          Note: Advanced features like case conversion, imputation, rounding, normalization, and One-Hot encoding are available via the GUI only.
+        </p>
       </div>
     </div>
   `;
 }
 
-export function renderSettingsView(config: AppConfig | null): string {
+export function renderSettingsView(config: AppConfig | null, isAddingConnection: boolean = false): string {
   if (!config) return '<div class="loading">Loading configuration...</div>';
 
   return `
@@ -323,15 +516,51 @@ export function renderSettingsView(config: AppConfig | null): string {
                 <span>${escapeHtml(conn.settings.user)}@${escapeHtml(conn.settings.host)}:${escapeHtml(conn.settings.port)}/${escapeHtml(conn.settings.database)}</span>
               </div>
               <div class="conn-actions">
+                <button class="btn-icon btn-test-conn" data-id="${escapeHtml(conn.id)}" title="Test Connection">
+                  <i class="ph ph-plugs-connected"></i>
+                </button>
                 <button class="btn-icon btn-delete-conn" data-id="${escapeHtml(conn.id)}" title="Delete Connection">
                   <i class="ph ph-trash"></i>
                 </button>
               </div>
             </div>
           `).join('')}
-          <button id="btn-add-conn" class="btn-secondary">
-            <i class="ph ph-plus"></i> Add New Connection
-          </button>
+          
+          ${isAddingConnection ? `
+            <div class="add-conn-form">
+              <h4>Add New Connection</h4>
+              <div class="settings-grid">
+                <label>Connection Name</label>
+                <input type="text" id="new-conn-name" class="settings-input" placeholder="e.g. Local Postgres" />
+                
+                <label>Host</label>
+                <input type="text" id="new-conn-host" class="settings-input" value="localhost" />
+                
+                <label>Port</label>
+                <input type="text" id="new-conn-port" class="settings-input" value="5432" />
+                
+                <label>User</label>
+                <input type="text" id="new-conn-user" class="settings-input" value="postgres" />
+                
+                <label>Password</label>
+                <input type="password" id="new-conn-pass" class="settings-input" />
+                
+                <label>Database</label>
+                <input type="text" id="new-conn-db" class="settings-input" />
+              </div>
+              <div class="form-actions">
+                <button id="btn-save-new-conn" class="primary">Save Connection</button>
+                <button id="btn-test-new-conn">
+                  <i class="ph ph-plugs-connected"></i> Test Connection
+                </button>
+                <button id="btn-cancel-new-conn">Cancel</button>
+              </div>
+            </div>
+          ` : `
+            <button id="btn-add-conn" class="btn-secondary">
+              <i class="ph ph-plus"></i> Add New Connection
+            </button>
+          `}
         </div>
       </div>
     </div>
@@ -343,6 +572,47 @@ export function renderToast(message: string, type: 'info' | 'error' | 'success' 
     <div class="toast ${type}">
       <i class="ph ph-${type === 'error' ? 'warning-circle' : (type === 'success' ? 'check-circle' : 'info')}"></i>
       <span>${escapeHtml(message)}</span>
+    </div>
+  `;
+}
+
+export function renderActivityLogView(config: AppConfig | null): string {
+  if (!config) return '<div class="loading">Loading activity log...</div>';
+
+  return `
+    <div class="activity-log-view">
+      <div class="view-header">
+        <h2>Activity Log</h2>
+        <button id="btn-clear-log" class="btn-secondary btn-small">
+          <i class="ph ph-trash"></i> Clear Log
+        </button>
+      </div>
+      
+      <div class="log-container">
+        ${config.audit_log.length === 0 ? `
+          <div class="empty-state">
+            <i class="ph ph-clock-counter-clockwise"></i>
+            <p>No activity recorded yet.</p>
+          </div>
+        ` : `
+          <div class="log-list">
+            ${config.audit_log.slice().reverse().map(entry => {
+              const date = new Date(entry.timestamp);
+              const timeStr = date.toLocaleTimeString();
+              const dateStr = date.toLocaleDateString();
+              return `
+                <div class="log-entry">
+                  <div class="log-time" title="${dateStr} ${timeStr}">
+                    ${timeStr}
+                  </div>
+                  <div class="log-action">${escapeHtml(entry.action)}</div>
+                  <div class="log-details">${escapeHtml(entry.details)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
+      </div>
     </div>
   `;
 }
@@ -367,6 +637,9 @@ export function renderLayout(): string {
           </button>
           <button class="nav-item" data-view="Settings">
             <i class="ph ph-gear"></i> Settings
+          </button>
+          <button class="nav-item" data-view="ActivityLog">
+            <i class="ph ph-clock-counter-clockwise"></i> Activity Log
           </button>
           <button class="nav-item" data-view="CLI">
             <i class="ph ph-command"></i> CLI Help

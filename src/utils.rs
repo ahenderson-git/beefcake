@@ -1,25 +1,15 @@
-use regex::Regex;
+use chrono::Local;
 use secrecy::SecretString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use tokio::runtime::Runtime;
-use chrono::Local;
 
 pub const DATA_INPUT_DIR: &str = "data/input";
 pub const DATA_PROCESSED_DIR: &str = "data/processed";
 
 pub static TOKIO_RUNTIME: LazyLock<Runtime> =
     LazyLock::new(|| Runtime::new().expect("Failed to create Tokio runtime"));
-
-static ANSI_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[\x1b\x9b]\[[()#;?]*[0-9.;?]*[a-zA-Z]").expect("ANSI stripping regex is valid")
-});
-
-/// Strips ANSI escape codes from a string.
-pub fn strip_ansi(input: &str) -> String {
-    ANSI_RE.replace_all(input, "").into_owned()
-}
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct DbConnection {
@@ -28,11 +18,46 @@ pub struct DbConnection {
     pub settings: DbSettings,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct AuditEntry {
+    pub timestamp: chrono::DateTime<Local>,
+    pub action: String,
+    pub details: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[serde(default)]
 pub struct AppConfig {
     pub connections: Vec<DbConnection>,
     pub active_import_id: Option<String>,
     pub active_export_id: Option<String>,
+    pub powershell_font_size: u32,
+    pub audit_log: Vec<AuditEntry>,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            connections: Vec::new(),
+            active_import_id: None,
+            active_export_id: None,
+            powershell_font_size: 14,
+            audit_log: Vec::new(),
+        }
+    }
+}
+
+/// Helper to push a new entry to an audit log.
+pub fn push_audit_log(config: &mut AppConfig, action: &str, details: &str) {
+    config.audit_log.push(AuditEntry {
+        timestamp: Local::now(),
+        action: action.to_owned(),
+        details: details.to_owned(),
+    });
+    // Keep only last 100 entries to prevent config file bloat
+    if config.audit_log.len() > 100 {
+        config.audit_log.remove(0);
+    }
 }
 
 pub fn get_config_path() -> PathBuf {
@@ -119,72 +144,6 @@ impl DbSettings {
     }
 }
 
-/// Formats an optional f64 to 4 decimal places, or returns "—" if None or non-finite.
-pub fn fmt_opt(v: Option<f64>) -> String {
-    match v {
-        Some(x) if x.is_finite() => format!("{x:.4}"),
-        _ => "—".to_owned(),
-    }
-}
-
-/// Formats bytes into a human-readable string (KB, MB, GB).
-pub fn fmt_bytes(bytes: u64) -> String {
-    let kb = bytes as f64 / 1024.0;
-    let mb = kb / 1024.0;
-    let gb = mb / 1024.0;
-
-    if gb >= 1.0 {
-        format!("{gb:.2} GB")
-    } else if mb >= 1.0 {
-        format!("{mb:.2} MB")
-    } else if kb >= 1.0 {
-        format!("{kb:.2} KB")
-    } else {
-        format!("{bytes} B")
-    }
-}
-
-/// Formats a number into a human-readable string (K, M, B).
-pub fn fmt_num_human(num: usize) -> String {
-    let n = num as f64;
-    if n >= 1_000_000_000.0 {
-        format!("{:.1}B", n / 1_000_000_000.0)
-    } else if n >= 1_000_000.0 {
-        format!("{:.1}M", n / 1_000_000.0)
-    } else if n >= 1_000.0 {
-        format!("{:.1}K", n / 1_000.0)
-    } else {
-        num.to_string()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_fmt_num_human() {
-        assert_eq!(fmt_num_human(0), "0");
-        assert_eq!(fmt_num_human(999), "999");
-        assert_eq!(fmt_num_human(1000), "1.0K");
-        assert_eq!(fmt_num_human(1500), "1.5K");
-        assert_eq!(fmt_num_human(999_900), "999.9K");
-        assert_eq!(fmt_num_human(1_000_000), "1.0M");
-        assert_eq!(fmt_num_human(1_500_000), "1.5M");
-        assert_eq!(fmt_num_human(1_000_000_000), "1.0B");
-        assert_eq!(fmt_num_human(2_100_000_000), "2.1B");
-    }
-
-    #[test]
-    fn test_strip_ansi() {
-        let input = "\x1b[1;38;5;9merror[internal]\x1b[0m";
-        assert_eq!(strip_ansi(input), "error[internal]");
-
-        let input2 = "Normal text \x1b[32mGreen\x1b[0m and \x1b[1mBold\x1b[0m";
-        assert_eq!(strip_ansi(input2), "Normal text Green and Bold");
-    }
-}
-
 pub fn archive_processed_file(file_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
     let original = file_path.as_ref();
     let processed_dir = Path::new(DATA_PROCESSED_DIR);
@@ -199,7 +158,7 @@ pub fn archive_processed_file(file_path: impl AsRef<Path>) -> anyhow::Result<Pat
         .ok_or_else(|| anyhow::anyhow!("Invalid file name"))?
         .to_string_lossy();
 
-    let destination = processed_dir.join(format!("{}_{}", timestamp, filename));
+    let destination = processed_dir.join(format!("{timestamp}_{filename}"));
 
     // Move the file
     fs::rename(original, &destination)?;

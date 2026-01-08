@@ -25,7 +25,7 @@ pub struct AnalysisResponse {
 }
 
 mod duration_serde {
-    use serde::{ser::SerializeStruct, Serializer};
+    use serde::{Serializer, ser::SerializeStruct as _};
     use std::time::Duration;
 
     pub fn serialize<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>

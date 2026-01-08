@@ -207,10 +207,10 @@ fn test_interpretation_histogram_signals() -> Result<()> {
         "Should detect concentrated distribution"
     );
     assert!(
-        interp.contains("extreme outliers"),
+        interp.contains("Extreme outliers"),
         "Should detect extreme outliers"
     );
-    assert!(interp.contains("dominates"), "Should detect dominant bin");
+    assert!(interp.contains("vast majority"), "Should detect dominant bin");
     Ok(())
 }
 
@@ -225,11 +225,11 @@ fn test_user_reported_invisible_bars_scenario() -> Result<()> {
 
     let interp = summaries.first().unwrap().interpretation.join(" ");
     assert!(
-        interp.contains("may be invisible"),
+        interp.contains("Significant scale differences"),
         "Should warn about potentially invisible bars"
     );
     assert!(
-        interp.contains("A single bin dominates"),
+        interp.contains("single value range contains the vast majority"),
         "Should warn about dominant bin"
     );
     Ok(())
@@ -262,7 +262,7 @@ fn test_user_reported_delivery_minutes_zoom() -> Result<()> {
                 .unwrap()
                 .interpretation
                 .join(" ")
-                .contains("extreme outliers"),
+                .contains("Extreme outliers"),
             "Should report extreme outliers"
         );
     }
@@ -380,7 +380,7 @@ fn test_clean_df_logic() -> Result<()> {
         },
     );
 
-    let cleaned = analysis::clean_df(df, &configs)?;
+    let cleaned = analysis::clean_df(df, &configs, false)?;
 
     assert_eq!(cleaned.width(), 2);
     assert!(cleaned.column("full_name").is_ok());
@@ -770,7 +770,7 @@ fn test_ml_preprocessing_logic() -> Result<()> {
         },
     );
 
-    let cleaned = analysis::clean_df(df, &configs)?;
+    let cleaned = analysis::clean_df(df, &configs, false)?;
 
     // 1. Verify Imputation and Normalization
     // Original non-nulls: 10, 20, 30. Mean = 20.
@@ -815,7 +815,7 @@ fn test_column_deactivation() -> Result<()> {
         },
     );
 
-    let cleaned = analysis::clean_df(df, &configs)?;
+    let cleaned = analysis::clean_df(df, &configs, false)?;
     assert_eq!(cleaned.width(), 1);
     assert!(cleaned.column("keep").is_ok());
     assert!(cleaned.column("drop").is_err());
@@ -881,6 +881,91 @@ fn test_correlation_matrix() -> Result<()> {
     assert_eq!(matrix.data[0][0], 1.0);
     assert_eq!(matrix.data[1][1], 1.0);
     assert_eq!(matrix.data[2][2], 1.0);
+
+    Ok(())
+}
+
+#[test]
+fn test_restricted_cleaning() -> Result<()> {
+    use crate::analyser::logic::analysis;
+    use crate::analyser::logic::types;
+    use polars::prelude::*;
+    use std::collections::HashMap;
+
+    let df = df!(
+        "text" => &["  hello  ", "world\r", "ascii©", "n/a", "$1,000"],
+        "to_cast" => &["true", "false", "true", "false", "true"],
+        "to_skip" => &["KeepCase", "RegexMe", "ImputeMe", "RoundMe", "NormMe"]
+    )?;
+
+    let mut configs = HashMap::new();
+
+    // Config for "text" column - should apply all included functions
+    configs.insert(
+        "text".to_string(),
+        types::ColumnCleanConfig {
+            advanced_cleaning: true,
+            trim_whitespace: true,
+            remove_special_chars: true,
+            remove_non_ascii: true,
+            standardize_nulls: true,
+            extract_numbers: true,
+            // These should be skipped in restricted mode
+            text_case: types::TextCase::Lowercase,
+            regex_find: "hello".to_string(),
+            regex_replace: "hi".to_string(),
+            ..Default::default()
+        },
+    );
+
+    // Config for "to_cast" column - should cast to boolean
+    configs.insert(
+        "to_cast".to_string(),
+        types::ColumnCleanConfig {
+            target_dtype: Some(types::ColumnKind::Boolean),
+            ..Default::default()
+        },
+    );
+
+    // Config for "to_skip" column - should skip all these
+    configs.insert(
+        "to_skip".to_string(),
+        types::ColumnCleanConfig {
+            new_name: "renamed".to_string(),      // Should be skipped
+            impute_mode: types::ImputeMode::Zero, // Should be skipped
+            rounding: Some(0),                    // Should be skipped
+            normalization: types::NormalizationMethod::MinMax, // Should be skipped
+            one_hot_encode: true,                 // Should be skipped
+            ..Default::default()
+        },
+    );
+
+    let cleaned = analysis::clean_df(df, &configs, true)?;
+
+    // Verify "text" column
+    let text_col = cleaned.column("text")?.as_materialized_series();
+    let text_ca = text_col.str()?;
+    // 1. "  hello  " -> "hello" (trimmed, regex skipped)
+    assert_eq!(text_ca.get(0), Some("hello"));
+    // 2. "world\r" -> "world" (special char removed)
+    assert_eq!(text_ca.get(1), Some("world"));
+    // 3. "ascii©" -> "ascii" (non-ascii removed)
+    assert_eq!(text_ca.get(2), Some("ascii"));
+    // 4. "n/a" -> null (standardized null)
+    assert_eq!(text_ca.get(3), None);
+    // 5. "$1,000" -> "1000" (extract numbers)
+    assert_eq!(text_ca.get(4), Some("1000"));
+
+    // Verify "to_cast" column
+    let cast_col = cleaned.column("to_cast")?;
+    assert_eq!(*cast_col.dtype(), DataType::Boolean);
+
+    // Verify "to_skip" column
+    assert!(cleaned.column("renamed").is_err()); // Rename skipped
+    assert!(cleaned.column("to_skip").is_ok()); // Original name kept
+
+    // Verify one-hot skipped (no new columns added)
+    assert_eq!(cleaned.width(), 3);
 
     Ok(())
 }

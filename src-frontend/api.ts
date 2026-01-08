@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { AnalysisResponse, AppConfig } from "./types";
+import { AnalysisResponse, AppConfig, ColumnCleanConfig } from "./types";
 
 export async function analyseFile(path: string, trimPct: number): Promise<AnalysisResponse> {
   return await invoke("analyze_file", { path, trim_pct: trimPct });
@@ -18,8 +18,12 @@ export async function runPowerShell(script: string): Promise<string> {
   return await invoke("run_powershell", { script });
 }
 
-export async function pushToDb(path: string, connectionId: string): Promise<void> {
-  await invoke("push_to_db", { path, connectionId });
+export async function pushToDb(path: string, connectionId: string, configs: Record<string, ColumnCleanConfig>): Promise<void> {
+  await invoke("push_to_db", { path, connectionId, configs });
+}
+
+export async function testConnection(settings: any): Promise<string> {
+  return await invoke("test_connection", { settings });
 }
 
 export async function readTextFile(path: string): Promise<string> {

@@ -55,7 +55,8 @@ pub fn train_model(
         ));
     }
 
-    let x = df.select(&feature_cols)?
+    let x = df
+        .select(&feature_cols)?
         .iter()
         .map(|s| s.cast(&DataType::Float64).map(Column::from))
         .collect::<PolarsResult<Vec<_>>>()

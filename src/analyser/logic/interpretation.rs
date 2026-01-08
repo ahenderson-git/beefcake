@@ -191,6 +191,11 @@ impl ColumnSummary {
 
         if self.kind == ColumnKind::Numeric && !is_likely_id {
             advice.push("Recommend Z-Score or Min-Max Normalization if other numeric features have different scales.".to_owned());
+            if let ColumnStats::Numeric(s) = &self.stats {
+                if s.zero_count as f64 / self.count as f64 > 0.3 {
+                    advice.push("High proportion of zeros detected. Consider if 'Zero-Inflated' model techniques are needed.".to_owned());
+                }
+            }
         }
     }
 
@@ -217,6 +222,9 @@ impl ColumnSummary {
 
             if s.zero_count > 0 {
                 signals.push("Contains zero values.");
+                if s.zero_count as f64 / (s.zero_count + s.negative_count + (s.histogram.iter().map(|h| h.1).sum::<usize>())) as f64 > 0.3 {
+                     signals.push("High proportion of zeros; check if these represent defaults or missing data.");
+                }
             }
             if s.negative_count > 0 {
                 signals.push("Contains negative values.");
@@ -306,18 +314,18 @@ impl ColumnSummary {
                 signals.push("Gaps between bars indicate sparse data or isolated clusters.");
                 let num_bins = range / s.bin_width;
                 if num_bins > 100.0 {
-                    signals.push("Histogram bars appear very skinny because the data is spread across many small bins.");
+                    signals.push("Highly granular data spread across many distinct value ranges.");
                 }
             }
 
             if let (Some(p05), Some(p95)) = (s.p05, s.p95) {
                 let zoom_range = p95 - p05;
                 if range > OUTLIER_ZOOM_THRESHOLD * zoom_range && zoom_range > 0.0 {
-                    signals.push("Histogram bars appear skinny because extreme outliers are stretching the scale.");
+                    signals.push("Extreme outliers significantly extend the data range, compressing the majority of values in the visualization.");
                 }
             }
 
-            // Height-based signals (Invisible bars)
+            // Height-based signals (Scale issues)
             if !s.histogram.is_empty() {
                 let max_count = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
                 let total_count: usize = s.histogram.iter().map(|h| h.1).sum();
@@ -327,16 +335,16 @@ impl ColumnSummary {
                     .iter()
                     .any(|&(_, c)| c > 0 && (c as f64) < max_count * TINY_BAR_THRESHOLD);
                 if has_tiny_bars {
-                    signals.push("Some bars are so short compared to the tallest one that they may be invisible.");
+                    signals.push("Significant scale differences: some value ranges have very low counts compared to the peak.");
                 }
 
                 if total_count > 0 && max_count / total_count as f64 > DOMINANT_BIN_THRESHOLD {
-                    signals.push("A single bin dominates the distribution, making other values difficult to see.");
+                    signals.push("Highly concentrated data: a single value range contains the vast majority of records.");
                 }
             }
         }
 
-        // Gaussian vs Histogram height
+        // Normal Distribution Comparison
         if let Some(sigma) = s.std_dev
             && sigma > 0.0
             && !s.histogram.is_empty()
@@ -346,7 +354,9 @@ impl ColumnSummary {
             let max_bar = s.histogram.iter().map(|h| h.1).max().unwrap_or(0) as f64;
 
             if max_bar > gauss_peak * GAUSS_PEAK_CONCENTRATION {
-                signals.push("The orange distribution curve is low because the data is more concentrated than a 'normal' distribution.");
+                signals.push("Data is more heavily concentrated around the mean than expected for a standard normal distribution.");
+            } else if max_bar < gauss_peak / GAUSS_PEAK_CONCENTRATION {
+                signals.push("Data is more widely spread or multi-modal than expected for a standard normal distribution.");
             }
         }
     }
@@ -366,7 +376,10 @@ impl ColumnSummary {
             && let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min())
             && (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHOLD
         {
-            signals.push("Value distribution is heavily uneven.");
+            signals.push("Value distribution is heavily uneven (Pareto-like).");
+        }
+        if freq.len() > 50 {
+            signals.push("Very high cardinality; consider grouping rare values.");
         }
     }
 
@@ -376,6 +389,22 @@ impl ColumnSummary {
             signals.push("Strictly chronological order.");
         } else if s.is_sorted_rev {
             signals.push("Reverse chronological order.");
+        }
+
+        // Check for gaps in temporal data
+        if s.histogram.len() > 1 {
+            let mut has_gaps = false;
+            for window in s.histogram.windows(2) {
+                if let [w0, w1] = window
+                    && w1.0 - w0.0 > s.bin_width * 2.5
+                {
+                    has_gaps = true;
+                    break;
+                }
+            }
+            if has_gaps {
+                signals.push("Large gaps detected in the time sequence.");
+            }
         }
     }
 
@@ -465,6 +494,14 @@ impl ColumnSummary {
                 );
             }
 
+            if s.zero_count > 0 {
+                if s.zero_count as f64 / (s.zero_count + s.negative_count + (s.histogram.iter().map(|h| h.1).sum::<usize>())) as f64 > 0.3 {
+                     insights.push("A high number of zero values suggests many records might be empty or inactive.");
+                } else {
+                    insights.push("Includes zero values, which may represent a neutral or baseline state.");
+                }
+            }
+
             if s.negative_count > 0 {
                 insights.push(
                     "Includes negative values, which may indicate refunds, adjustments, or errors.",
@@ -503,6 +540,9 @@ impl ColumnSummary {
         } else if freq.len() > 1
             && let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min())
         {
+            if freq.len() > 50 {
+                insights.push("There are many unique categories; this may be too complex for some standard reports.");
+            }
             if (*max_v as f64 / *min_v as f64) > UNEVEN_DISTRIBUTION_THRESHOLD {
                 insights.push("The distribution is uneven, with some categories appearing much more frequently than others.");
             } else {
@@ -519,6 +559,21 @@ impl ColumnSummary {
         insights.push("This tracks when events occurred, allowing for time-based trend analysis.");
         if s.is_sorted {
             insights.push("Events are recorded in a perfect chronological sequence.");
+        }
+
+        if s.histogram.len() > 1 {
+            let mut has_gaps = false;
+            for window in s.histogram.windows(2) {
+                if let [w0, w1] = window
+                    && w1.0 - w0.0 > s.bin_width * 2.5
+                {
+                    has_gaps = true;
+                    break;
+                }
+            }
+            if has_gaps {
+                insights.push("There are significant periods of time with no recorded activity.");
+            }
         }
     }
 

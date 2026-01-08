@@ -33,7 +33,7 @@ pub enum Commands {
         #[arg(long, default_value = "public")]
         schema: String,
 
-        /// Database connection URL (e.g. postgres://user:pass@localhost/db)
+        /// Database connection URL (e.g. <postgres://user:pass@localhost/db>)
         #[arg(long, env = "DATABASE_URL")]
         db_url: Option<String>,
 
@@ -87,6 +87,7 @@ pub enum Commands {
     },
 }
 
+#[expect(clippy::too_many_lines)]
 pub async fn run_command(command: Commands) -> Result<()> {
     match command {
         Commands::Import {
@@ -121,10 +122,10 @@ pub async fn run_command(command: Commands) -> Result<()> {
             if let Some(config_path) = config {
                 let configs = load_config(&config_path)?;
                 println!("Applying configuration from {}...", config_path.display());
-                df = clean_df(df, &configs)?;
+                df = clean_df(df, &configs, true)?;
             } else if clean {
                 println!("Applying heuristic cleaning...");
-                df = auto_clean_df(df)?;
+                df = auto_clean_df(df, true)?;
             }
 
             let config = beefcake::utils::load_app_config();
@@ -136,7 +137,9 @@ pub async fn run_command(command: Commands) -> Result<()> {
                     .iter()
                     .find(|c| c.id == id)
                     .map(|c| c.settings.connection_string())
-                    .ok_or_else(|| anyhow::anyhow!("Active import connection not found in config"))?
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("Active import connection not found in config")
+                    })?
             } else {
                 anyhow::bail!("No database URL provided and no active import connection set.");
             };
@@ -182,19 +185,14 @@ pub async fn run_command(command: Commands) -> Result<()> {
                 None => get_default_input_file()?,
             };
 
-            let output_path = match output {
-                Some(o) => o,
-                None => {
-                    let stem = input_path
-                        .file_stem()
-                        .unwrap_or_default()
-                        .to_string_lossy();
-                    PathBuf::from(format!(
-                        "{}/exported_{}.parquet",
-                        beefcake::utils::DATA_PROCESSED_DIR,
-                        stem
-                    ))
-                }
+            let output_path = if let Some(o) = output {
+                o
+            } else {
+                let stem = input_path.file_stem().unwrap_or_default().to_string_lossy();
+                PathBuf::from(format!(
+                    "{}/exported_{stem}.parquet",
+                    beefcake::utils::DATA_PROCESSED_DIR
+                ))
             };
 
             if input_path.exists() {
@@ -210,10 +208,10 @@ pub async fn run_command(command: Commands) -> Result<()> {
                 if let Some(config_path) = config {
                     let configs = load_config(&config_path)?;
                     println!("Applying configuration from {}...", config_path.display());
-                    df = clean_df(df, &configs)?;
+                    df = clean_df(df, &configs, true)?;
                 } else if clean {
                     println!("Applying heuristic cleaning...");
-                    df = auto_clean_df(df)?;
+                    df = auto_clean_df(df, true)?;
                 }
 
                 save_df(&mut df, &output_path).context("Failed to save output file")?;
@@ -223,9 +221,7 @@ pub async fn run_command(command: Commands) -> Result<()> {
                 let archived = beefcake::utils::archive_processed_file(&input_path)?;
                 println!("Input file archived to: {}", archived.display());
             } else {
-                anyhow::bail!(
-                    "Input file not found. Table export from DB is not yet implemented."
-                );
+                anyhow::bail!("Input file not found. Table export from DB is not yet implemented.");
             }
         }
         Commands::Clean {
@@ -238,19 +234,14 @@ pub async fn run_command(command: Commands) -> Result<()> {
                 None => get_default_input_file()?,
             };
 
-            let output_file = match output {
-                Some(o) => o,
-                None => {
-                    let stem = input_file
-                        .file_stem()
-                        .unwrap_or_default()
-                        .to_string_lossy();
-                    PathBuf::from(format!(
-                        "{}/cleaned_{}.parquet",
-                        beefcake::utils::DATA_PROCESSED_DIR,
-                        stem
-                    ))
-                }
+            let output_file = if let Some(o) = output {
+                o
+            } else {
+                let stem = input_file.file_stem().unwrap_or_default().to_string_lossy();
+                PathBuf::from(format!(
+                    "{}/cleaned_{stem}.parquet",
+                    beefcake::utils::DATA_PROCESSED_DIR
+                ))
             };
 
             println!(
@@ -259,15 +250,14 @@ pub async fn run_command(command: Commands) -> Result<()> {
                 output_file.display()
             );
             let progress = Arc::new(AtomicU64::new(0));
-            let df =
-                load_df(&input_file, &progress).context("Failed to load input file")?;
+            let df = load_df(&input_file, &progress).context("Failed to load input file")?;
 
             let mut cleaned_df = if let Some(config_path) = config {
                 let configs = load_config(&config_path)?;
                 println!("Applying configuration from {}...", config_path.display());
-                clean_df(df, &configs)?
+                clean_df(df, &configs, true)?
             } else {
-                auto_clean_df(df)?
+                auto_clean_df(df, true)?
             };
 
             save_df(&mut cleaned_df, &output_file).context("Failed to save cleaned file")?;
@@ -297,15 +287,12 @@ fn get_default_input_file() -> Result<PathBuf> {
         .filter(|e| e.path().is_file())
         .collect::<Vec<_>>();
     entries.sort_by_key(|e| e.file_name());
-    entries
-        .first()
-        .map(|e| e.path())
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "No files found in {} and no input file provided.",
-                beefcake::utils::DATA_INPUT_DIR
-            )
-        })
+    entries.first().map(|e| e.path()).ok_or_else(|| {
+        anyhow::anyhow!(
+            "No files found in {} and no input file provided.",
+            beefcake::utils::DATA_INPUT_DIR
+        )
+    })
 }
 
 #[cfg(test)]

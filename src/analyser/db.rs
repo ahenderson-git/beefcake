@@ -11,9 +11,10 @@ impl DbClient {
     pub async fn connect(options: PgConnectOptions) -> Result<Self> {
         let pool = PgPoolOptions::new()
             .max_connections(5)
+            .acquire_timeout(std::time::Duration::from_secs(10))
             .connect_with(options)
             .await
-            .context("Failed to connect to PostgreSQL")?;
+            .context("Failed to connect to PostgreSQL (timeout after 10s)")?;
         Ok(Self { pool })
     }
 
@@ -21,7 +22,6 @@ impl DbClient {
         Ok(())
     }
 
-    #[expect(clippy::too_many_lines)]
     pub async fn push_dataframe(
         &self,
         analysis_id: i32,
@@ -75,7 +75,7 @@ impl DbClient {
         CsvWriter::new(&mut buf)
             .include_header(false)
             .with_separator(b',')
-            .with_null_value("".to_owned())
+            .with_null_value(String::new())
             .finish(&mut df.clone())
             .context("Failed to serialize dataframe to CSV for COPY")?;
 

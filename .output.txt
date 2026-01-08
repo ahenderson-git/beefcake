@@ -1,0 +1,258 @@
+    Blocking waiting for file lock on build directory
+    Checking beefcake v0.1.0 (C:\Users\antho\OneDrive\beefcake\beefcake)
+error: #[allow] attribute found
+  --> src\cli.rs:90:3
+   |
+90 | #[allow(clippy::too_many_lines)]
+   |   ^^^^^ help: replace it with: `expect`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#allow_attributes
+   = note: `-D clippy::allow-attributes` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::allow_attributes)]`
+error: non-binding `let` without a type annotation
+  --> src\tauri_app.rs:14:5
+   |
+14 |     let _ = beefcake::utils::save_app_config(&config).ok();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: consider adding a type annotation
+  --> src\tauri_app.rs:14:10
+   |
+14 |     let _ = beefcake::utils::save_app_config(&config).ok();
+   |          ^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+   = note: `-D clippy::let-underscore-untyped` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::let_underscore_untyped)]`
+error: non-binding `let` without a type annotation
+  --> src\tauri_app.rs:38:5
+   |
+38 |     let _ = beefcake::utils::save_app_config(&config).ok();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: consider adding a type annotation
+  --> src\tauri_app.rs:38:10
+   |
+38 |     let _ = beefcake::utils::save_app_config(&config).ok();
+   |          ^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` without a type annotation
+  --> src\tauri_app.rs:46:5
+   |
+46 |     let _ = beefcake::utils::save_app_config(&config).ok();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: consider adding a type annotation
+  --> src\tauri_app.rs:46:10
+   |
+46 |     let _ = beefcake::utils::save_app_config(&config).ok();
+   |          ^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+  --> src\tauri_app.rs:71:5
+   |
+71 |     let _ = beefcake::utils::save_app_config(&config);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider explicitly using expression value
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+   = note: `-D clippy::let-underscore-must-use` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::let_underscore_must_use)]`
+error: non-binding `let` without a type annotation
+  --> src\tauri_app.rs:71:5
+   |
+71 |     let _ = beefcake::utils::save_app_config(&config);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: consider adding a type annotation
+  --> src\tauri_app.rs:71:10
+   |
+71 |     let _ = beefcake::utils::save_app_config(&config);
+   |          ^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: importing trait that is only used anonymously
+   --> src\tauri_app.rs:113:19
+    |
+113 |     use std::str::FromStr;
+    |                   ^^^^^^^ help: use: `FromStr as _`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unused_trait_names
+    = note: `-D clippy::unused-trait-names` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unused_trait_names)]`
+error: `to_string()` called on a `&str`
+   --> src\tauri_app.rs:122:28
+    |
+122 |             .ok_or_else(|| "Connection not found".to_string())?;
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Connection not found".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#str_to_string
+    = note: `-D clippy::str-to-string` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::str_to_string)]`
+error: non-binding `let` without a type annotation
+   --> src\tauri_app.rs:135:5
+    |
+135 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\tauri_app.rs:135:10
+    |
+135 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |          ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: `to_string()` called on a `&str`
+   --> src\tauri_app.rs:141:24
+    |
+141 |         .ok_or_else(|| "Connection not found".to_string())?;
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Connection not found".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#str_to_string
+error: non-binding `let` without a type annotation
+   --> src\tauri_app.rs:189:5
+    |
+189 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\tauri_app.rs:189:10
+    |
+189 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |          ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` without a type annotation
+   --> src\tauri_app.rs:211:5
+    |
+211 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\tauri_app.rs:211:10
+    |
+211 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |          ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` without a type annotation
+   --> src\tauri_app.rs:229:5
+    |
+229 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\tauri_app.rs:229:10
+    |
+229 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |          ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` without a type annotation
+   --> src\tauri_app.rs:240:5
+    |
+240 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\tauri_app.rs:240:10
+    |
+240 |     let _ = beefcake::utils::save_app_config(&config).ok();
+    |          ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: importing trait that is only used anonymously
+   --> src\tauri_app.rs:261:19
+    |
+261 |     use std::str::FromStr;
+    |                   ^^^^^^^ help: use: `FromStr as _`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unused_trait_names
+error: variables can be used directly in the `format!` string
+   --> src\tauri_app.rs:265:54
+    |
+265 | ....map_err(|e| format!("Invalid connection URL: {}", e))?;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#uninlined_format_args
+    = note: `-D clippy::uninlined-format-args` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::uninlined_format_args)]`
+help: change this to
+    |
+265 -         PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {}", e))?;
+265 +         PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
+    |
+error: `to_string()` called on a `&str`
+   --> src\tauri_app.rs:268:21
+    |
+268 |         Ok(_) => Ok("Connection successful!".to_string()),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Connection successful!".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#str_to_string
+error: variables can be used directly in the `format!` string
+   --> src\tauri_app.rs:269:23
+    |
+269 |         Err(e) => Err(format!("Connection failed: {}", e)),
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#uninlined_format_args
+help: change this to
+    |
+269 -         Err(e) => Err(format!("Connection failed: {}", e)),
+269 +         Err(e) => Err(format!("Connection failed: {e}")),
+    |
+error: used `unwrap()` on a `Result` value
+   --> src\tauri_app.rs:279:40
+    |
+279 | ...   if TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::...
+    |                                      ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+    = note: `-D clippy::unwrap-used` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unwrap_used)]`
+error: variables can be used directly in the `format!` string
+   --> src\tauri_app.rs:280:13
+    |
+280 | / ...   eprintln!(
+281 | | ...       "\n\x1b[1;33m[WARNING] Dev server not detected at {}.\x1b[...
+282 | | ...       addr
+283 | | ...   );
+    | |_______^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#uninlined_format_args
+error: use of `eprintln!`
+   --> src\tauri_app.rs:280:13
+    |
+280 | / ...   eprintln!(
+281 | | ...       "\n\x1b[1;33m[WARNING] Dev server not detected at {}.\x1b[...
+282 | | ...       addr
+283 | | ...   );
+    | |_______^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#print_stderr
+    = note: `-D clippy::print-stderr` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::print_stderr)]`
+error: use of `eprintln!`
+   --> src\tauri_app.rs:284:13
+    |
+284 | / ...   eprintln!(
+285 | | ...       "\x1b[1;33m[WARNING] Did you forget to run 'npm run tauri ...
+286 | | ...   );
+    | |_______^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#print_stderr
+error: use of `eprintln!`
+   --> src\tauri_app.rs:287:13
+    |
+287 | / ...   eprintln!(
+288 | | ...       "\x1b[1;33m[WARNING] Running via 'cargo run' will result i...
+289 | | ...   );
+    | |_______^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#print_stderr
+error: usage of `process::exit`
+   --> src\tauri_app.rs:310:14
+    |
+310 |         .run(tauri::generate_context!())
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#exit
+    = note: `-D clippy::exit` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::exit)]`
+    = note: this error originates in the macro `tauri::generate_context` (in Nightly builds, run with -Z macro-backtrace for more info)
+error: could not compile `beefcake` (bin "beefcake") due to 24 previous errors

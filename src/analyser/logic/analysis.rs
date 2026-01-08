@@ -29,8 +29,7 @@ pub fn run_full_analysis(
     let file_name = std::path::Path::new(&file_path)
         .file_name()
         .and_then(|s| s.to_str())
-        .unwrap_or("Unknown")
-        .to_string();
+        .unwrap_or("Unknown").to_owned();
 
     Ok(AnalysisResponse {
         file_name,
@@ -276,8 +275,11 @@ pub fn calculate_correlation_matrix(df: &DataFrame) -> Result<Option<Correlation
     }))
 }
 
-#[expect(clippy::too_many_lines)]
-pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> Result<DataFrame> {
+pub fn clean_df(
+    df: DataFrame,
+    configs: &HashMap<String, ColumnCleanConfig>,
+    restricted: bool,
+) -> Result<DataFrame> {
     let mut lf = df.lazy();
     let mut rename_map = Vec::new();
     let mut one_hot_cols = Vec::new();
@@ -299,43 +301,50 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         let mut expr = col(old_name);
 
         // 1. Basic Cleaning: Text operations (Must happen before casting)
-        expr = apply_text_cleaning(expr, config);
+        expr = apply_text_cleaning(expr, config, restricted);
 
         // 2. Change Datatypes
         expr = apply_dtype_casting(expr, config);
 
-        // 3. Imputation (After casting so that Numeric/Boolean specific logic works)
-        expr = apply_imputation(expr, config);
+        if !restricted {
+            // 3. Imputation (After casting so that Numeric/Boolean specific logic works)
+            expr = apply_imputation(expr, config);
 
-        // 4. Numeric Refinement (Rounding/Clipping)
-        expr = apply_numeric_refinement(expr, config);
+            // 4. Numeric Refinement (Rounding/Clipping)
+            expr = apply_numeric_refinement(expr, config);
 
-        // 5. Normalization
-        expr = apply_normalization(expr, config);
+            // 5. Normalization
+            expr = apply_normalization(expr, config);
 
-        // 6. Categorical Refinement
-        expr = apply_categorical_refinement(expr, config, old_name);
+            // 6. Categorical Refinement
+            expr = apply_categorical_refinement(expr, config, old_name);
+        }
 
-        let needs_update =
-            config.advanced_cleaning || config.target_dtype.is_some() || config.ml_preprocessing;
+        let needs_update = if restricted {
+            config.advanced_cleaning || config.target_dtype.is_some()
+        } else {
+            config.advanced_cleaning || config.target_dtype.is_some() || config.ml_preprocessing
+        };
 
         if needs_update {
             lf = lf.with_column(expr.alias(old_name));
         }
 
-        // Queue renaming for the final step
-        if !config.new_name.is_empty() && config.new_name != *old_name {
-            rename_map.push((old_name.clone(), config.new_name.clone()));
-        }
+        if !restricted {
+            // Queue renaming for the final step
+            if !config.new_name.is_empty() && config.new_name != *old_name {
+                rename_map.push((old_name.clone(), config.new_name.clone()));
+            }
 
-        // Queue One-Hot encoding (will use the name AFTER rename if any)
-        if config.ml_preprocessing && config.one_hot_encode {
-            let final_name = if !config.new_name.is_empty() {
-                config.new_name.clone()
-            } else {
-                old_name.clone()
-            };
-            one_hot_cols.push(final_name);
+            // Queue One-Hot encoding (will use the name AFTER rename if any)
+            if config.ml_preprocessing && config.one_hot_encode {
+                let final_name = if !config.new_name.is_empty() {
+                    config.new_name.clone()
+                } else {
+                    old_name.clone()
+                };
+                one_hot_cols.push(final_name);
+            }
         }
     }
 
@@ -350,10 +359,14 @@ pub fn clean_df(df: DataFrame, configs: &HashMap<String, ColumnCleanConfig>) -> 
         .context("Failed to apply cleaning steps to DataFrame")?;
 
     // 6. One-Hot Encoding (Manual Implementation)
-    apply_one_hot_encoding(result_df, one_hot_cols)
+    if !restricted {
+        apply_one_hot_encoding(result_df, one_hot_cols)
+    } else {
+        Ok(result_df)
+    }
 }
 
-pub fn auto_clean_df(df: DataFrame) -> Result<DataFrame> {
+pub fn auto_clean_df(df: DataFrame, restricted: bool) -> Result<DataFrame> {
     let summaries = analyse_df(&df, 0.0).context("Failed to analyse dataframe for cleaning")?;
     let mut configs = HashMap::new();
     for summary in summaries {
@@ -364,10 +377,10 @@ pub fn auto_clean_df(df: DataFrame) -> Result<DataFrame> {
         summary.apply_advice_to_config(&mut config);
         configs.insert(summary.name.clone(), config);
     }
-    clean_df(df, &configs).context("Failed to clean dataframe")
+    clean_df(df, &configs, restricted).context("Failed to clean dataframe")
 }
 
-fn apply_text_cleaning(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+fn apply_text_cleaning(mut expr: Expr, config: &ColumnCleanConfig, restricted: bool) -> Expr {
     if !config.advanced_cleaning {
         return expr;
     }
@@ -376,10 +389,12 @@ fn apply_text_cleaning(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
         expr = expr.str().strip_chars(lit(Null {}));
     }
     if config.remove_special_chars {
-        expr = expr.str().replace_all(lit(r"[\r\x00-\x1F]"), lit(""), true);
+        expr = expr
+            .str()
+            .replace_all(lit(r"[\r\x00-\x1F]"), lit(""), false);
     }
     if config.remove_non_ascii {
-        expr = expr.str().replace_all(lit(r"[^\x00-\x7F]"), lit(""), true);
+        expr = expr.str().replace_all(lit(r"[^\x00-\x7F]"), lit(""), false);
     }
     if config.standardize_nulls {
         let null_patterns = ["n/a", "null", "none", "-", "nan"];
@@ -391,21 +406,24 @@ fn apply_text_cleaning(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
     if config.extract_numbers {
         expr = expr
             .str()
-            .replace_all(lit(r"[$,£€]"), lit(""), true)
+            .replace_all(lit(r"[$,£€]"), lit(""), false)
             .str()
-            .replace_all(lit(","), lit(""), true);
+            .replace_all(lit(","), lit(""), false);
     }
-    if !config.regex_find.is_empty() {
-        expr = expr.str().replace_all(
-            lit(config.regex_find.as_str()),
-            lit(config.regex_replace.as_str()),
-            true,
-        );
-    }
-    match config.text_case {
-        TextCase::Lowercase => expr = expr.str().to_lowercase(),
-        TextCase::Uppercase => expr = expr.str().to_uppercase(),
-        TextCase::TitleCase | TextCase::None => {}
+
+    if !restricted {
+        if !config.regex_find.is_empty() {
+            expr = expr.str().replace_all(
+                lit(config.regex_find.as_str()),
+                lit(config.regex_replace.as_str()),
+                false,
+            );
+        }
+        match config.text_case {
+            TextCase::Lowercase => expr = expr.str().to_lowercase(),
+            TextCase::Uppercase => expr = expr.str().to_uppercase(),
+            TextCase::TitleCase | TextCase::None => {}
+        }
     }
     expr
 }
@@ -434,7 +452,23 @@ fn apply_dtype_casting(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
             ColumnKind::Temporal => PolarsDataType::Datetime(PolarsTimeUnit::Microseconds, None),
             _ => PolarsDataType::String,
         };
-        expr = expr.cast(dtype);
+        if kind == ColumnKind::Boolean {
+            // Handle common string representations of booleans
+            let s_expr = expr.cast(PolarsDataType::String).str().to_lowercase();
+            expr = when(s_expr.clone().is_in(lit(Series::new(
+                "b".into(),
+                &["true", "yes", "1", "y", "t"],
+            ))))
+            .then(lit(true))
+            .when(s_expr.is_in(lit(Series::new(
+                "b".into(),
+                &["false", "no", "0", "n", "f"],
+            ))))
+            .then(lit(false))
+            .otherwise(lit(Null {}));
+        } else {
+            expr = expr.cast(dtype);
+        }
     }
 
     if kind == ColumnKind::Temporal && config.timezone_utc {
@@ -511,7 +545,11 @@ fn apply_normalization(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
     expr
 }
 
-fn apply_categorical_refinement(mut expr: Expr, config: &ColumnCleanConfig, old_name: &str) -> Expr {
+fn apply_categorical_refinement(
+    mut expr: Expr,
+    config: &ColumnCleanConfig,
+    old_name: &str,
+) -> Expr {
     if config.ml_preprocessing
         && let Some(threshold) = config.freq_threshold
     {
