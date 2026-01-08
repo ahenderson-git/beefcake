@@ -1,0 +1,24 @@
+{
+  "name": "beefcake-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "reset": "node -e \"require('fs').rmSync('node_modules', {recursive:true, force:true}); require('fs').rmSync('package-lock.json', {force:true})\" && npm install"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-dialog": "^2.0.1",
+    "@tauri-apps/plugin-shell": "^2.0.1",
+    "monaco-editor": "^0.55.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}

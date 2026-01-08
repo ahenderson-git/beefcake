@@ -9,14 +9,13 @@ use anyhow::Result;
 use clap::Parser as _;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let cli = cli::Cli::parse();
 
     if let Some(command) = cli.command {
         beefcake::utils::TOKIO_RUNTIME.block_on(cli::run_command(command))?;
         return Ok(());
     }
-
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
     tauri_app::run();
     Ok(())
