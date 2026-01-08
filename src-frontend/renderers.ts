@@ -1,4 +1,4 @@
-import { AnalysisResponse, AppConfig, ColumnCleanConfig, ColumnSummary, View } from "./types";
+import { AnalysisResponse, AppConfig, ColumnCleanConfig, ColumnSummary } from "./types";
 import { escapeHtml, fmtBytes, fmtDuration } from "./utils";
 
 export function renderDashboardView(state: any): string {
@@ -108,7 +108,7 @@ export function renderAnalyserHeader(response: AnalysisResponse, trimPct: number
 }
 
 export function renderAnalyser(response: AnalysisResponse, expandedRows: Set<string>, configs: Map<string, ColumnCleanConfig>): string {
-  const allActive = Array.from(configs.values()).every(c => c.active !== false);
+  const allActive = Array.from(configs.values()).every(c => c.active);
 
   return `
     <div class="analyser-view">
@@ -210,7 +210,7 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
   }
 
   const c = config || {} as ColumnCleanConfig;
-  const isActive = c.active !== false;
+  const isActive = c.active;
 
   return `
     <tr class="analyser-row ${isExpanded ? 'expanded' : ''} ${isActive ? '' : 'inactive'}" data-col="${escapeHtml(col.name)}">

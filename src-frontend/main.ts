@@ -255,13 +255,11 @@ class BeefcakeApp {
       if (!canvas) return;
 
       let histData: [number, number][] | null = null;
-      let labelPrefix = '';
 
       if (col.stats.Numeric?.histogram) {
         histData = col.stats.Numeric.histogram;
       } else if (col.stats.Temporal?.histogram) {
         histData = col.stats.Temporal.histogram;
-        labelPrefix = 'TS: ';
       }
 
       if (!histData || histData.length === 0) return;
