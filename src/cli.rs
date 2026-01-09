@@ -277,10 +277,20 @@ async fn handle_export(
         let ext = output_path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
         match ext.as_str() {
             "parquet" => {
-                println!("Streaming to parquet: {}...", output_path.display());
+                let options = get_parquet_write_options(&cleaned_lf)?;
+                if let Some(rgs) = options.row_group_size {
+                    println!(
+                        "Streaming to parquet: {} (adaptive row group size: {})...",
+                        output_path.display(),
+                        rgs
+                    );
+                } else {
+                    println!("Streaming to parquet: {}...", output_path.display());
+                }
+
                 cleaned_lf
                     .with_streaming(true)
-                    .sink_parquet(&output_path, Default::default(), None)
+                    .sink_parquet(&output_path, options, None)
                     .context("Failed to sink to parquet")?;
             }
             "csv" => {
@@ -359,10 +369,20 @@ async fn handle_clean(
     let ext = output_file.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
     match ext.as_str() {
         "parquet" => {
-            println!("Streaming to parquet: {}...", output_file.display());
+            let options = get_parquet_write_options(&cleaned_lf)?;
+            if let Some(rgs) = options.row_group_size {
+                println!(
+                    "Streaming to parquet: {} (adaptive row group size: {})...",
+                    output_file.display(),
+                    rgs
+                );
+            } else {
+                println!("Streaming to parquet: {}...", output_file.display());
+            }
+
             cleaned_lf
                 .with_streaming(true)
-                .sink_parquet(&output_file, Default::default(), None)
+                .sink_parquet(&output_file, options, None)
                 .context("Failed to sink to parquet")?;
         }
         "csv" => {

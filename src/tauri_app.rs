@@ -172,11 +172,21 @@ async fn prepare_data(
                 .map_err(|e| format!("Failed to apply cleaning: {e}"))?;
 
             let temp_dir = std::env::temp_dir();
-            let temp_path = temp_dir.join(format!("beefcake_cleaned_data_{}.parquet", log_tag.to_lowercase()));
+            let temp_path = temp_dir.join(format!("beefcake_cleaned_data_{}_{}.parquet", log_tag.to_lowercase(), Uuid::new_v4()));
 
-            // Use sink_parquet for memory efficiency instead of materializing the whole DF
+            // Use adaptive sink_parquet for memory efficiency
+            let options = beefcake::analyser::logic::get_parquet_write_options(&cleaned_lf)
+                .map_err(|e| format!("Failed to determine Parquet options: {e}"))?;
+
+            if let Some(rgs) = options.row_group_size {
+                beefcake::utils::log_event(
+                    log_tag,
+                    &format!("Streaming to Parquet (adaptive). Row group size: {}", rgs),
+                );
+            }
+
             cleaned_lf.with_streaming(true)
-                .sink_parquet(&temp_path, Default::default(), None)
+                .sink_parquet(&temp_path, options, None)
                 .map_err(|e| format!("Failed to save cleaned data to temp file: {e}"))?;
 
             return Ok(Some(temp_path.to_string_lossy().to_string()));
@@ -279,8 +289,20 @@ try:
     
     query = """{}"""
     result = ctx.execute(query)
+    
+    # Adaptive row group sizing
+    col_count = len(result.schema)
+    rgs = 65536
+    if col_count >= 200: rgs = 16384
+    elif col_count >= 100: rgs = 32768
+    
+    env_rgs = os.environ.get('BEEFCAKE_PARQUET_ROW_GROUP_SIZE')
+    if env_rgs: 
+        try: rgs = int(env_rgs)
+        except: pass
+
     # Use sink_parquet for memory efficiency
-    result.sink_parquet(r"{}")
+    result.sink_parquet(r"{}", row_group_size=rgs)
 except Exception as e:
     print(f"SQL Export Error: {{e}}")
     sys.exit(1)
@@ -342,7 +364,18 @@ try:
                 break
                 
     if target_lf is not None:
-        target_lf.sink_parquet(r"{}")
+        # Adaptive row group sizing
+        col_count = len(target_lf.schema)
+        rgs = 65536
+        if col_count >= 200: rgs = 16384
+        elif col_count >= 100: rgs = 32768
+        
+        env_rgs = os.environ.get('BEEFCAKE_PARQUET_ROW_GROUP_SIZE')
+        if env_rgs: 
+            try: rgs = int(env_rgs)
+            except: pass
+            
+        target_lf.sink_parquet(r"{}", row_group_size=rgs)
     else:
         print("Error: No Polars DataFrame or LazyFrame found to export. Please ensure your script creates a variable named 'df'.")
         sys.exit(1)
@@ -392,12 +425,16 @@ except Exception as e:
             
             match ext.as_str() {
                 "parquet" => {
-                    beefcake::utils::log_event("Export", "Starting Parquet sink (optimized)...");
-                    let options = polars::prelude::ParquetWriteOptions {
-                        maintain_order: false,
-                        row_group_size: Some(64 * 1024),
-                        ..Default::default()
-                    };
+                    let options = beefcake::analyser::logic::get_parquet_write_options(&lf)
+                        .map_err(|e| e.to_string())?;
+
+                    if let Some(rgs) = options.row_group_size {
+                        beefcake::utils::log_event(
+                            "Export",
+                            &format!("Starting Parquet sink (adaptive). Row group size: {}", rgs),
+                        );
+                    }
+
                     lf.with_streaming(true)
                         .sink_parquet(&temp_path, options, None)
                         .map_err(|e| format!("Failed to sink Parquet: {e}"))?;

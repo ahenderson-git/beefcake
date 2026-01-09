@@ -220,6 +220,39 @@ pub fn save_df(df: &mut DataFrame, path: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
+pub fn get_parquet_write_options(lf: &LazyFrame) -> Result<ParquetWriteOptions> {
+    // Adaptive row group sizing based on column count to prevent OOM on large/wide datasets
+    let schema = lf
+        .clone()
+        .collect_schema()
+        .map_err(|e| anyhow::anyhow!("Failed to collect schema: {e}"))?;
+    let col_count = schema.len();
+
+    // Base size: 65,536 (standard)
+    // If >= 100 columns: 32,768
+    // If >= 200 columns: 16,384
+    let mut row_group_size = if col_count >= 200 {
+        16_384
+    } else if col_count >= 100 {
+        32_768
+    } else {
+        65_536
+    };
+
+    // Allow environment variable override for emergency debugging
+    if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE") {
+        if let Ok(parsed) = env_val.parse::<usize>() {
+            row_group_size = parsed;
+        }
+    }
+
+    Ok(ParquetWriteOptions {
+        maintain_order: false,
+        row_group_size: Some(row_group_size),
+        ..Default::default()
+    })
+}
+
 pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
     let row_count = df.height();
     let mut summaries = Vec::new();
@@ -429,7 +462,14 @@ pub fn clean_df_lazy(
 
     // Apply Stage 1: Basic Cleaning & Selection
     if base_exprs.is_empty() {
-        return Ok(lf.select([col("*").exclude(["*"])])); // Return empty LF if nothing selected
+        if configs.is_empty() {
+            // If no configurations provided, keep all columns
+            base_exprs.push(col("*"));
+        } else {
+            // If configurations were provided but no columns were marked as active,
+            // we return an empty LazyFrame with no columns.
+            return Ok(lf.select([col("*").exclude(["*"])]));
+        }
     }
     lf = lf.select(base_exprs);
 
