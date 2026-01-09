@@ -130,6 +130,7 @@ pub fn load_df(path: &std::path::Path, progress: &Arc<AtomicU64>) -> Result<Data
         }
         _ => LazyCsvReader::new(path)
             .with_try_parse_dates(true)
+            .with_low_memory(true)
             .finish()
             .context("Failed to initialize CSV reader")?
             .collect()
@@ -228,7 +229,11 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
 
         let samples = {
             let series = col.as_materialized_series();
-            let head = series.drop_nulls().head(Some(10));
+            let mut head = series.drop_nulls().head(Some(10));
+            // If the column is still empty (all nulls), take the first 10 rows even if null
+            if head.is_empty() && !series.is_empty() {
+                head = series.head(Some(10));
+            }
             match head.cast(&PolarsDataType::String) {
                 Ok(s_ca) => s_ca
                     .str()
@@ -309,6 +314,12 @@ pub fn calculate_correlation_matrix(df: &DataFrame) -> Result<Option<Correlation
     }
 
     let n = numeric_cols.len();
+    // Limit correlation matrix to reasonable number of columns to prevent O(N^2) explosion
+    // and stack issues during optimization of thousands of expressions.
+    if n > 100 {
+        return Ok(None);
+    }
+
     let mut exprs = Vec::with_capacity(n * (n - 1) / 2);
 
     for i in 0..n {
@@ -319,7 +330,12 @@ pub fn calculate_correlation_matrix(df: &DataFrame) -> Result<Option<Correlation
         }
     }
 
-    let corr_df = df.clone().lazy().select(exprs).collect()?;
+    let corr_df = df
+        .clone()
+        .lazy()
+        .with_streaming(true)
+        .select(exprs)
+        .collect()?;
 
     let mut data = vec![vec![0.0; n]; n];
     for i in 0..n {
@@ -346,90 +362,191 @@ pub fn clean_df(
     configs: &HashMap<String, ColumnCleanConfig>,
     restricted: bool,
 ) -> Result<DataFrame> {
-    let mut lf = df.lazy();
-    let mut rename_map = Vec::new();
-    let mut one_hot_cols = Vec::new();
+    let lf = df.lazy();
+    let cleaned_lf = clean_df_lazy(lf, configs, restricted)?;
+    cleaned_lf
+        .collect()
+        .context("Failed to collect cleaned DataFrame")
+}
 
-    // Sort keys for deterministic processing order
+#[derive(Default, Clone, Debug)]
+struct StatsValues {
+    mean: Option<f64>,
+    median: Option<f64>,
+    mode: Option<LiteralValue>,
+    std: Option<f64>,
+    min: Option<f64>,
+    max: Option<f64>,
+    q05: Option<f64>,
+    q95: Option<f64>,
+}
+
+pub fn clean_df_lazy(
+    mut lf: LazyFrame,
+    configs: &HashMap<String, ColumnCleanConfig>,
+    restricted: bool,
+) -> Result<LazyFrame> {
+    // 1. Identify active columns and their basic transformations
     let mut sorted_keys: Vec<_> = configs.keys().collect();
     sorted_keys.sort();
 
-    for old_name in sorted_keys {
+    let mut base_exprs = Vec::new();
+    let mut rename_map = Vec::new();
+    let mut one_hot_cols = Vec::new();
+
+    for old_name in &sorted_keys {
         let config = configs
-            .get(old_name)
+            .get(*old_name)
             .context("Missing configuration for column")?;
 
         if !config.active {
-            lf = lf.select([col("*").exclude([old_name.as_str()])]);
             continue;
         }
 
-        let mut expr = col(old_name);
-
-        // 1. Basic Cleaning: Text operations (Must happen before casting)
+        let mut expr = col(*old_name);
         expr = apply_text_cleaning(expr, config, restricted);
-
-        // 2. Change Datatypes
         expr = apply_dtype_casting(expr, config);
+        base_exprs.push(expr.alias(*old_name));
 
+        // Queue renaming and one-hot for later
         if !restricted {
-            // 3. Imputation (After casting so that Numeric/Boolean specific logic works)
-            expr = apply_imputation(expr, config);
-
-            // 4. Numeric Refinement (Rounding/Clipping)
-            expr = apply_numeric_refinement(expr, config);
-
-            // 5. Normalization
-            expr = apply_normalization(expr, config);
-
-            // 6. Categorical Refinement
-            expr = apply_categorical_refinement(expr, config, old_name);
-        }
-
-        let needs_update = if restricted {
-            config.advanced_cleaning || config.target_dtype.is_some()
-        } else {
-            config.advanced_cleaning || config.target_dtype.is_some() || config.ml_preprocessing
-        };
-
-        if needs_update {
-            lf = lf.with_column(expr.alias(old_name));
-        }
-
-        if !restricted {
-            // Queue renaming for the final step
-            if !config.new_name.is_empty() && config.new_name != *old_name {
-                rename_map.push((old_name.clone(), config.new_name.clone()));
+            if !config.new_name.is_empty() && config.new_name != **old_name {
+                rename_map.push(((**old_name).clone(), config.new_name.clone()));
             }
 
-            // Queue One-Hot encoding (will use the name AFTER rename if any)
             if config.ml_preprocessing && config.one_hot_encode {
                 let final_name = if !config.new_name.is_empty() {
                     config.new_name.clone()
                 } else {
-                    old_name.clone()
+                    (**old_name).clone()
                 };
                 one_hot_cols.push(final_name);
             }
         }
     }
 
-    // 4. Change Column Names
+    // Apply Stage 1: Basic Cleaning & Selection
+    if base_exprs.is_empty() {
+        return Ok(lf.select([col("*").exclude(["*"])])); // Return empty LF if nothing selected
+    }
+    lf = lf.select(base_exprs);
+
+    if restricted {
+        return Ok(lf);
+    }
+
+    // STAGE 2: Advanced Processing (Imputation, Refinement, Normalization)
+    // To avoid expression tree explosion and OOM from intermediate collect() calls,
+    // we pre-calculate all needed global statistics in a single pass.
+    let mut stats_exprs = Vec::new();
+    for old_name in &sorted_keys {
+        let config = configs.get(*old_name).unwrap();
+        if !config.active || !config.ml_preprocessing {
+            continue;
+        }
+
+        // Add needed stat expressions
+        if config.impute_mode == ImputeMode::Mean || config.normalization == NormalizationMethod::ZScore {
+            stats_exprs.push(col(*old_name).mean().alias(&format!("{}_mean", old_name)));
+        }
+        if config.impute_mode == ImputeMode::Median {
+            stats_exprs.push(col(*old_name).median().alias(&format!("{}_median", old_name)));
+        }
+        if config.impute_mode == ImputeMode::Mode {
+            stats_exprs.push(col(*old_name).mode().first().alias(&format!("{}_mode", old_name)));
+        }
+        if config.normalization == NormalizationMethod::ZScore {
+            stats_exprs.push(col(*old_name).std(1).alias(&format!("{}_std", old_name)));
+        }
+        if config.normalization == NormalizationMethod::MinMax {
+            stats_exprs.push(col(*old_name).min().alias(&format!("{}_min", old_name)));
+            stats_exprs.push(col(*old_name).max().alias(&format!("{}_max", old_name)));
+        }
+        if config.clip_outliers {
+            stats_exprs.push(col(*old_name).quantile(lit(0.05), PolarsQuantileMethod::Linear).alias(&format!("{}_q05", old_name)));
+            stats_exprs.push(col(*old_name).quantile(lit(0.95), PolarsQuantileMethod::Linear).alias(&format!("{}_q95", old_name)));
+        }
+    }
+
+    let mut stats_map = HashMap::new();
+    if !stats_exprs.is_empty() {
+        // Collect stats in a single pass. This is safe because it results in a 1-row DataFrame.
+        // We use streaming to handle large datasets.
+        let stats_df = lf.clone()
+            .with_streaming(true)
+            .select(stats_exprs)
+            .collect()
+            .context("Failed to compute cleaning statistics for large dataset")?;
+            
+        for old_name in &sorted_keys {
+            let config = configs.get(*old_name).unwrap();
+            if !config.active || !config.ml_preprocessing {
+                continue;
+            }
+
+            let mut values = StatsValues::default();
+            
+            if config.impute_mode == ImputeMode::Mean || config.normalization == NormalizationMethod::ZScore {
+                values.mean = stats_df.column(&format!("{}_mean", old_name))?.f64()?.get(0);
+            }
+            if config.impute_mode == ImputeMode::Median {
+                values.median = stats_df.column(&format!("{}_median", old_name))?.f64()?.get(0);
+            }
+            if config.impute_mode == ImputeMode::Mode {
+                let series = stats_df.column(&format!("{}_mode", old_name))?.as_materialized_series();
+                if !series.is_empty() {
+                    let av = series.get(0)?;
+                    values.mode = Some(av.try_into()?);
+                }
+            }
+            if config.normalization == NormalizationMethod::ZScore {
+                values.std = stats_df.column(&format!("{}_std", old_name))?.f64()?.get(0);
+            }
+            if config.normalization == NormalizationMethod::MinMax {
+                values.min = stats_df.column(&format!("{}_min", old_name))?.f64()?.get(0);
+                values.max = stats_df.column(&format!("{}_max", old_name))?.f64()?.get(0);
+            }
+            if config.clip_outliers {
+                values.q05 = stats_df.column(&format!("{}_q05", old_name))?.f64()?.get(0);
+                values.q95 = stats_df.column(&format!("{}_q95", old_name))?.f64()?.get(0);
+            }
+            stats_map.insert((*old_name).clone(), values);
+        }
+    }
+
+    let mut adv_exprs = Vec::new();
+    for old_name in &sorted_keys {
+        let config = configs.get(*old_name).unwrap();
+        if !config.active || !config.ml_preprocessing {
+            continue;
+        }
+
+        let stats = stats_map.get(*old_name);
+        let mut expr = col(*old_name);
+        expr = apply_imputation_with_stats(expr, config, stats);
+        expr = apply_numeric_refinement_with_stats(expr, config, stats);
+        expr = apply_normalization_with_stats(expr, config, stats);
+        expr = apply_categorical_refinement(expr, config, *old_name);
+
+        adv_exprs.push(expr.alias(*old_name));
+    }
+
+    if !adv_exprs.is_empty() {
+        lf = lf.with_columns(adv_exprs);
+    }
+
+    // STAGE 3: Renaming
     if !rename_map.is_empty() {
         let (old_names, new_names): (Vec<String>, Vec<String>) = rename_map.into_iter().unzip();
         lf = lf.rename(old_names, new_names, false);
     }
 
-    let result_df = lf
-        .collect()
-        .context("Failed to apply cleaning steps to DataFrame")?;
-
-    // 6. One-Hot Encoding (Manual Implementation)
-    if !restricted {
-        apply_one_hot_encoding(result_df, one_hot_cols)
-    } else {
-        Ok(result_df)
+    // STAGE 4: One-Hot Encoding
+    if !one_hot_cols.is_empty() {
+        lf = apply_one_hot_encoding_lazy(lf, one_hot_cols)?;
     }
+
+    Ok(lf)
 }
 
 pub fn auto_clean_df(df: DataFrame, restricted: bool) -> Result<DataFrame> {
@@ -467,9 +584,11 @@ fn apply_text_cleaning(mut expr: Expr, config: &ColumnCleanConfig, restricted: b
         expr = expr.str().replace_all(lit(r"[^\x00-\x7F]"), lit(""), false);
     }
     if config.standardize_nulls {
-        let null_patterns = ["n/a", "null", "none", "-", "nan"];
+        let null_patterns = [
+            "n/a", "N/A", "null", "NULL", "none", "None", "NONE", "-", "nan", "NaN", "NAN",
+        ];
         let patterns_s = Series::new("p".into(), &null_patterns);
-        expr = when(expr.clone().str().to_lowercase().is_in(lit(patterns_s)))
+        expr = when(expr.clone().cast(PolarsDataType::String).is_in(lit(patterns_s)))
             .then(lit(Null {}))
             .otherwise(expr);
     }
@@ -523,16 +642,20 @@ fn apply_dtype_casting(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
             _ => PolarsDataType::String,
         };
         if kind == ColumnKind::Boolean {
-            // Handle common string representations of booleans
-            let s_expr = expr.cast(PolarsDataType::String).str().to_lowercase();
+            // Handle common string representations of booleans without to_lowercase() for speed
+            let s_expr = expr.cast(PolarsDataType::String);
             expr = when(s_expr.clone().is_in(lit(Series::new(
                 "b".into(),
-                &["true", "yes", "1", "y", "t"],
+                &[
+                    "true", "True", "TRUE", "yes", "Yes", "YES", "1", "y", "Y", "t", "T",
+                ],
             ))))
             .then(lit(true))
             .when(s_expr.is_in(lit(Series::new(
                 "b".into(),
-                &["false", "no", "0", "n", "f"],
+                &[
+                    "false", "False", "FALSE", "no", "No", "NO", "0", "n", "N", "f", "F",
+                ],
             ))))
             .then(lit(false))
             .otherwise(lit(Null {}));
@@ -551,7 +674,7 @@ fn apply_dtype_casting(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
     expr
 }
 
-fn apply_imputation(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+fn apply_imputation_with_stats(mut expr: Expr, config: &ColumnCleanConfig, stats: Option<&StatsValues>) -> Expr {
     if !config.ml_preprocessing {
         return expr;
     }
@@ -562,19 +685,29 @@ fn apply_imputation(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
             expr = expr.fill_null(lit(0));
         }
         ImputeMode::Mean => {
-            expr = expr.clone().fill_null(expr.clone().mean());
+            if let Some(val) = stats.and_then(|s| s.mean) {
+                expr = expr.fill_null(lit(val));
+            }
         }
         ImputeMode::Median => {
-            expr = expr.clone().fill_null(expr.clone().median());
+            if let Some(val) = stats.and_then(|s| s.median) {
+                expr = expr.fill_null(lit(val));
+            }
         }
         ImputeMode::Mode => {
-            expr = expr.clone().fill_null(expr.clone().mode().first());
+            if let Some(val) = stats.and_then(|s| s.mode.clone()) {
+                expr = expr.fill_null(Expr::Literal(val));
+            }
         }
     }
     expr
 }
 
-fn apply_numeric_refinement(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+fn apply_numeric_refinement_with_stats(
+    mut expr: Expr,
+    config: &ColumnCleanConfig,
+    stats: Option<&StatsValues>,
+) -> Expr {
     if !config.ml_preprocessing {
         return expr;
     }
@@ -583,18 +716,21 @@ fn apply_numeric_refinement(mut expr: Expr, config: &ColumnCleanConfig) -> Expr 
         expr = expr.round(decimals);
     }
     if config.clip_outliers {
-        let lower = expr
-            .clone()
-            .quantile(lit(0.05), PolarsQuantileMethod::Linear);
-        let upper = expr
-            .clone()
-            .quantile(lit(0.95), PolarsQuantileMethod::Linear);
-        expr = expr.clip(lower, upper);
+        if let (Some(lower), Some(upper)) = (
+            stats.and_then(|s| s.q05),
+            stats.and_then(|s| s.q95),
+        ) {
+            expr = expr.clip(lit(lower), lit(upper));
+        }
     }
     expr
 }
 
-fn apply_normalization(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
+fn apply_normalization_with_stats(
+    mut expr: Expr,
+    config: &ColumnCleanConfig,
+    stats: Option<&StatsValues>,
+) -> Expr {
     if !config.ml_preprocessing {
         return expr;
     }
@@ -602,14 +738,24 @@ fn apply_normalization(mut expr: Expr, config: &ColumnCleanConfig) -> Expr {
     match config.normalization {
         NormalizationMethod::None => {}
         NormalizationMethod::ZScore => {
-            let mean = expr.clone().mean();
-            let std = expr.clone().std(1);
-            expr = (expr - mean) / std;
+            if let (Some(mean), Some(std)) = (
+                stats.and_then(|s| s.mean),
+                stats.and_then(|s| s.std),
+            ) {
+                if std != 0.0 {
+                    expr = (expr - lit(mean)) / lit(std);
+                }
+            }
         }
         NormalizationMethod::MinMax => {
-            let min = expr.clone().min();
-            let max = expr.clone().max();
-            expr = (expr.clone() - min.clone()) / (max - min);
+            if let (Some(min), Some(max)) = (
+                stats.and_then(|s| s.min),
+                stats.and_then(|s| s.max),
+            ) {
+                if max != min {
+                    expr = (expr - lit(min)) / lit(max - min);
+                }
+            }
         }
     }
     expr
@@ -635,46 +781,77 @@ fn apply_categorical_refinement(
     expr
 }
 
-fn apply_one_hot_encoding(mut df: DataFrame, one_hot_cols: Vec<String>) -> Result<DataFrame> {
-    let mut new_columns = Vec::new();
-    let mut cols_to_drop = Vec::new();
+pub fn load_df_lazy(path: &std::path::Path) -> Result<LazyFrame> {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
+    match ext.as_str() {
+        "parquet" => {
+            LazyFrame::scan_parquet(path, Default::default())
+                .context("Failed to scan Parquet file lazily")
+        }
+        "json" => {
+            let file = std::fs::File::open(path).context("Failed to open JSON file")?;
+            let df = JsonReader::new(file).finish().context("Failed to parse JSON")?;
+            Ok(df.lazy())
+        }
+        "jsonl" | "ndjson" => {
+            LazyJsonLineReader::new(path.to_string_lossy().to_string())
+                .finish()
+                .context("Failed to scan JSONL file lazily")
+        }
+        _ => {
+            LazyCsvReader::new(path)
+                .with_try_parse_dates(true)
+                .with_low_memory(true)
+                .finish()
+                .context("Failed to initialize CSV reader lazily")
+        }
+    }
+}
+
+fn apply_one_hot_encoding_lazy(mut lf: LazyFrame, one_hot_cols: Vec<String>) -> Result<LazyFrame> {
     for col_name in one_hot_cols {
-        let column = df
-            .column(&col_name)
-            .context("Failed to access column for One-Hot encoding")?
-            .as_materialized_series();
-        let s_str = column
-            .cast(&PolarsDataType::String)
-            .context("Failed to cast column to string for One-Hot encoding")?;
-        let s_str = s_str
-            .str()
-            .context("Failed to access string data for One-Hot encoding")?;
-        let unique_values = s_str
-            .unique()
+        // Collect just this column to get unique values.
+        // We do this per column. It might result in multiple scans, but it avoids
+        // materializing the entire 10M+ row DataFrame in memory.
+        let unique_values_df = lf
+            .clone()
+            .select([polars::prelude::col(&col_name).unique()])
+            .collect()
             .context("Failed to get unique values for One-Hot encoding")?;
 
-        for val in unique_values.into_iter().flatten() {
-            let dummy_col_name = format!("{col_name}_{val}");
-            let dummy_series = s_str
-                .equal(val)
-                .into_series()
-                .cast(&PolarsDataType::Int32)
-                .context("Failed to create binary series for One-Hot encoding")?;
-            new_columns.push(Column::from(dummy_series).with_name(dummy_col_name.into()));
+        let unique_values = unique_values_df
+            .column(&col_name)?
+            .as_materialized_series()
+            .cast(&PolarsDataType::String)
+            .context("Failed to cast column to string for One-Hot encoding")?;
+        let unique_values_ca = unique_values.str()?;
+
+        if unique_values_ca.len() > 100 {
+            anyhow::bail!("Column '{}' has too many unique values ({}) for One-Hot encoding (limit: 100). Please reduce cardinality or deselect One-Hot encoding for this column.", col_name, unique_values_ca.len());
         }
-        cols_to_drop.push(col_name);
-    }
 
-    if !new_columns.is_empty() {
-        df.hstack_mut(&new_columns)?;
-    }
+        let mut dummy_exprs = Vec::new();
+        for val in unique_values_ca.into_iter().flatten() {
+            let dummy_col_name = format!("{col_name}_{val}");
+            dummy_exprs.push(
+                polars::prelude::col(&col_name)
+                    .eq(lit(val))
+                    .cast(PolarsDataType::Int32)
+                    .alias(dummy_col_name),
+            );
+        }
 
-    for col_name in cols_to_drop {
-        df.drop_in_place(&col_name)?;
+        if !dummy_exprs.is_empty() {
+            lf = lf.with_columns(dummy_exprs);
+        }
+        lf = lf.select([polars::prelude::col("*").exclude([&col_name])]);
     }
-
-    Ok(df)
+    Ok(lf)
 }
 
 fn analyse_boolean(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
@@ -717,20 +894,17 @@ fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, ColumnSta
     let trimmed_mean = calculate_trimmed_mean(ca, mean, trim_pct);
     let (bin_width, histogram) = calculate_histogram(ca, min, max, q1, q3);
 
-    let mut zero_count = 0;
-    let mut negative_count = 0;
-    let mut is_integer = true;
-    for v in ca.into_iter().flatten() {
-        if v == 0.0 {
-            zero_count += 1;
-        }
-        if v < 0.0 {
-            negative_count += 1;
-        }
-        if is_integer && v.fract() != 0.0 {
-            is_integer = false;
-        }
-    }
+    let zero_count = ca.equal(0.0).sum().unwrap_or(0) as usize;
+    let negative_count = ca.lt(0.0).sum().unwrap_or(0) as usize;
+    
+    // Efficiently check if all values are integers without a manual loop
+    let is_integer = if ca.null_count() == ca.len() {
+        true
+    } else {
+        // (x % 1.0 == 0.0)
+        let fract = ca.clone() % 1.0;
+        fract.equal(0.0).all()
+    };
 
     // Sorting flags
     let is_sorted = series.is_sorted(SortOptions {
@@ -793,11 +967,7 @@ fn check_effective_boolean(
     };
 
     if is_effective_bool {
-        let true_count = ca
-            .into_iter()
-            .flatten()
-            .filter(|&v| (v - 1.0).abs() < 1e-9)
-            .count();
+        let true_count = ca.equal(1.0).sum().unwrap_or(0) as usize;
         let false_count = ca.len() - ca.null_count() - true_count;
         return Ok(Some((
             ColumnKind::Boolean,
@@ -875,9 +1045,22 @@ fn calculate_histogram(
 
             if min_v < max_v {
                 let mut bin_counts: HashMap<i64, usize> = HashMap::new();
-                for val in ca.into_iter().flatten() {
-                    let b = ((val - min_v) / bin_width).floor() as i64;
-                    *bin_counts.entry(b).or_insert(0) += 1;
+                
+                // Use downcast_iter for significantly faster iteration over chunks
+                for chunk in ca.downcast_iter() {
+                    if chunk.validity().is_none() {
+                        for &val in chunk.values().as_slice() {
+                            let b = ((val - min_v) / bin_width).floor() as i64;
+                            *bin_counts.entry(b).or_insert(0) += 1;
+                        }
+                    } else {
+                        for opt_val in chunk.into_iter() {
+                            if let Some(val) = opt_val {
+                                let b = ((val - min_v) / bin_width).floor() as i64;
+                                *bin_counts.entry(b).or_insert(0) += 1;
+                            }
+                        }
+                    }
                 }
 
                 while bin_counts.len() > 1000 {
@@ -1094,13 +1277,11 @@ fn check_special_characters(
         let values = vc.column(name)?.as_materialized_series();
         let v_ca = values.cast(&PolarsDataType::String)?;
         let v_ca = v_ca.str()?;
-        for v in v_ca.into_iter().flatten() {
-            if v.chars()
-                .any(|c| c == '\r' || (c.is_control() && c != '\n' && c != '\t'))
-            {
-                return Ok(true);
-            }
-        }
+        
+        // Efficiently check for control characters or carriage returns using vectorized regex
+        // We look for: \r, or any control character EXCEPT \n and \t
+        let mask = v_ca.contains(r"[\r\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", false)?;
+        return Ok(mask.any());
     }
     Ok(false)
 }

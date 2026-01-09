@@ -1,7 +1,7 @@
 use anyhow::{Context as _, Result};
 use beefcake::analyser::db::DbClient;
 use beefcake::analyser::logic::types::ColumnCleanConfig;
-use beefcake::analyser::logic::{auto_clean_df, clean_df, load_df, save_df};
+use beefcake::analyser::logic::*;
 use clap::{Parser, Subcommand};
 use polars::prelude::DataFrame;
 use sqlx::postgres::PgConnectOptions;
@@ -214,17 +214,49 @@ async fn handle_export(
 
     if input_path.exists() {
         println!(
-            "Converting {0} to {1}...",
+            "Converting {0} to {1} (lazily)...",
             input_path.display(),
             output_path.display()
         );
-        let progress = Arc::new(AtomicU64::new(0));
-        let df = load_df(&input_path, &progress).context("Failed to load input file")?;
+        
+        let lf = load_df_lazy(&input_path).context("Failed to load input file lazily")?;
 
-        let mut df = apply_cleaning(df, config_path, clean)?;
+        let configs = if let Some(config_path) = config_path {
+            println!("Loading config from {}...", config_path.display());
+            load_config(&config_path)?
+        } else if clean {
+            println!("Auto-cleaning (sampling 500k rows for analysis)...");
+            // Important: Use limit only for the analysis/config generation
+            let sample_df = lf.clone().limit(500_000).collect().context("Failed to sample data for auto-cleaning")?;
+            let summaries = beefcake::analyser::logic::analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
+            let mut configs = HashMap::new();
+            for summary in summaries {
+                let mut config = ColumnCleanConfig::default();
+                config.new_name = summary.standardized_name.clone();
+                summary.apply_advice_to_config(&mut config);
+                configs.insert(summary.name.clone(), config);
+            }
+            configs
+        } else {
+            HashMap::new()
+        };
 
-        save_df(&mut df, &output_path).context("Failed to save output file")?;
-        println!("Successfully exported {} rows.", df.height());
+        println!("Applying transformations...");
+        let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
+
+        if output_path.extension().and_then(|s| s.to_str()) == Some("parquet") {
+            println!("Streaming to parquet: {}...", output_path.display());
+            cleaned_lf
+                .with_streaming(true)
+                .sink_parquet(&output_path, Default::default(), None)
+                .context("Failed to sink to parquet")?;
+        } else {
+            println!("Collecting and saving to {}...", output_path.display());
+            let mut df = cleaned_lf.collect().context("Failed to collect data for export")?;
+            save_df(&mut df, &output_path).context("Failed to save output file")?;
+        }
+
+        println!("Successfully exported.");
 
         // Archive
         let archived = beefcake::utils::archive_processed_file(&input_path)?;
@@ -256,17 +288,46 @@ async fn handle_clean(
     };
 
     println!(
-        "Cleaning {0} and saving to {1}...",
+        "Cleaning {0} and saving to {1} (lazily)...",
         input_file.display(),
         output_file.display()
     );
-    let progress = Arc::new(AtomicU64::new(0));
-    let df = load_df(&input_file, &progress).context("Failed to load input file")?;
 
-    let mut cleaned_df = apply_cleaning(df, config_path, true)?;
+    let lf = load_df_lazy(&input_file).context("Failed to load input file lazily")?;
 
-    save_df(&mut cleaned_df, &output_file).context("Failed to save cleaned file")?;
-    println!("Successfully cleaned {} rows.", cleaned_df.height());
+    let configs = if let Some(cp) = config_path {
+        println!("Loading config from {}...", cp.display());
+        load_config(&cp)?
+    } else {
+        println!("Auto-cleaning (sampling 500k rows for analysis)...");
+        // Important: Use limit only for analysis, but clean the full LazyFrame later
+        let sample_df = lf.clone().limit(500_000).collect().context("Failed to sample data for auto-cleaning")?;
+        let summaries = beefcake::analyser::logic::analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
+        let mut configs = HashMap::new();
+        for summary in summaries {
+            let mut config = ColumnCleanConfig::default();
+            config.new_name = summary.standardized_name.clone();
+            summary.apply_advice_to_config(&mut config);
+            configs.insert(summary.name.clone(), config);
+        }
+        configs
+    };
+
+    let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
+
+    if output_file.extension().and_then(|s| s.to_str()) == Some("parquet") {
+        println!("Streaming to parquet: {}...", output_file.display());
+        cleaned_lf
+            .with_streaming(true)
+            .sink_parquet(&output_file, Default::default(), None)
+            .context("Failed to sink to parquet")?;
+    } else {
+        println!("Collecting and saving to {}...", output_file.display());
+        let mut df = cleaned_lf.collect().context("Failed to collect data for saving")?;
+        save_df(&mut df, &output_file).context("Failed to save cleaned file")?;
+    }
+
+    println!("Successfully cleaned.");
 
     // Archive
     let archived = beefcake::utils::archive_processed_file(&input_file)?;

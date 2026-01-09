@@ -1,8 +1,13 @@
 #![allow(clippy::let_underscore_must_use, clippy::let_underscore_untyped, clippy::print_stderr, clippy::exit, clippy::collapsible_if)]
-use beefcake::analyser::logic::AnalysisResponse;
+use beefcake::analyser::logic::{AnalysisResponse, ColumnCleanConfig};
+use serde::Deserialize;
+use std::collections::HashMap;
+use uuid::Uuid;
+use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::process::{Command, Stdio};
 use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 
 #[tauri::command]
 async fn analyze_file(path: String, trim_pct: Option<f64>) -> Result<AnalysisResponse, String> {
@@ -23,18 +28,45 @@ async fn analyze_file(path: String, trim_pct: Option<f64>) -> Result<AnalysisRes
     let progress = Arc::new(AtomicU64::new(0));
     let start = std::time::Instant::now();
 
-    let df = beefcake::analyser::logic::load_df(&path_buf, &progress).map_err(|e| e.to_string())?;
-
     let file_size = std::fs::metadata(&path_buf).map(|m| m.len()).unwrap_or(0);
 
-    beefcake::analyser::logic::analysis::run_full_analysis(
+    // For very large files, we use lazy loading and sampling for the SUMMARY analysis to avoid OOM.
+    // However, the actual processing (export/cleaning) will always use the full LazyFrame.
+    let (df, is_sampled) = if file_size > 100 * 1024 * 1024 { // > 100MB
+        beefcake::utils::log_event("Analyser", "Large file detected, using sampling for summary analysis...");
+        let lf = beefcake::analyser::logic::load_df_lazy(&path_buf)
+            .map_err(|e| format!("Failed to load file lazily: {e}"))?;
+        
+        // We use a larger sample (500k) for better statistical accuracy on 10M+ rows
+        (lf.limit(500_000)
+            .collect()
+            .map_err(|e| format!("Failed to sample data for analysis: {e}"))?,
+        true)
+    } else {
+        (beefcake::analyser::logic::load_df(&path_buf, &progress).map_err(|e| e.to_string())?,
+        false)
+    };
+
+    let mut response = beefcake::analyser::logic::analysis::run_full_analysis(
         df,
         path_str,
         file_size,
         trim_pct.unwrap_or(0.05),
         start,
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+
+    // If sampled, adjust the reported row count to reflect the full file (estimate if necessary, or just label as sampled)
+    if is_sampled {
+        // Simple heuristic: if it's a CSV, we can estimate rows based on size vs sample size
+        // but for now, let's just mark it clearly in the response.
+        // We add a special entry to business_summary for the first column
+        if let Some(first_col) = response.summary.get_mut(0) {
+            first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of 500,000 rows due to large file size ({})", beefcake::utils::fmt_bytes(file_size)));
+        }
+    }
+    
+    Ok(response)
 }
 
 #[tauri::command]
@@ -115,74 +147,380 @@ async fn run_powershell(script: String) -> Result<String, String> {
     }
 }
 
-#[tauri::command]
-async fn run_python(
-    script: String,
+async fn prepare_data(
     data_path: Option<String>,
-    configs: Option<std::collections::HashMap<String, beefcake::analyser::logic::ColumnCleanConfig>>,
-) -> Result<String, String> {
-    use std::io::Write;
-    use std::path::PathBuf;
-    use std::process::{Command, Stdio};
-    use std::sync::atomic::AtomicU64;
-    use std::sync::Arc;
+    configs: Option<HashMap<String, ColumnCleanConfig>>,
+    log_tag: &str,
+) -> Result<Option<String>, String> {
+    if let (Some(path), Some(cfgs)) = (&data_path, &configs) {
+        if !cfgs.is_empty() && !path.is_empty() {
+            beefcake::utils::log_event(log_tag, "Applying cleaning configurations before execution (streaming)");
+            
+            let lf = beefcake::analyser::logic::load_df_lazy(&PathBuf::from(path))
+                .map_err(|e| format!("Failed to load data for cleaning: {e}"))?;
 
+            let cleaned_lf = beefcake::analyser::logic::clean_df_lazy(lf, cfgs, false)
+                .map_err(|e| format!("Failed to apply cleaning: {e}"))?;
+
+            let temp_dir = std::env::temp_dir();
+            let temp_path = temp_dir.join(format!("beefcake_cleaned_data_{}.parquet", log_tag.to_lowercase()));
+
+            // Use sink_parquet for memory efficiency instead of materializing the whole DF
+            cleaned_lf.with_streaming(true)
+                .sink_parquet(&temp_path, Default::default(), None)
+                .map_err(|e| format!("Failed to save cleaned data to temp file: {e}"))?;
+
+            return Ok(Some(temp_path.to_string_lossy().to_string()));
+        }
+    }
+    Ok(data_path)
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "PascalCase")]
+enum ExportSourceType {
+    Analyser,
+    Python,
+    SQL,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct ExportSource {
+    #[serde(rename = "type")]
+    source_type: ExportSourceType,
+    content: Option<String>,
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "PascalCase")]
+enum ExportDestinationType {
+    File,
+    Database,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct ExportDestination {
+    #[serde(rename = "type")]
+    dest_type: ExportDestinationType,
+    target: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct ExportOptions {
+    source: ExportSource,
+    configs: HashMap<String, ColumnCleanConfig>,
+    destination: ExportDestination,
+}
+
+async fn export_data_internal(options: ExportOptions) -> Result<(), String> {
     beefcake::utils::log_event(
-        "Python",
+        "Export",
         &format!(
-            "Executing Python script. Argument data_path: {:?}, configs: {}",
-            data_path,
-            configs.as_ref().map(|c| c.len()).unwrap_or(0)
+            "Starting export: Source={:?}, Dest={:?}",
+            options.source.source_type, options.destination.dest_type
         ),
     );
 
-    let mut actual_data_path = data_path.clone();
+    // 1. Get the LazyFrame based on source
+    beefcake::utils::log_event("Export", "Step 1/3: Preparing data source (streaming)...");
+    let mut lf = match options.source.source_type {
+        ExportSourceType::Analyser => {
+            let path = options
+                .source
+                .path
+                .ok_or_else(|| "No path provided for Analyser source".to_string())?;
+            beefcake::analyser::logic::load_df_lazy(&PathBuf::from(path))
+                .map_err(|e| format!("Failed to load data: {e}"))?
+        }
+        ExportSourceType::SQL => {
+            let query = options
+                .source
+                .content
+                .ok_or_else(|| "No query provided for SQL source".to_string())?;
+            let path = options
+                .source
+                .path
+                .ok_or_else(|| "No data path provided for SQL source".to_string())?;
 
-    // If cleaning configs are provided and we have a data path, apply them
-    if let (Some(path), Some(cfgs)) = (&data_path, &configs) {
-        if !cfgs.is_empty() && !path.is_empty() {
-            beefcake::utils::log_event("Python", "Applying cleaning configurations before execution");
-            let progress = Arc::new(AtomicU64::new(0));
-            let df = beefcake::analyser::logic::load_df(&PathBuf::from(path), &progress)
-                .map_err(|e| format!("Failed to load data for cleaning: {e}"))?;
-
-            let mut cleaned_df = beefcake::analyser::logic::clean_df(df, cfgs, false)
-                .map_err(|e| format!("Failed to apply cleaning: {e}"))?;
-
-            // Save to a temporary file. Parquet is fast and preserves types.
+            // Generate Python script to run SQL and sink result to temp Parquet
             let temp_dir = std::env::temp_dir();
-            let temp_path = temp_dir.join("beefcake_cleaned_data.parquet");
+            let temp_output = temp_dir.join(format!(
+                "beefcake_export_sql_{}.parquet",
+                Uuid::new_v4()
+            ));
 
-            beefcake::analyser::logic::save_df(&mut cleaned_df, &temp_path)
-                .map_err(|e| format!("Failed to save cleaned data to temp file: {e}"))?;
+            let python_script = format!(
+                r#"import os
+import polars as pl
+import sys
 
-            actual_data_path = Some(temp_path.to_string_lossy().to_string());
+data_path = r"{}"
+try:
+    if data_path.endswith(".parquet"):
+        lf = pl.scan_parquet(data_path)
+    elif data_path.endswith(".json"):
+        # standard JSON doesn't support lazy scanning, but we can read it
+        lf = pl.read_json(data_path).lazy()
+    else:
+        lf = pl.scan_csv(data_path, try_parse_dates=True)
+    
+    ctx = pl.SQLContext()
+    ctx.register("data", lf)
+    
+    query = """{}"""
+    result = ctx.execute(query)
+    # Use sink_parquet for memory efficiency
+    result.sink_parquet(r"{}")
+except Exception as e:
+    print(f"SQL Export Error: {{e}}")
+    sys.exit(1)
+"#,
+                path,
+                query.replace(r#"""#, r#"\"""#),
+                temp_output.to_string_lossy()
+            );
+
+            execute_python(&python_script, None, "SQL_Export").await?;
+
+            let lf = beefcake::analyser::logic::load_df_lazy(&temp_output)
+                .map_err(|e| format!("Failed to load SQL result: {e}"))?;
+
+            // Note: We can't remove the file yet because lf might still need to read it when sinking.
+            // We should ideally clean it up after the whole process.
+            lf
+        }
+        ExportSourceType::Python => {
+            let script = options
+                .source
+                .content
+                .ok_or_else(|| "No script provided for Python source".to_string())?;
+            let path = options.source.path;
+
+            // Generate Python script to run user script and sink result to temp Parquet
+            let temp_dir = std::env::temp_dir();
+            let temp_output = temp_dir.join(format!(
+                "beefcake_export_python_{}.parquet",
+                Uuid::new_v4()
+            ));
+
+            let wrapped_script = format!(
+                r#"import os
+import polars as pl
+import sys
+
+# User script start
+{}
+# User script end
+
+try:
+    target_lf = None
+    if 'df' in locals():
+        val = locals()['df']
+        if isinstance(val, pl.DataFrame):
+            target_lf = val.lazy()
+        elif isinstance(val, pl.LazyFrame):
+            target_lf = val
+            
+    if target_lf is None:
+        # Fallback: look for any DataFrame or LazyFrame in locals
+        for val in reversed(list(locals().values())):
+            if isinstance(val, pl.DataFrame):
+                target_lf = val.lazy()
+                break
+            elif isinstance(val, pl.LazyFrame):
+                target_lf = val
+                break
+                
+    if target_lf is not None:
+        target_lf.sink_parquet(r"{}")
+    else:
+        print("Error: No Polars DataFrame or LazyFrame found to export. Please ensure your script creates a variable named 'df'.")
+        sys.exit(1)
+except Exception as e:
+    print(f"Python Export Error: {{e}}")
+    sys.exit(1)
+"#,
+                script,
+                temp_output.to_string_lossy()
+            );
+
+            execute_python(&wrapped_script, path, "Python_Export").await?;
+
+            let lf = beefcake::analyser::logic::load_df_lazy(&temp_output)
+                .map_err(|e| format!("Failed to load Python result: {e}"))?;
+
+            lf
+        }
+    };
+
+    // 2. Apply cleaning configs (Lazy)
+    if !options.configs.is_empty() {
+        beefcake::utils::log_event("Export", "Step 2/3: Applying optimized streaming cleaning pipeline...");
+        lf = beefcake::analyser::logic::clean_df_lazy(lf, &options.configs, false)
+            .map_err(|e| format!("Failed to apply cleaning: {e}"))?;
+        beefcake::utils::log_event("Export", "Cleaning pipeline prepared.");
+    }
+
+    // 3. Export to destination
+    beefcake::utils::log_event("Export", "Step 3/3: Writing to destination (streaming)...");
+    match options.destination.dest_type {
+        ExportDestinationType::File => {
+            let final_path = PathBuf::from(options.destination.target);
+            let ext = final_path
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+
+            // Write to a temporary file in the system temp directory first.
+            // This is a critical fix for cloud-sync folders like OneDrive, which may attempt to
+            // sync or lock the file while Polars is still streaming data to it, causing crashes.
+            let temp_dir = std::env::temp_dir();
+            let temp_path = temp_dir.join(format!("beefcake_export_{}.{}", Uuid::new_v4(), ext));
+
+            beefcake::utils::log_event("Export", &format!("Sinking data to temporary file: {:?}", temp_path));
+            
+            match ext.as_str() {
+                "parquet" => {
+                    beefcake::utils::log_event("Export", "Starting Parquet sink (optimized)...");
+                    let options = polars::prelude::ParquetWriteOptions {
+                        maintain_order: false,
+                        row_group_size: Some(64 * 1024),
+                        ..Default::default()
+                    };
+                    lf.with_streaming(true)
+                        .sink_parquet(&temp_path, options, None)
+                        .map_err(|e| format!("Failed to sink Parquet: {e}"))?;
+                }
+                "csv" => {
+                    beefcake::utils::log_event("Export", "Starting CSV sink (optimized)...");
+                    lf.with_streaming(true)
+                        .sink_csv(&temp_path, Default::default(), None)
+                        .map_err(|e| format!("Failed to sink CSV: {e}"))?;
+                }
+                _ => {
+                    // Fallback to collect for formats that don't support sink (like JSON)
+                    beefcake::utils::log_event("Export", &format!("Collecting data for {} export...", ext));
+                    let mut df = lf.with_streaming(true)
+                        .collect()
+                        .map_err(|e| format!("Failed to collect for export: {e}"))?;
+                    beefcake::analyser::logic::save_df(&mut df, &temp_path)
+                        .map_err(|e| format!("Failed to save file: {e}"))?;
+                }
+            }
+
+            // Move temp file to final destination
+            beefcake::utils::log_event("Export", &format!("Finalizing: Moving file to {:?}", final_path));
+            if let Err(e) = std::fs::rename(&temp_path, &final_path) {
+                // Fallback: try copy + remove if rename fails (e.g. cross-device move)
+                std::fs::copy(&temp_path, &final_path)
+                    .map_err(|err| format!("Failed to move file to destination: {err} (Rename also failed: {e})"))?;
+                let _ = std::fs::remove_file(&temp_path);
+            }
+
+            beefcake::utils::log_event("Export", &format!("Successfully exported to {:?}", final_path));
+        }
+        ExportDestinationType::Database => {
+            use beefcake::analyser::db::DbClient;
+            use beefcake::utils::{load_app_config, push_audit_log, save_app_config};
+            use sqlx::postgres::PgConnectOptions;
+            use std::str::FromStr as _;
+
+            let connection_id = options.destination.target;
+            let mut config = load_app_config();
+
+            let conn = config
+                .connections
+                .iter()
+                .find(|c| c.id == connection_id)
+                .ok_or_else(|| "Connection not found".to_string())?;
+
+            let url = conn.settings.connection_string(&connection_id);
+            let opts = PgConnectOptions::from_str(&url)
+                .map_err(|e| format!("Invalid connection URL: {e}"))?;
+
+            let client = DbClient::connect(opts)
+                .await
+                .map_err(|e| format!("Database connection failed: {e}"))?;
+
+            let conn_name = conn.name.clone();
+            let table_name = conn.settings.table.clone();
+            let schema_name = conn.settings.schema.clone();
+
+            push_audit_log(
+                &mut config,
+                "Export",
+                &format!("Exporting data to database {conn_name}.{table_name}"),
+            );
+            let _ = save_app_config(&config).ok();
+
+            // For database, we still need to collect because DbClient::push_dataframe takes &DataFrame
+            // but at least we only do it once at the end and use streaming.
+            let df = lf.with_streaming(true)
+                .collect()
+                .map_err(|e| format!("Failed to collect for database push: {e}"))?;
+
+            client
+                .push_dataframe(0, &df, Some(schema_name.as_str()), Some(table_name.as_str()))
+                .await
+                .map_err(|e| format!("Database push failed: {e}"))?;
         }
     }
 
+    Ok(())
+}
+
+#[tauri::command]
+async fn export_data(options: ExportOptions) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let builder = std::thread::Builder::new()
+            .name("export-worker".to_string())
+            .stack_size(50 * 1024 * 1024); // 50MB stack to be super safe
+
+        builder
+            .spawn(move || {
+                let res = std::panic::catch_unwind(move || {
+                    beefcake::utils::TOKIO_RUNTIME.block_on(export_data_internal(options))
+                });
+
+                let final_res = match res {
+                    Ok(r) => r,
+                    Err(_) => Err("Export thread panicked. This can happen with extremely complex data plans or low memory. Try disabling some cleaning options.".to_string()),
+                };
+                let _ = tx.send(final_res);
+            })
+            .map_err(|e| format!("Failed to spawn export thread: {e}"))?;
+
+        rx.recv()
+            .map_err(|e| format!("Export thread communication failed: {e}"))?
+    })
+    .await
+    .map_err(|e| format!("Export task execution failed: {e}"))?
+}
+
+async fn execute_python(
+    script: &str,
+    data_path: Option<String>,
+    log_tag: &str,
+) -> Result<String, String> {
     let mut cmd = if cfg!(target_os = "windows") {
         Command::new("python")
     } else {
         Command::new("python3")
     };
 
-    // Force UTF-8 encoding for Python IO to avoid UnicodeEncodeError on Windows
     cmd.env("PYTHONIOENCODING", "utf-8");
-    
-    // Configure Polars to avoid truncation in output
     cmd.env("POLARS_FMT_MAX_COLS", "-1");
     cmd.env("POLARS_FMT_MAX_ROWS", "100");
     cmd.env("POLARS_FMT_STR_LEN", "1000");
 
-    if let Some(path) = &actual_data_path {
+    if let Some(path) = &data_path {
         if !path.is_empty() {
-            beefcake::utils::log_event("Python", &format!("Setting BEEFCAKE_DATA_PATH to: {}", path));
+            beefcake::utils::log_event(log_tag, &format!("Setting BEEFCAKE_DATA_PATH to: {}", path));
             cmd.env("BEEFCAKE_DATA_PATH", path);
-        } else {
-            beefcake::utils::log_event("Python", "actual_data_path is empty string, NOT setting BEEFCAKE_DATA_PATH");
         }
-    } else {
-        beefcake::utils::log_event("Python", "actual_data_path is None, NOT setting BEEFCAKE_DATA_PATH");
     }
 
     let mut child = cmd
@@ -190,7 +528,7 @@ async fn run_python(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Failed to spawn python: {e}"))?;
+        .map_err(|e| format!("Failed to spawn python for {log_tag}: {e}"))?;
 
     let mut stdin = child.stdin.take().ok_or("Failed to open stdin")?;
     stdin
@@ -213,17 +551,30 @@ async fn run_python(
 }
 
 #[tauri::command]
+async fn run_python(
+    script: String,
+    data_path: Option<String>,
+    configs: Option<HashMap<String, ColumnCleanConfig>>,
+) -> Result<String, String> {
+    beefcake::utils::log_event(
+        "Python",
+        &format!(
+            "Executing Python script. Argument data_path: {:?}, configs: {}",
+            data_path,
+            configs.as_ref().map(|c| c.len()).unwrap_or(0)
+        ),
+    );
+
+    let actual_data_path = prepare_data(data_path, configs, "Python").await?;
+    execute_python(&script, actual_data_path, "Python").await
+}
+
+#[tauri::command]
 async fn run_sql(
     query: String,
     data_path: Option<String>,
-    configs: Option<std::collections::HashMap<String, beefcake::analyser::logic::ColumnCleanConfig>>,
+    configs: Option<HashMap<String, ColumnCleanConfig>>,
 ) -> Result<String, String> {
-    use std::io::Write;
-    use std::path::PathBuf;
-    use std::process::{Command, Stdio};
-    use std::sync::atomic::AtomicU64;
-    use std::sync::Arc;
-
     beefcake::utils::log_event(
         "SQL",
         &format!(
@@ -233,28 +584,7 @@ async fn run_sql(
         ),
     );
 
-    let mut actual_data_path = data_path.clone();
-
-    // Prepare data path if configs are provided (same as run_python)
-    if let (Some(path), Some(cfgs)) = (&data_path, &configs) {
-        if !cfgs.is_empty() && !path.is_empty() {
-            beefcake::utils::log_event("SQL", "Applying cleaning configurations before execution");
-            let progress = Arc::new(AtomicU64::new(0));
-            let df = beefcake::analyser::logic::load_df(&PathBuf::from(path), &progress)
-                .map_err(|e| format!("Failed to load data for cleaning: {e}"))?;
-
-            let mut cleaned_df = beefcake::analyser::logic::clean_df(df, cfgs, false)
-                .map_err(|e| format!("Failed to apply cleaning: {e}"))?;
-
-            let temp_dir = std::env::temp_dir();
-            let temp_path = temp_dir.join("beefcake_cleaned_data_sql.parquet");
-
-            beefcake::analyser::logic::save_df(&mut cleaned_df, &temp_path)
-                .map_err(|e| format!("Failed to save cleaned data to temp file: {e}"))?;
-
-            actual_data_path = Some(temp_path.to_string_lossy().to_string());
-        }
-    }
+    let actual_data_path = prepare_data(data_path, configs, "SQL").await?;
 
     let python_script = format!(
         r#"import os
@@ -272,18 +602,19 @@ if not data_path:
 
 try:
     if data_path.endswith(".parquet"):
-        df = pl.read_parquet(data_path)
+        df = pl.scan_parquet(data_path)
     elif data_path.endswith(".json"):
-        df = pl.read_json(data_path)
+        df = pl.read_json(data_path).lazy()
     else:
-        df = pl.read_csv(data_path)
+        df = pl.scan_csv(data_path, try_parse_dates=True)
     
     ctx = pl.SQLContext()
     ctx.register("data", df)
     
     query = """{}"""
-    result = ctx.execute(query).collect()
-    print(result._repr_html_())
+    result = ctx.execute(query)
+    # Limit for preview to avoid OOM on large datasets
+    print(result.limit(100).collect())
 except Exception as e:
     print(f"SQL Error: {{e}}")
     sys.exit(1)
@@ -291,45 +622,7 @@ except Exception as e:
         query.replace(r#"""#, r#"\"""#)
     );
 
-    let mut cmd = if cfg!(target_os = "windows") {
-        Command::new("python")
-    } else {
-        Command::new("python3")
-    };
-
-    cmd.env("PYTHONIOENCODING", "utf-8");
-
-    if let Some(path) = &actual_data_path {
-        if !path.is_empty() {
-            cmd.env("BEEFCAKE_DATA_PATH", path);
-        }
-    }
-
-    let mut child = cmd
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn python for SQL: {e}"))?;
-
-    let mut stdin = child.stdin.take().ok_or("Failed to open stdin")?;
-    stdin
-        .write_all(python_script.as_bytes())
-        .map_err(|e| format!("Failed to write to stdin: {e}"))?;
-    drop(stdin);
-
-    let out = child
-        .wait_with_output()
-        .map_err(|e| format!("Failed to wait for python: {e}"))?;
-
-    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-
-    if out.status.success() {
-        Ok(stdout)
-    } else {
-        Err(format!("Error: {stdout}\n{stderr}"))
-    }
+    execute_python(&python_script, actual_data_path, "SQL").await
 }
 
 #[tauri::command]
@@ -337,8 +630,7 @@ async fn sanitize_headers(names: Vec<String>) -> Result<Vec<String>, String> {
     Ok(beefcake::analyser::logic::sanitize_column_names(&names))
 }
 
-#[tauri::command]
-async fn push_to_db(
+async fn push_to_db_internal(
     path: String,
     connection_id: String,
     configs: std::collections::HashMap<String, beefcake::analyser::logic::ColumnCleanConfig>,
@@ -405,6 +697,40 @@ async fn push_to_db(
         .map_err(|e| format!("Data push failed: {e}"))?;
 
     Ok(())
+}
+
+#[tauri::command]
+async fn push_to_db(
+    path: String,
+    connection_id: String,
+    configs: std::collections::HashMap<String, beefcake::analyser::logic::ColumnCleanConfig>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let builder = std::thread::Builder::new()
+            .name("db-push-worker".to_string())
+            .stack_size(50 * 1024 * 1024); // 50MB stack
+
+        builder
+            .spawn(move || {
+                let res = std::panic::catch_unwind(move || {
+                    beefcake::utils::TOKIO_RUNTIME
+                        .block_on(push_to_db_internal(path, connection_id, configs))
+                });
+
+                let final_res = match res {
+                    Ok(r) => r,
+                    Err(_) => Err("Database push thread panicked.".to_string()),
+                };
+                let _ = tx.send(final_res);
+            })
+            .map_err(|e| format!("Failed to spawn db-push thread: {e}"))?;
+
+        rx.recv()
+            .map_err(|e| format!("Db-push thread communication failed: {e}"))?
+    })
+    .await
+    .map_err(|e| format!("Db-push task execution failed: {e}"))?
 }
 
 #[tauri::command]
@@ -502,7 +828,8 @@ pub fn run() {
             delete_connection,
             install_python_package,
             run_sql,
-            sanitize_headers
+            sanitize_headers,
+            export_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

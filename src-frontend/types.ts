@@ -115,7 +115,25 @@ export interface AuditEntry {
   details: string;
 }
 
-export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog";
+export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference";
+
+export interface ExportSource {
+  type: 'Analyser' | 'Python' | 'SQL';
+  content?: string; // The script or query
+  path?: string;    // Original data path
+}
+
+export interface ExportDestination {
+  type: 'File' | 'Database';
+  target: string;   // File path or Connection ID
+  format?: 'csv' | 'json' | 'parquet';
+}
+
+export interface ExportOptions {
+  source: ExportSource;
+  configs: Record<string, ColumnCleanConfig>;
+  destination: ExportDestination;
+}
 
 export interface DbConnection {
   id: string;
@@ -150,7 +168,35 @@ export interface AppState {
   expandedRows: Set<string>;
   cleaningConfigs: Record<string, ColumnCleanConfig>;
   isAddingConnection: boolean;
+  isLoading: boolean;
+  loadingMessage: string;
   trimPct: number;
   pythonScript: string | null;
   sqlScript: string | null;
+}
+
+export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConfig {
+  return {
+    new_name: col.standardized_name || col.name,
+    target_dtype: null,
+    active: true,
+    advanced_cleaning: false,
+    ml_preprocessing: false,
+    trim_whitespace: true,
+    remove_special_chars: false,
+    text_case: "None",
+    standardize_nulls: true,
+    remove_non_ascii: false,
+    regex_find: "",
+    regex_replace: "",
+    rounding: null,
+    extract_numbers: false,
+    clip_outliers: false,
+    temporal_format: "",
+    timezone_utc: false,
+    freq_threshold: null,
+    normalization: "None",
+    one_hot_encode: false,
+    impute_mode: "None"
+  };
 }

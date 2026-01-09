@@ -68,16 +68,8 @@ impl DbClient {
             .await
             .context(format!("Failed to create data table '{full_identifier}'"))?;
 
-        // Fast data transfer using PostgreSQL COPY
+        // Fast data transfer using PostgreSQL COPY in chunks to avoid memory explosion
         let mut conn = self.pool.acquire().await?;
-
-        let mut buf = Vec::new();
-        CsvWriter::new(&mut buf)
-            .include_header(false)
-            .with_separator(b',')
-            .with_null_value(String::new())
-            .finish(&mut df.clone())
-            .context("Failed to serialize dataframe to CSV for COPY")?;
 
         let mut writer = conn
             .copy_in_raw(&format!(
@@ -86,10 +78,27 @@ impl DbClient {
             .await
             .context("Failed to initiate COPY command")?;
 
-        writer
-            .send(buf)
-            .await
-            .context("Failed to send data via COPY")?;
+        let chunk_size = 10_000;
+        let height = df.height();
+        
+        for i in (0..height).step_by(chunk_size) {
+            let len = std::cmp::min(chunk_size, height - i);
+            let mut chunk = df.slice(i as i64, len);
+            
+            let mut buf = Vec::new();
+            CsvWriter::new(&mut buf)
+                .include_header(false)
+                .with_separator(b',')
+                .with_null_value(String::new())
+                .finish(&mut chunk)
+                .context("Failed to serialize dataframe chunk to CSV")?;
+
+            writer
+                .send(buf)
+                .await
+                .context("Failed to send data chunk via COPY")?;
+        }
+
         writer
             .finish()
             .await

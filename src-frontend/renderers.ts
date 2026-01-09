@@ -1,4 +1,4 @@
-import { AnalysisResponse, AppConfig, ColumnCleanConfig, ColumnSummary } from "./types";
+import { AnalysisResponse, AppConfig, ColumnCleanConfig, ColumnSummary, DbConnection, ExportSource } from "./types";
 import { escapeHtml, fmtBytes, fmtDuration } from "./utils";
 
 const IMPUTE_OPTIONS = [
@@ -49,7 +49,7 @@ export function renderDashboardView(state: any): string {
     <div class="dashboard">
       <div class="hero">
         <h1>beefcake <small>v${state.version}</small></h1>
-        <p>Advanced Data Analysis & ETL Pipeline</p>
+        <p>Developed by Anthony Henderson</p>
       </div>
       <div class="info-box">
         <div class="info-section">
@@ -151,8 +151,8 @@ export function renderAnalyserHeader(response: AnalysisResponse, trimPct: number
         <button id="btn-open" class="btn-secondary">
           <i class="ph ph-cloud-arrow-up"></i> Load Dataset
         </button>
-        <button id="btn-push" class="btn-primary">
-          <i class="ph ph-database"></i> Push to DB
+        <button id="btn-export-analyser" class="btn-primary">
+          <i class="ph ph-export"></i> Export
         </button>
       </div>
     </div>
@@ -219,6 +219,15 @@ export function renderEmptyAnalyser(): string {
       <button id="btn-open" class="btn-primary">
           <i class="ph ph-cloud-arrow-up"></i> Load Dataset
       </button>
+    </div>
+  `;
+}
+
+export function renderLoading(message: string = "Analyzing dataset..."): string {
+  return `
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>${escapeHtml(message)}</p>
     </div>
   `;
 }
@@ -469,6 +478,9 @@ export function renderPythonView(state: any): string {
           <button id="btn-clear-py" class="btn-secondary">
             <i class="ph ph-trash"></i> Clear
           </button>
+          <button id="btn-export-py" class="btn-secondary" title="Export 'df' variable">
+            <i class="ph ph-export"></i> Export
+          </button>
           <button id="btn-run-py" class="btn-primary">
             <i class="ph ph-play"></i> Run Script
           </button>
@@ -516,6 +528,9 @@ export function renderSQLView(state: any): string {
           </button>
           <button id="btn-clear-sql" class="btn-secondary">
             <i class="ph ph-trash"></i> Clear
+          </button>
+          <button id="btn-export-sql" class="btn-secondary" title="Export current results">
+            <i class="ph ph-export"></i> Export
           </button>
           <button id="btn-run-sql" class="btn-primary">
             <i class="ph ph-play"></i> Run Query
@@ -784,6 +799,255 @@ export function renderActivityLogView(config: AppConfig | null): string {
   `;
 }
 
+export function renderExportModal(
+  source: ExportSource,
+  connections: DbConnection[],
+  activeExportId: string | null | undefined,
+  destType: 'File' | 'Database',
+  isLoading: boolean = false
+): string {
+  const isFile = destType === 'File';
+  const isDb = destType === 'Database';
+
+  return `
+    <div id="export-modal" class="modal-overlay">
+      <div class="modal-content export-modal">
+        <div class="modal-header">
+          <h3><i class="ph ph-export"></i> Export Data</h3>
+          <button id="btn-close-export" class="btn-icon" ${isLoading ? 'disabled' : ''}><i class="ph ph-x"></i></button>
+        </div>
+        <div class="modal-body">
+          ${isLoading ? `
+            <div class="export-loading">
+              <div class="spinner"></div>
+              <p>Processing and exporting data...</p>
+              <p class="help-text">This may take a moment for large datasets.</p>
+            </div>
+          ` : `
+            <div class="export-source-info">
+              <label>Source:</label>
+              <span>${source.type} ${source.type === 'Analyser' ? `(${escapeHtml(source.path?.split(/[\\/]/).pop() || '')})` : ''}</span>
+            </div>
+
+            <div class="export-dest-toggle">
+              <label class="toggle-option">
+                <input type="radio" name="dest-type" value="File" ${isFile ? 'checked' : ''}>
+                <div class="toggle-card">
+                  <i class="ph ph-file-arrow-down"></i>
+                  <span>To File</span>
+                </div>
+              </label>
+              <label class="toggle-option">
+                <input type="radio" name="dest-type" value="Database" ${isDb ? 'checked' : ''}>
+                <div class="toggle-card">
+                  <i class="ph ph-database"></i>
+                  <span>To Database</span>
+                </div>
+              </label>
+            </div>
+
+            <div class="export-config">
+              ${isFile ? `
+                <div class="config-group">
+                  <label for="export-format">File Format</label>
+                  <select id="export-format" class="form-control">
+                    <option value="csv">CSV (Comma Separated Values)</option>
+                    <option value="parquet">Parquet (Apache Parquet)</option>
+                    <option value="json">JSON (JavaScript Object Notation)</option>
+                  </select>
+                </div>
+              ` : `
+                <div class="config-group">
+                  <label for="export-connection">Database Connection</label>
+                  <select id="export-connection" class="form-control">
+                    <option value="">-- Select Connection --</option>
+                    ${connections.map(conn => `
+                      <option value="${conn.id}" ${conn.id === activeExportId ? 'selected' : ''}>
+                        ${escapeHtml(conn.name)} (${escapeHtml(conn.settings.database)}.${escapeHtml(conn.settings.table)})
+                      </option>
+                    `).join('')}
+                  </select>
+                  <p class="help-text">Select a connection configured in Settings.</p>
+                </div>
+              `}
+            </div>
+          `}
+        </div>
+        <div class="modal-footer">
+          <button id="btn-confirm-export" class="btn-primary" ${isLoading ? 'disabled' : ''}>
+            <i class="ph ph-check"></i> ${isLoading ? 'Exporting...' : 'Export Now'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderReferenceView(): string {
+  return `
+    <div class="reference-view">
+      <div class="reference-header">
+        <h2>Reference Material</h2>
+        <p>A collection of useful resources for data engineering and Rust development.</p>
+      </div>
+
+      <div class="reference-grid">
+        <!-- Rust Section -->
+        <section class="ref-section">
+          <h3><i class="ph ph-read-cv-logo"></i> Rust Programming</h3>
+          <div class="ref-links">
+            <a href="https://doc.rust-lang.org/book/" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-book"></i></div>
+              <div class="link-content">
+                <strong>The Rust Book</strong>
+                <span>The definitive guide to Rust.</span>
+              </div>
+            </a>
+            <a href="https://doc.rust-lang.org/rust-by-example/" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-code"></i></div>
+              <div class="link-content">
+                <strong>Rust by Example</strong>
+                <span>Learn Rust through annotated examples.</span>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        <!-- Polars Section -->
+        <section class="ref-section">
+          <h3><i class="ph ph-lightning"></i> Data Analysis (Polars)</h3>
+          <div class="ref-links">
+            <a href="https://docs.pola.rs/user-guide/" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-map-trifold"></i></div>
+              <div class="link-content">
+                <strong>Polars User Guide</strong>
+                <span>Concepts and usage patterns.</span>
+              </div>
+            </a>
+            <a href="https://docs.rs/polars/latest/polars/" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-file-text"></i></div>
+              <div class="link-content">
+                <strong>Polars API (Rust)</strong>
+                <span>Detailed Rust documentation.</span>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        <!-- Tauri & Frontend -->
+        <section class="ref-section">
+          <h3><i class="ph ph-desktop"></i> App Development</h3>
+          <div class="ref-links">
+            <a href="https://tauri.app/" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-browser"></i></div>
+              <div class="link-content">
+                <strong>Tauri Docs</strong>
+                <span>Framework for tiny, fast binaries.</span>
+              </div>
+            </a>
+            <a href="https://www.typescriptlang.org/docs/" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-scroll"></i></div>
+              <div class="link-content">
+                <strong>TypeScript Handbook</strong>
+                <span>The language for this frontend.</span>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        <!-- Training -->
+        <section class="ref-section">
+          <h3><i class="ph ph-graduation-cap"></i> Training & Courses</h3>
+          <div class="ref-links">
+            <a href="https://www.udemy.com/course/learn-to-code-with-rust/" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-video"></i></div>
+              <div class="link-content">
+                <strong>Udemy: Rust Course</strong>
+                <span>Learn to Code with Rust.</span>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        <!-- Tools -->
+        <section class="ref-section">
+          <h3><i class="ph ph-wrench"></i> Inspiration & Tools</h3>
+          <div class="ref-links">
+            <a href="https://phosphoricons.com/" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-paint-brush"></i></div>
+              <div class="link-content">
+                <strong>Phosphor Icons</strong>
+                <span>The icon library used in beefcake.</span>
+              </div>
+            </a>
+            <a href="https://github.com/rust-unofficial/awesome-rust" target="_blank" class="ref-link">
+              <div class="link-icon"><i class="ph ph-star"></i></div>
+              <div class="link-content">
+                <strong>Awesome Rust</strong>
+                <span>A curated list of Rust resources.</span>
+              </div>
+            </a>
+          </div>
+        </section>
+      </div>
+
+      <div class="reference-content">
+        <div class="content-card">
+          <h3><i class="ph ph-chart-line"></i> Understanding Data Skewness</h3>
+          <div class="skew-grid">
+            <div class="skew-item">
+              <strong>Right Skew (Positive)</strong>
+              <p>The mean is greater than the median. High-value outliers pull the average up.</p>
+            </div>
+            <div class="skew-item">
+              <strong>Left Skew (Negative)</strong>
+              <p>The mean is less than the median. Low-value outliers pull the average down.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <h3><i class="ph ph-magic-wand"></i> Preprocessing for Machine Learning</h3>
+          <div class="ml-grid">
+            <div class="ml-item">
+              <h4>Normalization (Scaling)</h4>
+              <ul>
+                <li><strong>Min-Max:</strong> Rescales to [0, 1]. Best when bounds are known.</li>
+                <li><strong>Z-Score:</strong> Mean=0, StdDev=1. Robust to outliers.</li>
+              </ul>
+            </div>
+            <div class="ml-item">
+              <h4>Categorical Encoding</h4>
+              <ul>
+                <li><strong>One-Hot:</strong> Binary columns for each category. Best for non-ordered data.</li>
+                <li><strong>Label:</strong> Assigns integers. Better for ordered data (Ordinal).</li>
+              </ul>
+            </div>
+            <div class="ml-item">
+              <h4>Imputation (Handling Nulls)</h4>
+              <ul>
+                <li><strong>Mean/Median:</strong> Good for numeric fields.</li>
+                <li><strong>Mode:</strong> Best for categorical fields.</li>
+                <li><strong>Constant:</strong> When 'missing' has a business meaning.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-card">
+          <h3><i class="ph ph-database"></i> PostgreSQL Export Guide</h3>
+          <p>Beefcake handles metadata (file size, health score) and summaries automatically. When exporting to PostgreSQL:</p>
+          <ul>
+            <li>Column types are inferred and mapped to Postgres types.</li>
+            <li>High-speed COPY commands are used for efficiency.</li>
+            <li>Metadata and statistics are saved to the target database.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderLayout(): string {
   return `
     <div class="layout">
@@ -816,6 +1080,9 @@ export function renderLayout(): string {
           </button>
           <button class="nav-item" data-view="CLI">
             <i class="ph ph-command"></i> CLI Help
+          </button>
+          <button class="nav-item" data-view="Reference">
+            <i class="ph ph-book"></i> Reference
           </button>
         </nav>
         <div class="sidebar-footer">

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { AnalysisResponse, AppConfig, ColumnCleanConfig } from "./types";
+import { AnalysisResponse, AppConfig, ColumnCleanConfig, ExportOptions } from "./types";
 
 export async function analyseFile(path: string, trimPct: number): Promise<AnalysisResponse> {
   return await invoke("analyze_file", { path, trimPct });
@@ -44,6 +44,10 @@ export async function testConnection(settings: any, connectionId?: string): Prom
 
 export async function deleteConnection(id: string): Promise<void> {
   await invoke("delete_connection", { id });
+}
+
+export async function exportData(options: ExportOptions): Promise<void> {
+  await invoke("export_data", { options });
 }
 
 export async function readTextFile(path: string): Promise<string> {

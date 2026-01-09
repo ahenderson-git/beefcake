@@ -208,3 +208,14 @@ pub fn archive_processed_file(file_path: impl AsRef<Path>) -> anyhow::Result<Pat
     fs::rename(original, &destination)?;
     Ok(destination)
 }
+
+pub fn fmt_bytes(bytes: u64) -> String {
+    let units = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    let i = (bytes as f64).log(1024.0).floor() as usize;
+    let i = std::cmp::min(i, units.len() - 1);
+    let value = bytes as f64 / 1024.0f64.powi(i as i32);
+    format!("{:.2} {}", value, units[i])
+}
