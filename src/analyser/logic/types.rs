@@ -14,6 +14,7 @@ pub struct AnalysisResponse {
     pub path: String,
     pub file_size: u64,
     pub row_count: usize,
+    pub total_row_count: usize,
     pub column_count: usize,
     pub summary: Vec<ColumnSummary>,
     pub health: FileHealth,

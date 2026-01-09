@@ -137,7 +137,7 @@ export function renderAnalyserHeader(response: AnalysisResponse, trimPct: number
         </div>
         <div class="meta-tags">
           <span class="tag">${fmtBytes(response.file_size)}</span>
-          <span class="tag">${response.row_count.toLocaleString()} rows</span>
+          <span class="tag">${response.total_row_count.toLocaleString()} rows ${response.row_count < response.total_row_count ? `(sampled ${response.row_count.toLocaleString()})` : ''}</span>
           <span class="tag">${response.column_count} columns</span>
           <span class="tag">Took ${fmtDuration(response.analysis_duration)}</span>
         </div>

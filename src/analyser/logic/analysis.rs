@@ -18,6 +18,7 @@ pub fn run_full_analysis(
     df: DataFrame,
     path: String,
     file_size: u64,
+    total_row_count: usize,
     trim_pct: f64,
     start_time: std::time::Instant,
 ) -> Result<AnalysisResponse> {
@@ -36,6 +37,7 @@ pub fn run_full_analysis(
         path,
         file_size,
         row_count,
+        total_row_count,
         column_count,
         summary,
         health,
@@ -794,9 +796,29 @@ pub fn load_df_lazy(path: &std::path::Path) -> Result<LazyFrame> {
                 .context("Failed to scan Parquet file lazily")
         }
         "json" => {
-            let file = std::fs::File::open(path).context("Failed to open JSON file")?;
-            let df = JsonReader::new(file).finish().context("Failed to parse JSON")?;
-            Ok(df.lazy())
+            // Check if it's actually NDJSON (JSON Lines) by looking at the first character.
+            // NDJSON starts with '{', while standard JSON starts with '['.
+            use std::io::{Read, Seek};
+            let mut file = std::fs::File::open(path).context("Failed to open JSON file for probing")?;
+            let mut first_char = [0u8; 1];
+            // Skip whitespace
+            loop {
+                if file.read(&mut first_char)? == 0 { break; }
+                if !first_char[0].is_ascii_whitespace() { break; }
+            }
+
+            if first_char[0] == b'{' {
+                // Likely NDJSON, try lazy scan
+                LazyJsonLineReader::new(path.to_string_lossy().to_string())
+                    .finish()
+                    .context("Failed to scan JSONL file lazily")
+            } else {
+                // Standard JSON, must read eagerly
+                let mut file = std::fs::File::open(path).context("Failed to open JSON file")?;
+                file.rewind()?; // Just in case
+                let df = JsonReader::new(file).finish().context("Failed to parse standard JSON")?;
+                Ok(df.lazy())
+            }
         }
         "jsonl" | "ndjson" => {
             LazyJsonLineReader::new(path.to_string_lossy().to_string())
@@ -814,21 +836,32 @@ pub fn load_df_lazy(path: &std::path::Path) -> Result<LazyFrame> {
 }
 
 fn apply_one_hot_encoding_lazy(mut lf: LazyFrame, one_hot_cols: Vec<String>) -> Result<LazyFrame> {
-    for col_name in one_hot_cols {
-        // Collect just this column to get unique values.
-        // We do this per column. It might result in multiple scans, but it avoids
-        // materializing the entire 10M+ row DataFrame in memory.
-        let unique_values_df = lf
-            .clone()
-            .select([polars::prelude::col(&col_name).unique()])
-            .collect()
-            .context("Failed to get unique values for One-Hot encoding")?;
+    if one_hot_cols.is_empty() {
+        return Ok(lf);
+    }
 
-        let unique_values = unique_values_df
-            .column(&col_name)?
-            .as_materialized_series()
+    // Collect unique values for all columns in a single pass using implode to handle differing counts.
+    let mut select_exprs = Vec::new();
+    for col_name in &one_hot_cols {
+        select_exprs.push(col(col_name).unique().implode().alias(col_name));
+    }
+
+    let uniques_df = lf
+        .clone()
+        .with_streaming(true)
+        .select(select_exprs)
+        .collect()
+        .context("Failed to collect unique values for One-Hot encoding in a single pass")?;
+
+    for col_name in one_hot_cols {
+        let series = uniques_df.column(&col_name)?.as_materialized_series();
+        let list_series = series.list().context("Failed to get unique values list")?;
+        let unique_values = list_series
+            .get_as_series(0)
+            .context("Empty unique values list")?
             .cast(&PolarsDataType::String)
-            .context("Failed to cast column to string for One-Hot encoding")?;
+            .context("Failed to cast unique values to string")?;
+        
         let unique_values_ca = unique_values.str()?;
 
         if unique_values_ca.len() > 100 {
@@ -839,7 +872,7 @@ fn apply_one_hot_encoding_lazy(mut lf: LazyFrame, one_hot_cols: Vec<String>) -> 
         for val in unique_values_ca.into_iter().flatten() {
             let dummy_col_name = format!("{col_name}_{val}");
             dummy_exprs.push(
-                polars::prelude::col(&col_name)
+                col(&col_name)
                     .eq(lit(val))
                     .cast(PolarsDataType::Int32)
                     .alias(dummy_col_name),
@@ -849,7 +882,7 @@ fn apply_one_hot_encoding_lazy(mut lf: LazyFrame, one_hot_cols: Vec<String>) -> 
         if !dummy_exprs.is_empty() {
             lf = lf.with_columns(dummy_exprs);
         }
-        lf = lf.select([polars::prelude::col("*").exclude([&col_name])]);
+        lf = lf.select([col("*").exclude([&col_name])]);
     }
     Ok(lf)
 }

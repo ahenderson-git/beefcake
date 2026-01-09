@@ -3,13 +3,10 @@ use beefcake::analyser::db::DbClient;
 use beefcake::analyser::logic::types::ColumnCleanConfig;
 use beefcake::analyser::logic::*;
 use clap::{Parser, Subcommand};
-use polars::prelude::DataFrame;
 use sqlx::postgres::PgConnectOptions;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr as _;
-use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 
 #[derive(Parser)]
 #[command(name = "beefcake", about = "Data analysis and migration tool")]
@@ -138,13 +135,32 @@ async fn handle_import(
     };
 
     println!(
-        "Importing {0} into table {schema}.{table}...",
+        "Importing {0} into table {schema}.{table} (streaming)...",
         file.display()
     );
-    let progress = Arc::new(AtomicU64::new(0));
-    let df = load_df(&file, &progress).context("Failed to load dataframe")?;
+    
+    let lf = load_df_lazy(&file).context("Failed to load dataframe lazily")?;
 
-    let df = apply_cleaning(df, config_path, clean)?;
+    let configs = if let Some(config_path) = config_path {
+        println!("Loading config from {}...", config_path.display());
+        load_config(&config_path)?
+    } else if clean {
+        println!("Auto-cleaning (sampling 500k rows for analysis)...");
+        let sample_df = lf.clone().limit(500_000).collect().context("Failed to sample data for auto-cleaning")?;
+        let summaries = beefcake::analyser::logic::analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
+        let mut configs = HashMap::new();
+        for summary in summaries {
+            let mut config = ColumnCleanConfig::default();
+            config.new_name = summary.standardized_name.clone();
+            summary.apply_advice_to_config(&mut config);
+            configs.insert(summary.name.clone(), config);
+        }
+        configs
+    } else {
+        HashMap::new()
+    };
+
+    let mut cleaned_lf = clean_df_lazy(lf, &configs, true)?;
 
     let config = beefcake::utils::load_app_config();
     let effective_url = if let Some(url) = db_url {
@@ -165,10 +181,24 @@ async fn handle_import(
     let client = DbClient::connect(opts).await?;
 
     client.init_schema().await?;
+    
+    let schema_ref = cleaned_lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
+    
+    // Sink to temp CSV for streaming push
+    let temp_dir = std::env::temp_dir();
+    let temp_path = temp_dir.join(format!("beefcake_import_{}.csv", uuid::Uuid::new_v4()));
+    
+    println!("Sinking to temp CSV for database push...");
+    cleaned_lf.with_streaming(true)
+        .sink_csv(&temp_path, Default::default(), None)
+        .context("Failed to sink to CSV for DB import")?;
+
     client
-        .push_dataframe(0, &df, Some(&schema), Some(&table))
+        .push_from_csv_file(&temp_path, &schema_ref, Some(&schema), Some(&table))
         .await?;
-    println!("Successfully imported {} rows.", df.height());
+        
+    let _ = std::fs::remove_file(&temp_path);
+    println!("Successfully imported.");
 
     // Archive
     let archived = beefcake::utils::archive_processed_file(&file)?;
@@ -244,16 +274,27 @@ async fn handle_export(
         println!("Applying transformations...");
         let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
 
-        if output_path.extension().and_then(|s| s.to_str()) == Some("parquet") {
-            println!("Streaming to parquet: {}...", output_path.display());
-            cleaned_lf
-                .with_streaming(true)
-                .sink_parquet(&output_path, Default::default(), None)
-                .context("Failed to sink to parquet")?;
-        } else {
-            println!("Collecting and saving to {}...", output_path.display());
-            let mut df = cleaned_lf.collect().context("Failed to collect data for export")?;
-            save_df(&mut df, &output_path).context("Failed to save output file")?;
+        let ext = output_path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        match ext.as_str() {
+            "parquet" => {
+                println!("Streaming to parquet: {}...", output_path.display());
+                cleaned_lf
+                    .with_streaming(true)
+                    .sink_parquet(&output_path, Default::default(), None)
+                    .context("Failed to sink to parquet")?;
+            }
+            "csv" => {
+                println!("Streaming to csv: {}...", output_path.display());
+                cleaned_lf
+                    .with_streaming(true)
+                    .sink_csv(&output_path, Default::default(), None)
+                    .context("Failed to sink to csv")?;
+            }
+            _ => {
+                println!("Collecting and saving to {}...", output_path.display());
+                let mut df = cleaned_lf.collect().context("Failed to collect data for export")?;
+                save_df(&mut df, &output_path).context("Failed to save output file")?;
+            }
         }
 
         println!("Successfully exported.");
@@ -315,16 +356,27 @@ async fn handle_clean(
 
     let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
 
-    if output_file.extension().and_then(|s| s.to_str()) == Some("parquet") {
-        println!("Streaming to parquet: {}...", output_file.display());
-        cleaned_lf
-            .with_streaming(true)
-            .sink_parquet(&output_file, Default::default(), None)
-            .context("Failed to sink to parquet")?;
-    } else {
-        println!("Collecting and saving to {}...", output_file.display());
-        let mut df = cleaned_lf.collect().context("Failed to collect data for saving")?;
-        save_df(&mut df, &output_file).context("Failed to save cleaned file")?;
+    let ext = output_file.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "parquet" => {
+            println!("Streaming to parquet: {}...", output_file.display());
+            cleaned_lf
+                .with_streaming(true)
+                .sink_parquet(&output_file, Default::default(), None)
+                .context("Failed to sink to parquet")?;
+        }
+        "csv" => {
+            println!("Streaming to csv: {}...", output_file.display());
+            cleaned_lf
+                .with_streaming(true)
+                .sink_csv(&output_file, Default::default(), None)
+                .context("Failed to sink to csv")?;
+        }
+        _ => {
+            println!("Collecting and saving to {}...", output_file.display());
+            let mut df = cleaned_lf.collect().context("Failed to collect data for saving")?;
+            save_df(&mut df, &output_file).context("Failed to save cleaned file")?;
+        }
     }
 
     println!("Successfully cleaned.");
@@ -333,22 +385,6 @@ async fn handle_clean(
     let archived = beefcake::utils::archive_processed_file(&input_file)?;
     println!("Original file archived to: {}", archived.display());
     Ok(())
-}
-
-fn apply_cleaning(
-    mut df: DataFrame,
-    config: Option<PathBuf>,
-    clean: bool,
-) -> Result<DataFrame> {
-    if let Some(config_path) = config {
-        let configs = load_config(&config_path)?;
-        println!("Applying configuration from {}...", config_path.display());
-        df = clean_df(df, &configs, true)?;
-    } else if clean {
-        println!("Applying heuristic cleaning...");
-        df = auto_clean_df(df, true)?;
-    }
-    Ok(df)
 }
 
 fn load_config(path: &PathBuf) -> Result<HashMap<String, ColumnCleanConfig>> {

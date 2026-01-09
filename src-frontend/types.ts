@@ -102,6 +102,7 @@ export interface AnalysisResponse {
   path: string;
   file_size: number;
   row_count: number;
+  total_row_count: number;
   column_count: number;
   summary: ColumnSummary[];
   health: FileHealth;

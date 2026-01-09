@@ -32,25 +32,34 @@ async fn analyze_file(path: String, trim_pct: Option<f64>) -> Result<AnalysisRes
 
     // For very large files, we use lazy loading and sampling for the SUMMARY analysis to avoid OOM.
     // However, the actual processing (export/cleaning) will always use the full LazyFrame.
-    let (df, is_sampled) = if file_size > 100 * 1024 * 1024 { // > 100MB
+    let (df, is_sampled, total_rows) = if file_size > 100 * 1024 * 1024 { // > 100MB
         beefcake::utils::log_event("Analyser", "Large file detected, using sampling for summary analysis...");
         let lf = beefcake::analyser::logic::load_df_lazy(&path_buf)
             .map_err(|e| format!("Failed to load file lazily: {e}"))?;
         
+        let total = lf.clone().select([polars::prelude::len()]).collect()
+            .map_err(|e| format!("Failed to count rows: {e}"))?
+            .column("len").map_err(|e| e.to_string())?
+            .u32().map_err(|e| e.to_string())?
+            .get(0).unwrap_or(0) as usize;
+
         // We use a larger sample (500k) for better statistical accuracy on 10M+ rows
         (lf.limit(500_000)
             .collect()
             .map_err(|e| format!("Failed to sample data for analysis: {e}"))?,
-        true)
+        true,
+        total)
     } else {
-        (beefcake::analyser::logic::load_df(&path_buf, &progress).map_err(|e| e.to_string())?,
-        false)
+        let df = beefcake::analyser::logic::load_df(&path_buf, &progress).map_err(|e| e.to_string())?;
+        let total = df.height();
+        (df, false, total)
     };
 
     let mut response = beefcake::analyser::logic::analysis::run_full_analysis(
         df,
         path_str,
         file_size,
+        total_rows,
         trim_pct.unwrap_or(0.05),
         start,
     )
@@ -455,16 +464,22 @@ except Exception as e:
             );
             let _ = save_app_config(&config).ok();
 
-            // For database, we still need to collect because DbClient::push_dataframe takes &DataFrame
-            // but at least we only do it once at the end and use streaming.
-            let df = lf.with_streaming(true)
-                .collect()
-                .map_err(|e| format!("Failed to collect for database push: {e}"))?;
+            // Use streaming sink for database push to avoid OOM
+            let schema = lf.collect_schema().map_err(|e| e.to_string())?;
+            let temp_dir = std::env::temp_dir();
+            let temp_path = temp_dir.join(format!("beefcake_db_push_{}.csv", Uuid::new_v4()));
+
+            beefcake::utils::log_event("Export", "Sinking to temp CSV for database push (streaming)...");
+            lf.with_streaming(true)
+                .sink_csv(&temp_path, Default::default(), None)
+                .map_err(|e| format!("Failed to sink to CSV for DB push: {e}"))?;
 
             client
-                .push_dataframe(0, &df, Some(schema_name.as_str()), Some(table_name.as_str()))
+                .push_from_csv_file(&temp_path, &schema, Some(schema_name.as_str()), Some(table_name.as_str()))
                 .await
                 .map_err(|e| format!("Database push failed: {e}"))?;
+
+            let _ = std::fs::remove_file(&temp_path);
         }
     }
 
@@ -636,11 +651,9 @@ async fn push_to_db_internal(
     configs: std::collections::HashMap<String, beefcake::analyser::logic::ColumnCleanConfig>,
 ) -> Result<(), String> {
     use beefcake::analyser::db::DbClient;
-    use beefcake::analyser::logic::clean_df;
     use beefcake::utils::{load_app_config, push_audit_log, save_app_config};
     use sqlx::postgres::PgConnectOptions;
     use std::str::FromStr as _;
-    use std::sync::atomic::AtomicU64;
 
     let mut config = load_app_config();
     let (conn_name, table_name) = {
@@ -673,29 +686,33 @@ async fn push_to_db_internal(
         .await
         .map_err(|e| format!("Database connection failed: {e}"))?;
 
-    let progress = Arc::new(AtomicU64::new(0));
-    let df = beefcake::analyser::logic::load_df(&PathBuf::from(&path), &progress)
+    let lf = beefcake::analyser::logic::load_df_lazy(&PathBuf::from(&path))
         .map_err(|e| format!("Failed to load data: {e}"))?;
 
     // Apply cleaning configurations from Analyser
-    let cleaned_df =
-        clean_df(df, &configs, false).map_err(|e| format!("Cleaning failed: {e}"))?;
+    let mut cleaned_lf =
+        beefcake::analyser::logic::clean_df_lazy(lf, &configs, false).map_err(|e| format!("Cleaning failed: {e}"))?;
+
+    let schema = cleaned_lf.collect_schema().map_err(|e| e.to_string())?;
+    let temp_dir = std::env::temp_dir();
+    let temp_path = temp_dir.join(format!("beefcake_db_push_{}.csv", Uuid::new_v4()));
+
+    beefcake::utils::log_event("Database", "Sinking to temp CSV for database push (streaming)...");
+    cleaned_lf.with_streaming(true)
+        .sink_csv(&temp_path, Default::default(), None)
+        .map_err(|e| format!("Failed to sink to CSV for DB push: {e}"))?;
 
     client
-        .init_schema()
-        .await
-        .map_err(|e| format!("Schema initialization failed: {e}"))?;
-
-    client
-        .push_dataframe(
-            0,
-            &cleaned_df,
+        .push_from_csv_file(
+            &temp_path,
+            &schema,
             Some(&conn.settings.schema),
             Some(&conn.settings.table),
         )
         .await
         .map_err(|e| format!("Data push failed: {e}"))?;
 
+    let _ = std::fs::remove_file(&temp_path);
     Ok(())
 }
 
