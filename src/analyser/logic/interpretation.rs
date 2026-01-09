@@ -1,3 +1,4 @@
+use super::analysis::sanitize_column_name;
 use super::types::{ColumnKind, ColumnStats, ColumnSummary};
 use std::f64::consts::PI;
 
@@ -19,11 +20,7 @@ impl ColumnSummary {
         let mut signals = Vec::new();
 
         // 1. Missing Data Signal
-        let null_pct = if self.count > 0 {
-            (self.nulls as f64 / self.count as f64) * 100.0
-        } else {
-            0.0
-        };
+        let null_pct = self.null_pct();
 
         if self.nulls == 0 {
             signals.push("Complete data set with no missing values.");
@@ -47,6 +44,10 @@ impl ColumnSummary {
             signals.push("Contains unusual or hidden characters.");
         }
 
+        if self.name != sanitize_column_name(&self.name) {
+            signals.push("Non-standard column name (contains spaces, symbols or mixed casing).");
+        }
+
         if signals.is_empty() {
             vec!["No significant patterns detected.".to_owned()]
         } else {
@@ -57,29 +58,16 @@ impl ColumnSummary {
     pub fn generate_ml_advice(&self) -> Vec<String> {
         let mut advice = Vec::new();
         let name_lower = self.name.to_lowercase();
-        let is_id_name = name_lower == "id"
-            || name_lower.ends_with("_id")
-            || name_lower.starts_with("id_")
-            || name_lower.contains("_id_")
-            || name_lower == "uuid"
-            || name_lower.ends_with("_uuid")
-            || name_lower.starts_with("uuid_")
-            || name_lower == "pk"
-            || name_lower.ends_with("_pk")
-            || name_lower.starts_with("pk_")
-            || name_lower == "key"
-            || name_lower.ends_with("_key")
-            || name_lower.starts_with("key_")
-            || name_lower == "code"
-            || name_lower.ends_with("_code")
-            || name_lower.starts_with("code_");
+        let id_indicators = ["id", "uuid", "pk", "key", "code"];
+        let is_id_name = id_indicators.iter().any(|&ind| {
+            name_lower == ind
+                || name_lower.starts_with(&format!("{ind}_"))
+                || name_lower.ends_with(&format!("_{ind}"))
+                || name_lower.contains(&format!("_{ind}_"))
+        });
 
         let n_distinct = self.stats.n_distinct();
-        let uniqueness_ratio = if self.count > 0 {
-            n_distinct as f64 / self.count as f64
-        } else {
-            0.0
-        };
+        let uniqueness_ratio = self.uniqueness_ratio();
 
         // 1. ID Detection (Cross-type)
         let is_likely_id = if (n_distinct == self.count && self.nulls == 0)
@@ -110,6 +98,10 @@ impl ColumnSummary {
 
         self.collect_ml_routine_advice(is_likely_id, &mut advice);
         self.collect_preprocessing_advice(is_likely_id, &mut advice);
+
+        if self.name != sanitize_column_name(&self.name) {
+            advice.push("Consider standardizing column name for better database and SQL compatibility.".to_owned());
+        }
 
         if advice.is_empty() {
             advice
@@ -162,11 +154,7 @@ impl ColumnSummary {
     }
 
     fn collect_preprocessing_advice(&self, is_likely_id: bool, advice: &mut Vec<String>) {
-        let null_pct = if self.count > 0 {
-            (self.nulls as f64 / self.count as f64) * 100.0
-        } else {
-            0.0
-        };
+        let null_pct = self.null_pct();
 
         if self.nulls > 0 {
             if null_pct > 40.0 {
@@ -222,7 +210,7 @@ impl ColumnSummary {
 
             if s.zero_count > 0 {
                 signals.push("Contains zero values.");
-                if s.zero_count as f64 / (s.zero_count + s.negative_count + (s.histogram.iter().map(|h| h.1).sum::<usize>())) as f64 > 0.3 {
+                if Self::calculate_zero_ratio(s) > 0.3 {
                      signals.push("High proportion of zeros; check if these represent defaults or missing data.");
                 }
             }
@@ -298,19 +286,7 @@ impl ColumnSummary {
             }
 
             // Range-based signals (Skinny bars & Gaps)
-            let mut has_gaps = false;
-            if s.histogram.len() > 1 {
-                for window in s.histogram.windows(2) {
-                    if let [w0, w1] = window
-                        && w1.0 - w0.0 > s.bin_width * 1.5
-                    {
-                        has_gaps = true;
-                        break;
-                    }
-                }
-            }
-
-            if has_gaps {
+            if Self::has_histogram_gaps(&s.histogram, s.bin_width, 1.5) {
                 signals.push("Gaps between bars indicate sparse data or isolated clusters.");
                 let num_bins = range / s.bin_width;
                 if num_bins > 100.0 {
@@ -392,19 +368,8 @@ impl ColumnSummary {
         }
 
         // Check for gaps in temporal data
-        if s.histogram.len() > 1 {
-            let mut has_gaps = false;
-            for window in s.histogram.windows(2) {
-                if let [w0, w1] = window
-                    && w1.0 - w0.0 > s.bin_width * 2.5
-                {
-                    has_gaps = true;
-                    break;
-                }
-            }
-            if has_gaps {
-                signals.push("Large gaps detected in the time sequence.");
-            }
+        if Self::has_histogram_gaps(&s.histogram, s.bin_width, 2.5) {
+            signals.push("Large gaps detected in the time sequence.");
         }
     }
 
@@ -495,7 +460,7 @@ impl ColumnSummary {
             }
 
             if s.zero_count > 0 {
-                if s.zero_count as f64 / (s.zero_count + s.negative_count + (s.histogram.iter().map(|h| h.1).sum::<usize>())) as f64 > 0.3 {
+                if Self::calculate_zero_ratio(s) > 0.3 {
                      insights.push("A high number of zero values suggests many records might be empty or inactive.");
                 } else {
                     insights.push("Includes zero values, which may represent a neutral or baseline state.");
@@ -561,19 +526,8 @@ impl ColumnSummary {
             insights.push("Events are recorded in a perfect chronological sequence.");
         }
 
-        if s.histogram.len() > 1 {
-            let mut has_gaps = false;
-            for window in s.histogram.windows(2) {
-                if let [w0, w1] = window
-                    && w1.0 - w0.0 > s.bin_width * 2.5
-                {
-                    has_gaps = true;
-                    break;
-                }
-            }
-            if has_gaps {
-                insights.push("There are significant periods of time with no recorded activity.");
-            }
+        if Self::has_histogram_gaps(&s.histogram, s.bin_width, 2.5) {
+            insights.push("There are significant periods of time with no recorded activity.");
         }
     }
 
@@ -591,6 +545,31 @@ impl ColumnSummary {
 
         if s.min_length == s.max_length && s.min_length > 0 {
             insights.push("Every entry has the same length, which is characteristic of codes or formatted IDs.");
+        }
+    }
+
+    fn has_histogram_gaps(histogram: &[(f64, usize)], bin_width: f64, threshold: f64) -> bool {
+        if histogram.len() < 2 {
+            return false;
+        }
+        for window in histogram.windows(2) {
+            if let [w0, w1] = window
+                && w1.0 - w0.0 > bin_width * threshold
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn calculate_zero_ratio(s: &super::types::NumericStats) -> f64 {
+        let total = s.zero_count
+            + s.negative_count
+            + s.histogram.iter().map(|h| h.1).sum::<usize>();
+        if total == 0 {
+            0.0
+        } else {
+            s.zero_count as f64 / total as f64
         }
     }
 }

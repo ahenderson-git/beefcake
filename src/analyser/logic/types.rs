@@ -11,7 +11,7 @@ pub struct CorrelationMatrix {
 #[derive(Serialize)]
 pub struct AnalysisResponse {
     pub file_name: String,
-    pub file_path: String,
+    pub path: String,
     pub file_size: u64,
     pub row_count: usize,
     pub column_count: usize,
@@ -42,6 +42,7 @@ mod duration_serde {
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct ColumnSummary {
     pub name: String,
+    pub standardized_name: String,
     pub kind: ColumnKind,
     pub count: usize,
     pub nulls: usize,
@@ -54,6 +55,22 @@ pub struct ColumnSummary {
 }
 
 impl ColumnSummary {
+    pub fn null_pct(&self) -> f64 {
+        if self.count == 0 {
+            0.0
+        } else {
+            (self.nulls as f64 / self.count as f64) * 100.0
+        }
+    }
+
+    pub fn uniqueness_ratio(&self) -> f64 {
+        if self.count == 0 {
+            0.0
+        } else {
+            self.stats.n_distinct() as f64 / self.count as f64
+        }
+    }
+
     pub fn is_compatible_with(&self, target: ColumnKind) -> bool {
         if self.kind == target {
             return true;
@@ -437,6 +454,7 @@ mod tests {
 
         let summary = ColumnSummary {
             name: "city".to_owned(),
+            standardized_name: "city".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,
@@ -460,6 +478,7 @@ mod tests {
 
         let summary_num = ColumnSummary {
             name: "id".to_owned(),
+            standardized_name: "id".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,
@@ -481,6 +500,7 @@ mod tests {
 
         let summary_date = ColumnSummary {
             name: "date".to_owned(),
+            standardized_name: "date".to_owned(),
             kind: ColumnKind::Categorical,
             count: 10,
             nulls: 0,
@@ -500,6 +520,7 @@ mod tests {
 
         let summary_bool = ColumnSummary {
             name: "active".to_owned(),
+            standardized_name: "active".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,

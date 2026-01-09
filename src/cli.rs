@@ -3,6 +3,7 @@ use beefcake::analyser::db::DbClient;
 use beefcake::analyser::logic::types::ColumnCleanConfig;
 use beefcake::analyser::logic::{auto_clean_df, clean_df, load_df, save_df};
 use clap::{Parser, Subcommand};
+use polars::prelude::DataFrame;
 use sqlx::postgres::PgConnectOptions;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -97,178 +98,196 @@ pub async fn run_command(command: Commands) -> Result<()> {
             db_url,
             clean,
             config,
-        } => {
-            let file = match file {
-                Some(f) => f,
-                None => get_default_input_file()?,
-            };
-
-            let table = match table {
-                Some(t) => t,
-                None => file
-                    .file_stem()
-                    .ok_or_else(|| anyhow::anyhow!("Invalid file name"))?
-                    .to_string_lossy()
-                    .to_string(),
-            };
-
-            println!(
-                "Importing {0} into table {schema}.{table}...",
-                file.display()
-            );
-            let progress = Arc::new(AtomicU64::new(0));
-            let mut df = load_df(&file, &progress).context("Failed to load dataframe")?;
-
-            if let Some(config_path) = config {
-                let configs = load_config(&config_path)?;
-                println!("Applying configuration from {}...", config_path.display());
-                df = clean_df(df, &configs, true)?;
-            } else if clean {
-                println!("Applying heuristic cleaning...");
-                df = auto_clean_df(df, true)?;
-            }
-
-            let config = beefcake::utils::load_app_config();
-            let effective_url = if let Some(url) = db_url {
-                url
-            } else if let Some(id) = config.active_import_id {
-                config
-                    .connections
-                    .iter()
-                    .find(|c| c.id == id)
-                    .map(|c| c.settings.connection_string())
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("Active import connection not found in config")
-                    })?
-            } else {
-                anyhow::bail!("No database URL provided and no active import connection set.");
-            };
-
-            let opts = PgConnectOptions::from_str(&effective_url)
-                .context("Failed to parse database URL")?;
-            let client = DbClient::connect(opts).await?;
-
-            client.init_schema().await?;
-            client
-                .push_dataframe(0, &df, Some(&schema), Some(&table))
-                .await?;
-            println!("Successfully imported {} rows.", df.height());
-
-            // Archive
-            let archived = beefcake::utils::archive_processed_file(&file)?;
-            println!("File archived to: {}", archived.display());
-        }
+        } => handle_import(file, table, schema, db_url, clean, config).await,
         Commands::Export {
             input,
             output,
             db_url,
-            schema: _,
+            schema,
             clean,
             config,
-        } => {
-            let config_data = beefcake::utils::load_app_config();
-            let _effective_url = if let Some(url) = db_url {
-                Some(url)
-            } else if let Some(id) = config_data.active_export_id {
-                config_data
-                    .connections
-                    .iter()
-                    .find(|c| c.id == id)
-                    .map(|c| c.settings.connection_string())
-            } else {
-                None
-            };
-            // _effective_url and schema would be used if input is a table name
-
-            let input_path = match input {
-                Some(i) => PathBuf::from(i),
-                None => get_default_input_file()?,
-            };
-
-            let output_path = if let Some(o) = output {
-                o
-            } else {
-                let stem = input_path.file_stem().unwrap_or_default().to_string_lossy();
-                PathBuf::from(format!(
-                    "{}/exported_{stem}.parquet",
-                    beefcake::utils::DATA_PROCESSED_DIR
-                ))
-            };
-
-            if input_path.exists() {
-                println!(
-                    "Converting {0} to {1}...",
-                    input_path.display(),
-                    output_path.display()
-                );
-                let progress = Arc::new(AtomicU64::new(0));
-                let mut df =
-                    load_df(&input_path, &progress).context("Failed to load input file")?;
-
-                if let Some(config_path) = config {
-                    let configs = load_config(&config_path)?;
-                    println!("Applying configuration from {}...", config_path.display());
-                    df = clean_df(df, &configs, true)?;
-                } else if clean {
-                    println!("Applying heuristic cleaning...");
-                    df = auto_clean_df(df, true)?;
-                }
-
-                save_df(&mut df, &output_path).context("Failed to save output file")?;
-                println!("Successfully exported {} rows.", df.height());
-
-                // Archive
-                let archived = beefcake::utils::archive_processed_file(&input_path)?;
-                println!("Input file archived to: {}", archived.display());
-            } else {
-                anyhow::bail!("Input file not found. Table export from DB is not yet implemented.");
-            }
-        }
+        } => handle_export(input, output, db_url, schema, clean, config).await,
         Commands::Clean {
             file,
             output,
             config,
-        } => {
-            let input_file = match file {
-                Some(f) => f,
-                None => get_default_input_file()?,
-            };
+        } => handle_clean(file, output, config).await,
+    }
+}
 
-            let output_file = if let Some(o) = output {
-                o
-            } else {
-                let stem = input_file.file_stem().unwrap_or_default().to_string_lossy();
-                PathBuf::from(format!(
-                    "{}/cleaned_{stem}.parquet",
-                    beefcake::utils::DATA_PROCESSED_DIR
-                ))
-            };
+async fn handle_import(
+    file: Option<PathBuf>,
+    table: Option<String>,
+    schema: String,
+    db_url: Option<String>,
+    clean: bool,
+    config_path: Option<PathBuf>,
+) -> Result<()> {
+    let file = match file {
+        Some(f) => f,
+        None => get_default_input_file()?,
+    };
 
-            println!(
-                "Cleaning {0} and saving to {1}...",
-                input_file.display(),
-                output_file.display()
-            );
-            let progress = Arc::new(AtomicU64::new(0));
-            let df = load_df(&input_file, &progress).context("Failed to load input file")?;
+    let table = match table {
+        Some(t) => t,
+        None => file
+            .file_stem()
+            .ok_or_else(|| anyhow::anyhow!("Invalid file name"))?
+            .to_string_lossy()
+            .to_string(),
+    };
 
-            let mut cleaned_df = if let Some(config_path) = config {
-                let configs = load_config(&config_path)?;
-                println!("Applying configuration from {}...", config_path.display());
-                clean_df(df, &configs, true)?
-            } else {
-                auto_clean_df(df, true)?
-            };
+    println!(
+        "Importing {0} into table {schema}.{table}...",
+        file.display()
+    );
+    let progress = Arc::new(AtomicU64::new(0));
+    let df = load_df(&file, &progress).context("Failed to load dataframe")?;
 
-            save_df(&mut cleaned_df, &output_file).context("Failed to save cleaned file")?;
-            println!("Successfully cleaned {} rows.", cleaned_df.height());
+    let df = apply_cleaning(df, config_path, clean)?;
 
-            // Archive
-            let archived = beefcake::utils::archive_processed_file(&input_file)?;
-            println!("Original file archived to: {}", archived.display());
-        }
+    let config = beefcake::utils::load_app_config();
+    let effective_url = if let Some(url) = db_url {
+        url
+    } else if let Some(id) = config.active_import_id {
+        config
+            .connections
+            .iter()
+            .find(|c| c.id == id)
+            .map(|c| c.settings.connection_string(&c.id))
+            .ok_or_else(|| anyhow::anyhow!("Active import connection not found in config"))?
+    } else {
+        anyhow::bail!("No database URL provided and no active import connection set.");
+    };
+
+    let opts =
+        PgConnectOptions::from_str(&effective_url).context("Failed to parse database URL")?;
+    let client = DbClient::connect(opts).await?;
+
+    client.init_schema().await?;
+    client
+        .push_dataframe(0, &df, Some(&schema), Some(&table))
+        .await?;
+    println!("Successfully imported {} rows.", df.height());
+
+    // Archive
+    let archived = beefcake::utils::archive_processed_file(&file)?;
+    println!("File archived to: {}", archived.display());
+    Ok(())
+}
+
+async fn handle_export(
+    input: Option<String>,
+    output: Option<PathBuf>,
+    db_url: Option<String>,
+    _schema: String,
+    clean: bool,
+    config_path: Option<PathBuf>,
+) -> Result<()> {
+    let config_data = beefcake::utils::load_app_config();
+    let _effective_url = if let Some(url) = db_url {
+        Some(url)
+    } else if let Some(id) = config_data.active_export_id {
+        config_data
+            .connections
+            .iter()
+            .find(|c| c.id == id)
+            .map(|c| c.settings.connection_string(&c.id))
+    } else {
+        None
+    };
+
+    let input_path = match input {
+        Some(i) => PathBuf::from(i),
+        None => get_default_input_file()?,
+    };
+
+    let output_path = if let Some(o) = output {
+        o
+    } else {
+        let stem = input_path.file_stem().unwrap_or_default().to_string_lossy();
+        PathBuf::from(format!(
+            "{}/exported_{stem}.parquet",
+            beefcake::utils::DATA_PROCESSED_DIR
+        ))
+    };
+
+    if input_path.exists() {
+        println!(
+            "Converting {0} to {1}...",
+            input_path.display(),
+            output_path.display()
+        );
+        let progress = Arc::new(AtomicU64::new(0));
+        let df = load_df(&input_path, &progress).context("Failed to load input file")?;
+
+        let mut df = apply_cleaning(df, config_path, clean)?;
+
+        save_df(&mut df, &output_path).context("Failed to save output file")?;
+        println!("Successfully exported {} rows.", df.height());
+
+        // Archive
+        let archived = beefcake::utils::archive_processed_file(&input_path)?;
+        println!("Input file archived to: {}", archived.display());
+    } else {
+        anyhow::bail!("Input file not found. Table export from DB is not yet implemented.");
     }
     Ok(())
+}
+
+async fn handle_clean(
+    file: Option<PathBuf>,
+    output: Option<PathBuf>,
+    config_path: Option<PathBuf>,
+) -> Result<()> {
+    let input_file = match file {
+        Some(f) => f,
+        None => get_default_input_file()?,
+    };
+
+    let output_file = if let Some(o) = output {
+        o
+    } else {
+        let stem = input_file.file_stem().unwrap_or_default().to_string_lossy();
+        PathBuf::from(format!(
+            "{}/cleaned_{stem}.parquet",
+            beefcake::utils::DATA_PROCESSED_DIR
+        ))
+    };
+
+    println!(
+        "Cleaning {0} and saving to {1}...",
+        input_file.display(),
+        output_file.display()
+    );
+    let progress = Arc::new(AtomicU64::new(0));
+    let df = load_df(&input_file, &progress).context("Failed to load input file")?;
+
+    let mut cleaned_df = apply_cleaning(df, config_path, true)?;
+
+    save_df(&mut cleaned_df, &output_file).context("Failed to save cleaned file")?;
+    println!("Successfully cleaned {} rows.", cleaned_df.height());
+
+    // Archive
+    let archived = beefcake::utils::archive_processed_file(&input_file)?;
+    println!("Original file archived to: {}", archived.display());
+    Ok(())
+}
+
+fn apply_cleaning(
+    mut df: DataFrame,
+    config: Option<PathBuf>,
+    clean: bool,
+) -> Result<DataFrame> {
+    if let Some(config_path) = config {
+        let configs = load_config(&config_path)?;
+        println!("Applying configuration from {}...", config_path.display());
+        df = clean_df(df, &configs, true)?;
+    } else if clean {
+        println!("Applying heuristic cleaning...");
+        df = auto_clean_df(df, true)?;
+    }
+    Ok(df)
 }
 
 fn load_config(path: &PathBuf) -> Result<HashMap<String, ColumnCleanConfig>> {

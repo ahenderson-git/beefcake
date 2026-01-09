@@ -5,6 +5,7 @@
     clippy::indexing_slicing
 )]
 use super::*;
+use crate::analyser::logic::analysis::sanitize_column_names;
 use anyhow::Result;
 use polars::prelude::*;
 
@@ -38,7 +39,7 @@ fn test_histogram_calculation() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(s)])?;
     let summaries = analyse_df(&df, 0.0)?;
 
-    if let types::ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
+    if let ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
         assert!(!stats.histogram.is_empty(), "Histogram should not be empty");
         let total_count: usize = stats.histogram.iter().map(|h| h.1).sum();
         assert_eq!(total_count, 5);
@@ -55,7 +56,7 @@ fn test_histogram_single_value() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(s)])?;
     let summaries = analyse_df(&df, 0.0)?;
 
-    if let types::ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
+    if let ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
         assert_eq!(
             stats.histogram.len(),
             20,
@@ -114,7 +115,7 @@ fn test_boolean_detection() -> Result<()> {
     let summaries = analyse_df(&df, 0.0)?;
 
     assert_eq!(summaries.first().unwrap().kind.as_str(), "Boolean");
-    if let types::ColumnStats::Boolean(stats) = &summaries.first().unwrap().stats {
+    if let ColumnStats::Boolean(stats) = &summaries.first().unwrap().stats {
         assert_eq!(stats.true_count, 2);
         assert_eq!(stats.false_count, 1);
     } else {
@@ -139,7 +140,7 @@ fn test_effective_boolean_detection() -> Result<()> {
     let summaries = analyse_df(&df, 0.0)?;
 
     assert_eq!(summaries.first().unwrap().kind.as_str(), "Boolean");
-    if let types::ColumnStats::Boolean(stats) = &summaries.first().unwrap().stats {
+    if let ColumnStats::Boolean(stats) = &summaries.first().unwrap().stats {
         assert_eq!(stats.true_count, 2);
         assert_eq!(stats.false_count, 1);
     } else {
@@ -156,7 +157,7 @@ fn test_skewed_data_histogram() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(s)])?;
     let summaries = analyse_df(&df, 0.0)?;
 
-    if let types::ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
+    if let ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
         assert!(stats.skew.unwrap() > 0.1, "Should detect right skew");
         assert!(
             summaries
@@ -184,7 +185,7 @@ fn test_trimmed_mean() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(s)])?;
     let summaries = analyse_df(&df, 0.2)?;
 
-    if let types::ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
+    if let ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
         assert_eq!(stats.mean, Some(32.0));
         assert_eq!(stats.trimmed_mean, Some(20.0));
     } else {
@@ -243,7 +244,7 @@ fn test_user_reported_delivery_minutes_zoom() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(s)])?;
     let summaries = analyse_df(&df, 0.0)?;
 
-    if let types::ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
+    if let ColumnStats::Numeric(stats) = &summaries.first().unwrap().stats {
         let min = stats.min.unwrap();
         let max = stats.max.unwrap();
         let p05 = stats.p05.unwrap();
@@ -331,7 +332,7 @@ fn test_categorical_detection() -> Result<()> {
 
     let summary = summaries.first().unwrap();
     assert_eq!(summary.kind.as_str(), "Categorical");
-    if let types::ColumnStats::Categorical(freq) = &summary.stats {
+    if let ColumnStats::Categorical(freq) = &summary.stats {
         assert_eq!(freq.get("CARD"), Some(&3));
         assert_eq!(freq.get("CASH"), Some(&2));
     } else {
@@ -349,7 +350,7 @@ fn test_clean_df_logic() -> Result<()> {
     let mut configs = std::collections::HashMap::new();
     configs.insert(
         "name".to_owned(),
-        types::ColumnCleanConfig {
+        ColumnCleanConfig {
             new_name: "full_name".to_owned(),
             target_dtype: None,
             active: true,
@@ -357,30 +358,30 @@ fn test_clean_df_logic() -> Result<()> {
             ml_preprocessing: false,
             trim_whitespace: true,
             remove_special_chars: true,
-            normalization: types::NormalizationMethod::None,
+            normalization: NormalizationMethod::None,
             one_hot_encode: false,
-            impute_mode: types::ImputeMode::None,
+            impute_mode: ImputeMode::None,
             ..Default::default()
         },
     );
     configs.insert(
         "age".to_owned(),
-        types::ColumnCleanConfig {
+        ColumnCleanConfig {
             new_name: "age_num".to_owned(),
-            target_dtype: Some(types::ColumnKind::Numeric),
+            target_dtype: Some(ColumnKind::Numeric),
             active: true,
             advanced_cleaning: false,
             ml_preprocessing: false,
             trim_whitespace: false,
             remove_special_chars: false,
-            normalization: types::NormalizationMethod::None,
+            normalization: NormalizationMethod::None,
             one_hot_encode: false,
-            impute_mode: types::ImputeMode::None,
+            impute_mode: ImputeMode::None,
             ..Default::default()
         },
     );
 
-    let cleaned = analysis::clean_df(df, &configs, false)?;
+    let cleaned = clean_df(df, &configs, false)?;
 
     assert_eq!(cleaned.width(), 2);
     assert!(cleaned.column("full_name").is_ok());
@@ -409,7 +410,7 @@ fn test_ml_training_linear_regression() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
     let progress = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
 
-    let results = ml::train_model(&df, "y", types::MlModelKind::LinearRegression, &progress)?;
+    let results = ml::train_model(&df, "y", MlModelKind::LinearRegression, &progress)?;
 
     assert!(results.r2_score.unwrap() > 0.99);
     let coeffs = results.coefficients.unwrap();
@@ -427,7 +428,7 @@ fn test_ml_training_logistic_regression() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
     let progress = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
 
-    let results = ml::train_model(&df, "y", types::MlModelKind::LogisticRegression, &progress)?;
+    let results = ml::train_model(&df, "y", MlModelKind::LogisticRegression, &progress)?;
 
     assert!(results.accuracy.unwrap() > 0.9);
 
@@ -441,12 +442,12 @@ fn test_ml_training_single_class_error() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
     let progress = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
 
-    let result = ml::train_model(&df, "y", types::MlModelKind::LogisticRegression, &progress);
+    let result = ml::train_model(&df, "y", MlModelKind::LogisticRegression, &progress);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("must have at least two distinct classes"));
 
-    let result_tree = ml::train_model(&df, "y", types::MlModelKind::DecisionTree, &progress);
+    let result_tree = ml::train_model(&df, "y", MlModelKind::DecisionTree, &progress);
     assert!(result_tree.is_err());
     assert!(
         result_tree
@@ -465,7 +466,7 @@ fn test_ml_training_null_target_class_error() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
     let progress = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
 
-    let result = ml::train_model(&df, "y", types::MlModelKind::LogisticRegression, &progress);
+    let result = ml::train_model(&df, "y", MlModelKind::LogisticRegression, &progress);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     // It should be our custom error message, not linfa's
@@ -484,7 +485,7 @@ fn test_ml_interpretation() -> Result<()> {
     let df = DataFrame::new(vec![Column::from(x), Column::from(y)])?;
     let progress = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
 
-    let results = ml::train_model(&df, "y", types::MlModelKind::LinearRegression, &progress)?;
+    let results = ml::train_model(&df, "y", MlModelKind::LinearRegression, &progress)?;
 
     assert!(!results.interpretation.is_empty());
     let joined = results.interpretation.join(" ");
@@ -584,16 +585,15 @@ fn test_ml_advice_generation() -> Result<()> {
 #[test]
 #[expect(clippy::too_many_lines)]
 fn test_ml_advice_auto_config() {
-    use super::types::{ColumnCleanConfig, NormalizationMethod};
-
     // Case 1: Skewed data -> Clip Outliers
     let mut summary = ColumnSummary {
         name: "skewed".to_owned(),
-        kind: types::ColumnKind::Numeric,
+        standardized_name: "skewed".to_owned(),
+        kind: ColumnKind::Numeric,
         count: 100,
         nulls: 0,
         has_special: false,
-        stats: types::ColumnStats::Numeric(types::NumericStats {
+        stats: ColumnStats::Numeric(NumericStats {
             skew: Some(2.5), // High skew
             ..Default::default()
         }),
@@ -620,11 +620,12 @@ fn test_ml_advice_auto_config() {
     // Case 2: Numeric features -> Z-Score Normalization
     let mut summary2 = ColumnSummary {
         name: "feature".to_owned(),
-        kind: types::ColumnKind::Numeric,
+        standardized_name: "feature".to_owned(),
+        kind: ColumnKind::Numeric,
         count: 100,
         nulls: 0,
         has_special: false,
-        stats: types::ColumnStats::Numeric(types::NumericStats {
+        stats: ColumnStats::Numeric(NumericStats {
             skew: Some(0.0),
             ..Default::default()
         }),
@@ -652,11 +653,12 @@ fn test_ml_advice_auto_config() {
     // Case 3: Missing data -> Mean Imputation
     let mut summary3 = ColumnSummary {
         name: "missing".to_owned(),
-        kind: types::ColumnKind::Numeric,
+        standardized_name: "missing".to_owned(),
+        kind: ColumnKind::Numeric,
         count: 100,
         nulls: 10,
         has_special: false,
-        stats: types::ColumnStats::Numeric(Default::default()),
+        stats: ColumnStats::Numeric(Default::default()),
         interpretation: vec![],
         business_summary: vec![],
         ml_advice: vec![],
@@ -674,18 +676,19 @@ fn test_ml_advice_auto_config() {
     summary3.apply_advice_to_config(&mut config3);
     assert_eq!(
         config3.impute_mode,
-        types::ImputeMode::Mean,
+        ImputeMode::Mean,
         "Mean imputation should be auto-enabled for numeric missing data"
     );
 
     // Case 4: Categorical data -> One-Hot Encoding
     let mut summary4 = ColumnSummary {
         name: "category".to_owned(),
-        kind: types::ColumnKind::Categorical,
+        standardized_name: "category".to_owned(),
+        kind: ColumnKind::Categorical,
         count: 100,
         nulls: 0,
         has_special: false,
-        stats: types::ColumnStats::Categorical(std::collections::HashMap::new()),
+        stats: ColumnStats::Categorical(std::collections::HashMap::new()),
         interpretation: vec![],
         business_summary: vec![],
         ml_advice: vec![],
@@ -709,11 +712,12 @@ fn test_ml_advice_auto_config() {
     // Case 5: Special characters detected -> Remove Special Chars
     let summary5 = ColumnSummary {
         name: "special".to_owned(),
-        kind: types::ColumnKind::Text,
+        standardized_name: "special".to_owned(),
+        kind: ColumnKind::Text,
         count: 100,
         nulls: 0,
         has_special: true,
-        stats: types::ColumnStats::Text(Default::default()),
+        stats: ColumnStats::Text(Default::default()),
         interpretation: vec![],
         business_summary: vec![],
         ml_advice: vec![],
@@ -739,7 +743,7 @@ fn test_ml_preprocessing_logic() -> Result<()> {
     let mut configs = std::collections::HashMap::new();
     configs.insert(
         "vals".to_owned(),
-        types::ColumnCleanConfig {
+        ColumnCleanConfig {
             new_name: "vals_clean".to_owned(),
             target_dtype: None,
             active: true,
@@ -747,15 +751,15 @@ fn test_ml_preprocessing_logic() -> Result<()> {
             ml_preprocessing: true,
             trim_whitespace: false,
             remove_special_chars: false,
-            impute_mode: types::ImputeMode::Mean,
-            normalization: types::NormalizationMethod::MinMax,
+            impute_mode: ImputeMode::Mean,
+            normalization: NormalizationMethod::MinMax,
             one_hot_encode: false,
             ..Default::default()
         },
     );
     configs.insert(
         "cat".to_owned(),
-        types::ColumnCleanConfig {
+        ColumnCleanConfig {
             new_name: String::new(),
             target_dtype: None,
             active: true,
@@ -763,14 +767,14 @@ fn test_ml_preprocessing_logic() -> Result<()> {
             ml_preprocessing: true,
             trim_whitespace: false,
             remove_special_chars: false,
-            impute_mode: types::ImputeMode::None,
-            normalization: types::NormalizationMethod::None,
+            impute_mode: ImputeMode::None,
+            normalization: NormalizationMethod::None,
             one_hot_encode: true,
             ..Default::default()
         },
     );
 
-    let cleaned = analysis::clean_df(df, &configs, false)?;
+    let cleaned = clean_df(df, &configs, false)?;
 
     // 1. Verify Imputation and Normalization
     // Original non-nulls: 10, 20, 30. Mean = 20.
@@ -802,20 +806,20 @@ fn test_column_deactivation() -> Result<()> {
     let mut configs = std::collections::HashMap::new();
     configs.insert(
         "keep".to_owned(),
-        types::ColumnCleanConfig {
+        ColumnCleanConfig {
             active: true,
             ..Default::default()
         },
     );
     configs.insert(
         "drop".to_owned(),
-        types::ColumnCleanConfig {
+        ColumnCleanConfig {
             active: false,
             ..Default::default()
         },
     );
 
-    let cleaned = analysis::clean_df(df, &configs, false)?;
+    let cleaned = clean_df(df, &configs, false)?;
     assert_eq!(cleaned.width(), 1);
     assert!(cleaned.column("keep").is_ok());
     assert!(cleaned.column("drop").is_err());
@@ -887,9 +891,6 @@ fn test_correlation_matrix() -> Result<()> {
 
 #[test]
 fn test_restricted_cleaning() -> Result<()> {
-    use crate::analyser::logic::analysis;
-    use crate::analyser::logic::types;
-    use polars::prelude::*;
     use std::collections::HashMap;
 
     let df = df!(
@@ -903,7 +904,7 @@ fn test_restricted_cleaning() -> Result<()> {
     // Config for "text" column - should apply all included functions
     configs.insert(
         "text".to_string(),
-        types::ColumnCleanConfig {
+        ColumnCleanConfig {
             advanced_cleaning: true,
             trim_whitespace: true,
             remove_special_chars: true,
@@ -911,7 +912,7 @@ fn test_restricted_cleaning() -> Result<()> {
             standardize_nulls: true,
             extract_numbers: true,
             // These should be skipped in restricted mode
-            text_case: types::TextCase::Lowercase,
+            text_case: TextCase::Lowercase,
             regex_find: "hello".to_string(),
             regex_replace: "hi".to_string(),
             ..Default::default()
@@ -921,8 +922,8 @@ fn test_restricted_cleaning() -> Result<()> {
     // Config for "to_cast" column - should cast to boolean
     configs.insert(
         "to_cast".to_string(),
-        types::ColumnCleanConfig {
-            target_dtype: Some(types::ColumnKind::Boolean),
+        ColumnCleanConfig {
+            target_dtype: Some(ColumnKind::Boolean),
             ..Default::default()
         },
     );
@@ -930,17 +931,17 @@ fn test_restricted_cleaning() -> Result<()> {
     // Config for "to_skip" column - should skip all these
     configs.insert(
         "to_skip".to_string(),
-        types::ColumnCleanConfig {
+        ColumnCleanConfig {
             new_name: "renamed".to_string(),      // Should be skipped
-            impute_mode: types::ImputeMode::Zero, // Should be skipped
+            impute_mode: ImputeMode::Zero, // Should be skipped
             rounding: Some(0),                    // Should be skipped
-            normalization: types::NormalizationMethod::MinMax, // Should be skipped
+            normalization: NormalizationMethod::MinMax, // Should be skipped
             one_hot_encode: true,                 // Should be skipped
             ..Default::default()
         },
     );
 
-    let cleaned = analysis::clean_df(df, &configs, true)?;
+    let cleaned = clean_df(df, &configs, true)?;
 
     // Verify "text" column
     let text_col = cleaned.column("text")?.as_materialized_series();
@@ -968,4 +969,20 @@ fn test_restricted_cleaning() -> Result<()> {
     assert_eq!(cleaned.width(), 3);
 
     Ok(())
+}
+
+
+#[test]
+fn test_bulk_column_sanitization_collisions() {
+    let names = vec!(
+        "Duplicate Name".to_string(),
+        "Duplicate Name".to_string(),
+        "duplicate_name".to_string(),
+        "Other".to_string(),
+    );
+    let sanitized = sanitize_column_names(&names);
+    assert_eq!(sanitized[0], "duplicate_name");
+    assert_eq!(sanitized[1], "duplicate_name_1");
+    assert_eq!(sanitized[2], "duplicate_name_2");
+    assert_eq!(sanitized[3], "other");
 }

@@ -48,6 +48,7 @@ export interface ColumnStats {
 
 export interface ColumnSummary {
   name: string;
+  standardized_name: string;
   kind: string;
   count: number;
   nulls: number;
@@ -98,7 +99,7 @@ export interface FileHealth {
 
 export interface AnalysisResponse {
   file_name: string;
-  file_path: string;
+  path: string;
   file_size: number;
   row_count: number;
   column_count: number;
@@ -114,7 +115,7 @@ export interface AuditEntry {
   details: string;
 }
 
-export type View = "Dashboard" | "Analyser" | "PowerShell" | "Settings" | "CLI" | "ActivityLog";
+export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog";
 
 export interface DbConnection {
   id: string;
@@ -136,5 +137,20 @@ export interface AppConfig {
   active_import_id: string | null;
   active_export_id: string | null;
   powershell_font_size: number;
+  python_font_size: number;
+  sql_font_size: number;
   audit_log: AuditEntry[];
+}
+
+export interface AppState {
+  version: string;
+  config: AppConfig | null;
+  currentView: View;
+  analysisResponse: AnalysisResponse | null;
+  expandedRows: Set<string>;
+  cleaningConfigs: Record<string, ColumnCleanConfig>;
+  isAddingConnection: boolean;
+  trimPct: number;
+  pythonScript: string | null;
+  sqlScript: string | null;
 }

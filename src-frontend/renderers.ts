@@ -1,18 +1,61 @@
 import { AnalysisResponse, AppConfig, ColumnCleanConfig, ColumnSummary } from "./types";
 import { escapeHtml, fmtBytes, fmtDuration } from "./utils";
 
+const IMPUTE_OPTIONS = [
+  { value: 'None', label: 'None' },
+  { value: 'Mean', label: 'Mean' },
+  { value: 'Median', label: 'Median' },
+  { value: 'Zero', label: 'Zero' },
+  { value: 'Mode', label: 'Mode' },
+];
+
+const NORM_OPTIONS = [
+  { value: 'None', label: 'None' },
+  { value: 'ZScore', label: 'Z-Score' },
+  { value: 'MinMax', label: 'Min-Max' },
+];
+
+const CASE_OPTIONS = [
+  { value: 'None', label: 'None' },
+  { value: 'Lowercase', label: 'Lower' },
+  { value: 'Uppercase', label: 'Upper' },
+  { value: 'TitleCase', label: 'Title' },
+];
+
+const ROUND_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: '0', label: '0' },
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+  { value: '3', label: '3' },
+  { value: '4', label: '4' },
+];
+
+function renderSelect(options: { value: string, label: string }[], selectedValue: string, className: string, dataAttrs: Record<string, string>, placeholder?: string, disabled?: boolean): string {
+  const attrs = Object.entries(dataAttrs).map(([k, v]) => `data-${k}="${escapeHtml(v)}"`).join(' ');
+  const placeholderHtml = placeholder ? `<option value="">${escapeHtml(placeholder)}</option>` : '';
+  return `
+    <select class="${className}" ${attrs} ${disabled ? 'disabled' : ''}>
+      ${placeholderHtml}
+      ${options.map(opt => `
+        <option value="${escapeHtml(opt.value)}" ${opt.value === selectedValue ? 'selected' : ''}>${escapeHtml(opt.label)}</option>
+      `).join('')}
+    </select>
+  `;
+}
+
 export function renderDashboardView(state: any): string {
   return `
     <div class="dashboard">
       <div class="hero">
-        <h1>beefcake <small>v0.1.0</small></h1>
+        <h1>beefcake <small>v${state.version}</small></h1>
         <p>Advanced Data Analysis & ETL Pipeline</p>
       </div>
       <div class="info-box">
         <div class="info-section">
           <h3>What is beefcake?</h3>
           <p>
-            <strong>beefcake</strong> (v0.1.0) is a high-performance desktop application designed as an 
+            <strong>beefcake</strong> (v${state.version}) is a high-performance desktop application designed as an 
             <strong>Advanced Data Analysis and ETL (Extract, Transform, Load) Pipeline</strong>. 
             Built with <strong>Tauri</strong>, it leverages the speed of <strong>Rust</strong> and <strong>Polars</strong> 
             to provide a robust environment for inspecting, cleaning, and moving data from local files into production-ready databases.
@@ -56,16 +99,22 @@ export function renderDashboardView(state: any): string {
         </div>
         <div class="stat-card">
           <h3>Last Analysis</h3>
-          <div class="stat-value">${state.response ? escapeHtml(state.response.file_name) : 'None'}</div>
-          <p>${state.response ? fmtBytes(state.response.file_size) : 'Ready for input'}</p>
+          <div class="stat-value">${state.analysisResponse ? escapeHtml(state.analysisResponse.file_name) : 'None'}</div>
+          <p>${state.analysisResponse ? fmtBytes(state.analysisResponse.file_size) : 'Ready for input'}</p>
         </div>
       </div>
       <div class="actions">
-        <button id="btn-open" class="btn-primary">
-          <i class="ph ph-cloud-arrow-up"></i> Load Dataset
+        <button id="btn-open-file" class="btn-primary">
+          <i class="ph ph-cloud-arrow-up"></i> Analyze New Dataset
         </button>
         <button id="btn-powershell" class="btn-secondary">
           <i class="ph ph-terminal"></i> PowerShell Console
+        </button>
+        <button id="btn-python" class="btn-secondary">
+          <i class="ph ph-code"></i> Python IDE
+        </button>
+        <button id="btn-sql" class="btn-secondary">
+          <i class="ph ph-database"></i> SQL IDE
         </button>
       </div>
     </div>
@@ -99,6 +148,9 @@ export function renderAnalyserHeader(response: AnalysisResponse, trimPct: number
           <input type="range" id="trim-range" min="0" max="0.45" step="0.05" value="${trimPct}">
           <span>${Math.round(trimPct * 100)}%</span>
         </div>
+        <button id="btn-open" class="btn-secondary">
+          <i class="ph ph-cloud-arrow-up"></i> Load Dataset
+        </button>
         <button id="btn-push" class="btn-primary">
           <i class="ph ph-database"></i> Push to DB
         </button>
@@ -107,8 +159,8 @@ export function renderAnalyserHeader(response: AnalysisResponse, trimPct: number
   `;
 }
 
-export function renderAnalyser(response: AnalysisResponse, expandedRows: Set<string>, configs: Map<string, ColumnCleanConfig>): string {
-  const allActive = Array.from(configs.values()).every(c => c.active);
+export function renderAnalyser(response: AnalysisResponse, expandedRows: Set<string>, configs: Record<string, ColumnCleanConfig>): string {
+  const allActive = Object.values(configs).every(c => c.active);
 
   return `
     <div class="analyser-view">
@@ -120,49 +172,28 @@ export function renderAnalyser(response: AnalysisResponse, expandedRows: Set<str
               <th class="col-active">
                 <input type="checkbox" class="header-action" data-action="active-all" title="Toggle all active" ${allActive ? 'checked' : ''}>
               </th>
-              <th class="col-name">Column</th>
+              <th class="col-name">
+                Column
+                <button class="header-action-icon" data-action="standardize-all" title="Standardize all column names">
+                  <i class="ph ph-magic-wand"></i>
+                </button>
+              </th>
               <th class="col-stats">Stats</th>
               <th class="col-impute">
                 Imputation
-                <select class="header-action" data-action="impute-all">
-                  <option value="">Set all...</option>
-                  <option value="None">None</option>
-                  <option value="Mean">Mean</option>
-                  <option value="Median">Median</option>
-                  <option value="Zero">Zero</option>
-                  <option value="Mode">Mode</option>
-                </select>
+                ${renderSelect(IMPUTE_OPTIONS, '', 'header-action', { action: 'impute-all' }, 'Set all...')}
               </th>
               <th class="col-round">
                 Rounding
-                <select class="header-action" data-action="round-all">
-                  <option value="">Set all...</option>
-                  <option value="none">None</option>
-                  <option value="0">0</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                </select>
+                ${renderSelect(ROUND_OPTIONS, '', 'header-action', { action: 'round-all' }, 'Set all...')}
               </th>
               <th class="col-norm">
                 Normalization
-                <select class="header-action" data-action="norm-all">
-                  <option value="">Set all...</option>
-                  <option value="None">None</option>
-                  <option value="ZScore">Z-Score</option>
-                  <option value="MinMax">Min-Max</option>
-                </select>
+                ${renderSelect(NORM_OPTIONS, '', 'header-action', { action: 'norm-all' }, 'Set all...')}
               </th>
               <th class="col-case">
                 Case
-                <select class="header-action" data-action="case-all">
-                  <option value="">Set all...</option>
-                  <option value="None">None</option>
-                  <option value="Lowercase">Lower</option>
-                  <option value="Uppercase">Upper</option>
-                  <option value="TitleCase">Title</option>
-                </select>
+                ${renderSelect(CASE_OPTIONS, '', 'header-action', { action: 'case-all' }, 'Set all...')}
               </th>
               <th class="col-onehot">
                 One-Hot
@@ -171,7 +202,7 @@ export function renderAnalyser(response: AnalysisResponse, expandedRows: Set<str
             </tr>
           </thead>
           <tbody>
-            ${response.summary.map(col => renderAnalyserRow(col, expandedRows.has(col.name), configs.get(col.name))).join('')}
+            ${response.summary.map(col => renderAnalyserRow(col, expandedRows.has(col.name), configs[col.name])).join('')}
           </tbody>
         </table>
       </div>
@@ -184,7 +215,10 @@ export function renderEmptyAnalyser(): string {
     <div class="empty-state">
       <i class="ph ph-magnifying-glass"></i>
       <h3>No Dataset Loaded</h3>
-      <p>Please go to the Dashboard to load a file for analysis.</p>
+      <p>Select a file to begin analysis and cleaning.</p>
+      <button id="btn-open" class="btn-primary">
+          <i class="ph ph-cloud-arrow-up"></i> Load Dataset
+      </button>
     </div>
   `;
 }
@@ -220,7 +254,13 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
       <td class="col-name">
         <div class="name-wrapper">
           <i class="ph ph-caret-${isExpanded ? 'down' : 'right'} expand-toggle"></i>
-          <strong>${col.name}</strong>
+          <div class="name-edit-group">
+            <input type="text" class="row-action new-name-input" 
+                   data-col="${escapeHtml(col.name)}" data-prop="new_name" 
+                   value="${escapeHtml(c.new_name || col.name)}" 
+                   ${isActive ? '' : 'disabled'}>
+            <span class="original-name-label" title="Original: ${escapeHtml(col.name)}">${escapeHtml(col.name)}</span>
+          </div>
           <span class="kind-tag">${col.kind}</span>
         </div>
       </td>
@@ -229,38 +269,16 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
         <div class="health-tag ${healthClass}">${nullPct}% nulls</div>
       </td>
       <td class="col-impute">
-        <select class="row-action" data-col="${escapeHtml(col.name)}" data-prop="impute_mode" ${isActive ? '' : 'disabled'}>
-          <option value="None" ${c.impute_mode === 'None' ? 'selected' : ''}>None</option>
-          <option value="Mean" ${c.impute_mode === 'Mean' ? 'selected' : ''}>Mean</option>
-          <option value="Median" ${c.impute_mode === 'Median' ? 'selected' : ''}>Median</option>
-          <option value="Zero" ${c.impute_mode === 'Zero' ? 'selected' : ''}>Zero</option>
-          <option value="Mode" ${c.impute_mode === 'Mode' ? 'selected' : ''}>Mode</option>
-        </select>
+        ${renderSelect(IMPUTE_OPTIONS, c.impute_mode, 'row-action', { col: col.name, prop: 'impute_mode' }, undefined, !isActive)}
       </td>
       <td class="col-round">
-        <select class="row-action" data-col="${escapeHtml(col.name)}" data-prop="rounding" ${isActive ? '' : 'disabled'}>
-          <option value="none" ${c.rounding === null ? 'selected' : ''}>None</option>
-          <option value="0" ${c.rounding === 0 ? 'selected' : ''}>0</option>
-          <option value="1" ${c.rounding === 1 ? 'selected' : ''}>1</option>
-          <option value="2" ${c.rounding === 2 ? 'selected' : ''}>2</option>
-          <option value="3" ${c.rounding === 3 ? 'selected' : ''}>3</option>
-          <option value="4" ${c.rounding === 4 ? 'selected' : ''}>4</option>
-        </select>
+        ${renderSelect(ROUND_OPTIONS, (c.rounding ?? 'none').toString(), 'row-action', { col: col.name, prop: 'rounding' }, undefined, !isActive)}
       </td>
       <td class="col-norm">
-        <select class="row-action" data-col="${escapeHtml(col.name)}" data-prop="normalization" ${isActive ? '' : 'disabled'}>
-          <option value="None" ${c.normalization === 'None' ? 'selected' : ''}>None</option>
-          <option value="ZScore" ${c.normalization === 'ZScore' ? 'selected' : ''}>Z-Score</option>
-          <option value="MinMax" ${c.normalization === 'MinMax' ? 'selected' : ''}>Min-Max</option>
-        </select>
+        ${renderSelect(NORM_OPTIONS, c.normalization, 'row-action', { col: col.name, prop: 'normalization' }, undefined, !isActive)}
       </td>
       <td class="col-case">
-        <select class="row-action" data-col="${escapeHtml(col.name)}" data-prop="text_case" ${isActive ? '' : 'disabled'}>
-          <option value="None" ${c.text_case === 'None' ? 'selected' : ''}>None</option>
-          <option value="Lowercase" ${c.text_case === 'Lowercase' ? 'selected' : ''}>Lower</option>
-          <option value="Uppercase" ${c.text_case === 'Uppercase' ? 'selected' : ''}>Upper</option>
-          <option value="TitleCase" ${c.text_case === 'TitleCase' ? 'selected' : ''}>Title</option>
-        </select>
+        ${renderSelect(CASE_OPTIONS, c.text_case, 'row-action', { col: col.name, prop: 'text_case' }, undefined, !isActive)}
       </td>
       <td class="col-onehot">
         <input type="checkbox" class="row-action" data-col="${escapeHtml(col.name)}" data-prop="one_hot_encode" ${c.one_hot_encode ? 'checked' : ''} ${isActive ? '' : 'disabled'}>
@@ -403,6 +421,9 @@ export function renderPowerShellView(fontSize: number): string {
           <button id="btn-save-ps" class="btn-secondary">
             <i class="ph ph-floppy-disk"></i> Save
           </button>
+          <button id="btn-clear-ps" class="btn-secondary">
+            <i class="ph ph-trash"></i> Clear
+          </button>
           <button id="btn-run-ps" class="btn-primary">
             <i class="ph ph-play"></i> Run Script
           </button>
@@ -411,6 +432,152 @@ export function renderPowerShellView(fontSize: number): string {
       <div class="ps-container">
         <div id="ps-editor" class="editor-frame"></div>
         <div id="ps-output" class="output-frame"></div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderPythonView(state: any): string {
+  const fontSize = state.config?.python_font_size || 14;
+  return `
+    <div class="python-view">
+      <div class="py-header">
+        <div class="py-title">
+          <i class="ph ph-code"></i>
+          Python IDE
+        </div>
+        <div class="py-actions">
+          <div class="py-font-controls">
+            <button id="btn-dec-font-py" class="btn-icon" title="Decrease Font Size">
+              <i class="ph ph-minus"></i>
+            </button>
+            <span id="py-font-size-label">${fontSize}</span>
+            <button id="btn-inc-font-py" class="btn-icon" title="Increase Font Size">
+              <i class="ph ph-plus"></i>
+            </button>
+          </div>
+          <div class="py-divider"></div>
+          <button id="btn-load-py" class="btn-secondary">
+            <i class="ph ph-folder-open"></i> Load
+          </button>
+          <button id="btn-save-py" class="btn-secondary">
+            <i class="ph ph-floppy-disk"></i> Save
+          </button>
+          <button id="btn-install-polars" class="btn-secondary" title="Install Polars Library">
+            <i class="ph ph-package"></i> Install Polars
+          </button>
+          <button id="btn-clear-py" class="btn-secondary">
+            <i class="ph ph-trash"></i> Clear
+          </button>
+          <button id="btn-run-py" class="btn-primary">
+            <i class="ph ph-play"></i> Run Script
+          </button>
+        </div>
+      </div>
+      <div class="py-main-layout">
+        <div class="py-container">
+          <div id="py-editor" class="editor-frame"></div>
+          <div id="py-output" class="output-frame"></div>
+        </div>
+        ${renderSchemaSidebar(state.analysisResponse, state.cleaningConfigs)}
+      </div>
+    </div>
+  `;
+}
+
+export function renderSQLView(state: any): string {
+  const fontSize = state.config?.sql_font_size || 14;
+  return `
+    <div class="sql-view">
+      <div class="sql-header">
+        <div class="sql-title">
+          <i class="ph ph-database"></i>
+          SQL IDE
+        </div>
+        <div class="sql-actions">
+          <div class="sql-font-controls">
+            <button id="btn-dec-font-sql" class="btn-icon" title="Decrease Font Size">
+              <i class="ph ph-minus"></i>
+            </button>
+            <span id="sql-font-size-label">${fontSize}</span>
+            <button id="btn-inc-font-sql" class="btn-icon" title="Increase Font Size">
+              <i class="ph ph-plus"></i>
+            </button>
+          </div>
+          <div class="sql-divider"></div>
+          <button id="btn-load-sql" class="btn-secondary">
+            <i class="ph ph-folder-open"></i> Load
+          </button>
+          <button id="btn-save-sql" class="btn-secondary">
+            <i class="ph ph-floppy-disk"></i> Save
+          </button>
+          <button id="btn-sql-docs" class="btn-secondary" title="View SQL Documentation">
+            <i class="ph ph-book-open"></i> Docs
+          </button>
+          <button id="btn-clear-sql" class="btn-secondary">
+            <i class="ph ph-trash"></i> Clear
+          </button>
+          <button id="btn-run-sql" class="btn-primary">
+            <i class="ph ph-play"></i> Run Query
+          </button>
+        </div>
+      </div>
+      <div class="sql-main-layout">
+        <div class="sql-container">
+          <div id="sql-editor" class="editor-frame"></div>
+          <div id="sql-output" class="output-frame"></div>
+        </div>
+        ${renderSchemaSidebar(state.analysisResponse, state.cleaningConfigs)}
+      </div>
+    </div>
+  `;
+}
+
+export function renderSchemaSidebar(response: AnalysisResponse | null, configs: Record<string, ColumnCleanConfig> = {}): string {
+  if (!response) {
+    return `
+      <div class="schema-sidebar empty">
+        <div class="sidebar-header">Dataset Schema</div>
+        <div class="empty-msg">
+          <i class="ph ph-file-search"></i>
+          <p>No dataset loaded. Load a file in the Analyser first.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="schema-sidebar">
+      <div class="sidebar-header">Dataset Schema</div>
+      <div class="column-list">
+        ${response.summary.map(col => {
+          const config = configs[col.name];
+          const displayName = config?.new_name || col.name;
+          const isActive = config ? config.active : true;
+          
+          if (!isActive) {
+            return `
+              <div class="column-item inactive" title="${escapeHtml(col.name)} (Will be dropped)">
+                <div class="col-info">
+                  <span class="col-name">${escapeHtml(displayName)}</span>
+                  <span class="col-type">Dropped</span>
+                </div>
+              </div>
+            `;
+          }
+
+          return `
+            <div class="column-item" title="${escapeHtml(col.name)} (${col.kind})">
+              <div class="col-info">
+                <span class="col-name">${escapeHtml(displayName)}</span>
+                <span class="col-type">${escapeHtml(col.kind)}</span>
+              </div>
+              <button class="btn-insert-col" data-col="${escapeHtml(displayName)}" title="Insert column name">
+                <i class="ph ph-arrow-square-in"></i>
+              </button>
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
   `;
@@ -635,6 +802,12 @@ export function renderLayout(): string {
           <button class="nav-item" data-view="PowerShell">
             <i class="ph ph-terminal"></i> PowerShell
           </button>
+          <button class="nav-item" data-view="Python">
+            <i class="ph ph-code"></i> Python IDE
+          </button>
+          <button class="nav-item" data-view="SQL">
+            <i class="ph ph-database"></i> SQL IDE
+          </button>
           <button class="nav-item" data-view="Settings">
             <i class="ph ph-gear"></i> Settings
           </button>
@@ -656,7 +829,7 @@ export function renderLayout(): string {
         <header>
           <h2 id="view-title">Dashboard</h2>
         </header>
-        <main id="main-content"></main>
+        <main id="view-container"></main>
       </div>
     </div>
     <div id="toast-container"></div>

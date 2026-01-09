@@ -1,4 +1,5 @@
 use chrono::Local;
+use keyring::Entry;
 use secrecy::SecretString;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,6 +8,24 @@ use tokio::runtime::Runtime;
 
 pub const DATA_INPUT_DIR: &str = "data/input";
 pub const DATA_PROCESSED_DIR: &str = "data/processed";
+pub const KEYRING_SERVICE: &str = "com.beefcake.app";
+pub const KEYRING_PLACEHOLDER: &str = "__KEYRING__";
+
+pub fn get_db_password(connection_id: &str) -> Option<String> {
+    let entry = Entry::new(KEYRING_SERVICE, connection_id).ok()?;
+    entry.get_password().ok()
+}
+
+pub fn set_db_password(connection_id: &str, password: &str) -> anyhow::Result<()> {
+    let entry = Entry::new(KEYRING_SERVICE, connection_id)?;
+    entry.set_password(password)?;
+    Ok(())
+}
+
+pub fn delete_db_password(connection_id: &str) -> anyhow::Result<()> {
+    let entry = Entry::new(KEYRING_SERVICE, connection_id)?;
+    entry.delete_credential().map_err(|e| anyhow::anyhow!(e))
+}
 
 pub static TOKIO_RUNTIME: LazyLock<Runtime> =
     LazyLock::new(|| Runtime::new().expect("Failed to create Tokio runtime"));
@@ -32,6 +51,8 @@ pub struct AppConfig {
     pub active_import_id: Option<String>,
     pub active_export_id: Option<String>,
     pub powershell_font_size: u32,
+    pub python_font_size: u32,
+    pub sql_font_size: u32,
     pub audit_log: Vec<AuditEntry>,
 }
 
@@ -42,6 +63,8 @@ impl Default for AppConfig {
             active_import_id: None,
             active_export_id: None,
             powershell_font_size: 14,
+            python_font_size: 14,
+            sql_font_size: 14,
             audit_log: Vec::new(),
         }
     }
@@ -58,6 +81,13 @@ pub fn push_audit_log(config: &mut AppConfig, action: &str, details: &str) {
     if config.audit_log.len() > 100 {
         config.audit_log.remove(0);
     }
+}
+
+/// Loads config, adds an audit entry, and saves it.
+pub fn log_event(action: &str, details: &str) {
+    let mut config = load_app_config();
+    push_audit_log(&mut config, action, details);
+    let _ = save_app_config(&config);
 }
 
 pub fn get_config_path() -> PathBuf {
@@ -103,7 +133,12 @@ where
     S: serde::Serializer,
 {
     use secrecy::ExposeSecret as _;
-    serializer.serialize_str(password.expose_secret())
+    let pwd = password.expose_secret();
+    if pwd.is_empty() {
+        serializer.serialize_str("")
+    } else {
+        serializer.serialize_str(KEYRING_PLACEHOLDER)
+    }
 }
 
 fn deserialize_password<'de, D>(deserializer: D) -> Result<SecretString, D::Error>
@@ -122,7 +157,7 @@ impl Default for DbSettings {
             host: "localhost".to_owned(),
             port: "5432".to_owned(),
             user: "postgres".to_owned(),
-            password: SecretString::default(),
+            password: SecretString::from(KEYRING_PLACEHOLDER.to_owned()),
             database: String::new(),
             schema: "public".to_owned(),
             table: String::new(),
@@ -131,12 +166,21 @@ impl Default for DbSettings {
 }
 
 impl DbSettings {
-    pub fn connection_string(&self) -> String {
+    pub fn get_real_password(&self, connection_id: &str) -> String {
         use secrecy::ExposeSecret as _;
+        let current = self.password.expose_secret();
+        if current == KEYRING_PLACEHOLDER {
+            get_db_password(connection_id).unwrap_or_default()
+        } else {
+            current.to_owned()
+        }
+    }
+
+    pub fn connection_string(&self, connection_id: &str) -> String {
         format!(
             "postgres://{}:{}@{}:{}/{}",
             self.user,
-            self.password.expose_secret(),
+            self.get_real_password(connection_id),
             self.host,
             self.port,
             self.database

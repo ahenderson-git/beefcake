@@ -330,21 +330,20 @@ checksum = "7d809780667f4410e7c41b07f52439b94d2bdf8528eeedc287fa38d3b7f95d82"
 
 [[package]]
 name = "beefcake"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
  "clap",
  "dirs",
  "env_logger",
+ "keyring",
  "linfa",
  "linfa-linear",
  "linfa-logistic",
  "linfa-trees",
- "log",
  "ndarray",
  "polars",
- "regex",
  "secrecy",
  "serde",
  "serde_json",
@@ -2423,6 +2422,16 @@ dependencies = [
  "bitflags 2.10.0",
  "serde",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "keyring"
+version = "3.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eebcc3aff044e5944a8fbaf69eb277d11986064cba30c468730e8b9909fb551c"
+dependencies = [
+ "log",
+ "zeroize",
 ]
 
 [[package]]

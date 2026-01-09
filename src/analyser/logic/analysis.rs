@@ -16,7 +16,7 @@ use super::types::{
 
 pub fn run_full_analysis(
     df: DataFrame,
-    file_path: String,
+    path: String,
     file_size: u64,
     trim_pct: f64,
     start_time: std::time::Instant,
@@ -26,14 +26,14 @@ pub fn run_full_analysis(
     let correlation_matrix = calculate_correlation_matrix(&df)?;
     let row_count = df.height();
     let column_count = df.width();
-    let file_name = std::path::Path::new(&file_path)
+    let file_name = std::path::Path::new(&path)
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("Unknown").to_owned();
 
     Ok(AnalysisResponse {
         file_name,
-        file_path,
+        path,
         file_size,
         row_count,
         column_count,
@@ -43,6 +43,65 @@ pub fn run_full_analysis(
         df,
         correlation_matrix,
     })
+}
+
+pub fn sanitize_column_name(name: &str) -> String {
+    let mut clean = name.trim().to_lowercase();
+
+    // Replace non-alphanumeric with underscore
+    clean = clean
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect();
+
+    // Collapse multiple underscores
+    let mut result = String::new();
+    let mut last_was_underscore = false;
+    for c in clean.chars() {
+        if c == '_' {
+            if !last_was_underscore {
+                result.push(c);
+                last_was_underscore = true;
+            }
+        } else {
+            result.push(c);
+            last_was_underscore = false;
+        }
+    }
+
+    // Trim underscores from ends
+    let mut result = result.trim_matches('_').to_string();
+
+    // Ensure it doesn't start with a number
+    if !result.is_empty() && result.chars().next().unwrap().is_ascii_digit() {
+        result = format!("col_{}", result);
+    }
+
+    if result.is_empty() {
+        "col".to_string()
+    } else {
+        result
+    }
+}
+
+pub fn sanitize_column_names(names: &[String]) -> Vec<String> {
+    let mut cleaned_names = Vec::new();
+    let mut seen = std::collections::HashMap::new();
+
+    for name in names {
+        let clean_base = sanitize_column_name(name);
+        let mut clean = clean_base.clone();
+        let mut count = 0;
+
+        while seen.contains_key(&clean) {
+            count += 1;
+            clean = format!("{}_{}", clean_base, count);
+        }
+
+        seen.insert(clean.clone(), true);
+        cleaned_names.push(clean);
+    }
+    cleaned_names
 }
 
 pub fn load_df(path: &std::path::Path, progress: &Arc<AtomicU64>) -> Result<DataFrame> {
@@ -205,6 +264,7 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
 
         let mut summary = ColumnSummary {
             name,
+            standardized_name: String::new(),
             kind,
             count,
             nulls,
@@ -219,6 +279,12 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
         summary.business_summary = summary.generate_business_summary();
         summary.ml_advice = summary.generate_ml_advice();
         summaries.push(summary);
+    }
+
+    let names: Vec<String> = summaries.iter().map(|s| s.name.clone()).collect();
+    let sanitized_names = sanitize_column_names(&names);
+    for (i, summary) in summaries.iter_mut().enumerate() {
+        summary.standardized_name = sanitized_names[i].clone();
     }
 
     Ok(summaries)
@@ -368,10 +434,14 @@ pub fn clean_df(
 
 pub fn auto_clean_df(df: DataFrame, restricted: bool) -> Result<DataFrame> {
     let summaries = analyse_df(&df, 0.0).context("Failed to analyse dataframe for cleaning")?;
+
+    let original_names: Vec<String> = summaries.iter().map(|s| s.name.clone()).collect();
+    let sanitized_names = sanitize_column_names(&original_names);
+
     let mut configs = HashMap::new();
-    for summary in summaries {
+    for (i, summary) in summaries.into_iter().enumerate() {
         let mut config = ColumnCleanConfig {
-            new_name: summary.name.clone(),
+            new_name: sanitized_names[i].clone(),
             ..Default::default()
         };
         summary.apply_advice_to_config(&mut config);

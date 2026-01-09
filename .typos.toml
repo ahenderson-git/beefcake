@@ -3,4 +3,14 @@
 # run:      typos
 
 [default.extend-words]
-egui = "egui" # Example for how to ignore a false positive
+egui = "egui"
+rustfmt = "rustfmt"
+Rustfmt = "Rustfmt"
+RUSTFLAGS = "RUSTFLAGS"
+RUSTDOCFLAGS = "RUSTDOCFLAGS"
+libgtk = "libgtk"
+libsoup = "libsoup"
+libjavascriptcoregtk = "libjavascriptcoregtk"
+libappindicator = "libappindicator"
+aarch = "aarch"
+itor = "itor"
