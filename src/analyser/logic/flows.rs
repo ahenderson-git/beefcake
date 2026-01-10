@@ -1,6 +1,6 @@
-use super::analysis::analyse_df;
+use super::analysis::analyse_df_lazy;
 use super::cleaning::clean_df_lazy;
-use super::io::{load_df, load_df_lazy};
+use super::io::load_df_lazy;
 use super::types::{AnalysisResponse, ColumnCleanConfig};
 use crate::analyser::db::DbClient;
 use anyhow::{Context as _, Result};
@@ -8,8 +8,6 @@ use polars::prelude::*;
 use sqlx::postgres::PgConnectOptions;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 use uuid::Uuid;
 
 pub async fn push_to_db_flow(
@@ -49,12 +47,8 @@ pub async fn push_to_db_flow(
 }
 
 pub fn generate_auto_clean_configs(lf: LazyFrame) -> Result<HashMap<String, ColumnCleanConfig>> {
-    let sample_df = lf
-        .limit(500_000)
-        .collect()
-        .context("Failed to sample data for auto-cleaning")?;
     let summaries =
-        analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
+        analyse_df_lazy(lf, 0.0).context("Failed to analyse for auto-cleaning")?;
 
     let mut configs = HashMap::new();
     for summary in summaries {
@@ -71,11 +65,33 @@ pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<A
     let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     let path_str = path.to_string_lossy().to_string();
 
-    let mut lf = load_df_lazy(&path).context("Failed to probe file")?;
-    let schema = lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
+    let lf = load_df_lazy(&path).context("Failed to probe file")?;
+    let mut lf_for_schema = lf.clone();
+    let schema = lf_for_schema.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
     let col_count = schema.len();
 
-    let total_rows = match lf.clone().select([polars::prelude::len()]).collect() {
+    // Use file size to determine sampling (avoid expensive row counting that materializes data)
+    // Rule of thumb: files > 20MB or wide schemas (>50 cols) should be sampled
+    let should_sample = file_size > 20 * 1024 * 1024 || col_count > 50;
+
+    let max_cells = 5_000_000;
+    let (lf_for_analysis, is_sampled, sampled_rows_count) = if should_sample {
+        let sample_rows = if col_count > 0 {
+            std::cmp::min(500_000, (max_cells / col_count) as u32)
+        } else {
+            500_000
+        };
+        crate::utils::log_event(
+            "Analyser",
+            &format!("Large dataset detected, using sampling ({} rows) for summary analysis...", sample_rows),
+        );
+        (lf.limit(sample_rows), true, sample_rows)
+    } else {
+        (lf.clone(), false, 0)
+    };
+
+    // Count rows AFTER sampling to avoid materializing huge files
+    let total_rows = match lf_for_analysis.clone().select([polars::prelude::len()]).collect() {
         Ok(df) => {
             let col = df.column("len")?.as_materialized_series();
             if let Ok(ca) = col.u32() {
@@ -89,24 +105,8 @@ pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<A
         Err(_) => 0,
     };
 
-    let cell_count = total_rows * col_count;
-    let (df, is_sampled) = if cell_count > 5_000_000 || file_size > 20 * 1024 * 1024 {
-        crate::utils::log_event(
-            "Analyser",
-            &format!("Large dataset detected, using sampling for summary analysis..."),
-        );
-        (
-            lf.limit(500_000)
-                .collect()
-                .context("Failed to sample data")?,
-            true,
-        )
-    } else {
-        (load_df(&path, &Arc::new(AtomicU64::new(0)))?, false)
-    };
-
-    let mut response = crate::analyser::logic::analysis::run_full_analysis(
-        df,
+    let mut response = crate::analyser::logic::analysis::run_full_analysis_streaming(
+        lf_for_analysis,
         path_str,
         file_size,
         total_rows,
@@ -116,7 +116,9 @@ pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<A
 
     if is_sampled {
         if let Some(first_col) = response.summary.get_mut(0) {
-            first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of 500,000 rows due to large file size ({})", crate::utils::fmt_bytes(file_size)));
+            first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of {} rows due to large dataset size ({})", 
+                crate::utils::fmt_count(sampled_rows_count as usize),
+                crate::utils::fmt_bytes(file_size)));
         }
     }
 

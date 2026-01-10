@@ -10,10 +10,10 @@ export default defineConfig(async () => ({
   server: {
     port: 14206,
     strictPort: true,
-    host: "127.0.0.1",
+    host: "localhost",
     hmr: {
       protocol: "ws",
-      host: "127.0.0.1",
+      host: "localhost",
       port: 14207,
     },
     watch: {

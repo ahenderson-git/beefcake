@@ -1,1192 +1,353 @@
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\db.rs:30:
-         table_name: Option<&str>,
-     ) -> Result<()> {
-         let schema = df.schema();
--        self.prepare_table(&schema, analysis_id, schema_name, table_name).await?;
-+        self.prepare_table(&schema, analysis_id, schema_name, table_name)
-+            .await?;
-
-         // Fast data transfer using PostgreSQL COPY in chunks to avoid memory explosion
-         let mut conn = self.pool.acquire().await?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\db.rs:45:
-
-         let chunk_size = 10_000;
-         let height = df.height();
--
-+
-         for i in (0..height).step_by(chunk_size) {
-             let len = std::cmp::min(chunk_size, height - i);
-             let mut chunk = df.slice(i as i64, len);
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\db.rs:52:
--
-+
-             let mut buf = Vec::new();
-             CsvWriter::new(&mut buf)
-                 .include_header(false)
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\db.rs:79:
-         schema_name: Option<&str>,
-         table_name: Option<&str>,
-     ) -> Result<()> {
--        self.prepare_table(schema, 0, schema_name, table_name).await?;
-+        self.prepare_table(schema, 0, schema_name, table_name)
-+            .await?;
-
-         let mut conn = self.pool.acquire().await?;
-         let full_identifier = self.get_full_identifier(0, schema_name, table_name);
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\db.rs:96:
-         let mut buf = vec![0u8; 1024 * 1024]; // 1MB buffer
-
-         loop {
--            let n = file.read(&mut buf).context("Failed to read from CSV file")?;
-+            let n = file
-+                .read(&mut buf)
-+                .context("Failed to read from CSV file")?;
-             if n == 0 {
-                 break;
-             }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\db.rs:103:
--            writer.send(buf[..n].to_vec()).await.context("Failed to send CSV chunk to DB")?;
-+            writer
-+                .send(buf[..n].to_vec())
-+                .await
-+                .context("Failed to send CSV chunk to DB")?;
-         }
-
--        writer.finish().await.context("Failed to finish COPY command")?;
-+        writer
-+            .finish()
-+            .await
-+            .context("Failed to finish COPY command")?;
-         Ok(())
-     }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\db.rs:110:
--    fn get_full_identifier(&self, analysis_id: i32, schema_name: Option<&str>, table_name: Option<&str>) -> String {
-+    fn get_full_identifier(
-+        &self,
-+        analysis_id: i32,
-+        schema_name: Option<&str>,
-+        table_name: Option<&str>,
-+    ) -> String {
-         let final_table_name =
-             table_name.map_or_else(|| format!("data_{analysis_id}"), ToOwned::to_owned);
-         let quote = |s: &str| format!("\"{}\"", s.replace('"', "\"\""));
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\analysis.rs:1:
-+use super::naming;
-+use super::profiling;
-+use super::types::{AnalysisResponse, ColumnSummary, CorrelationMatrix};
- use anyhow::{Context as _, Result};
- use polars::prelude::*;
--use super::types::{AnalysisResponse, ColumnSummary, CorrelationMatrix};
--use super::profiling;
--use super::naming;
-
- pub fn run_full_analysis(
-     df: DataFrame,
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\analysis.rs:20:
-     let file_name = std::path::Path::new(&path)
-         .file_name()
-         .and_then(|s| s.to_str())
--        .unwrap_or("Unknown").to_owned();
-+        .unwrap_or("Unknown")
-+        .to_owned();
-
-     Ok(AnalysisResponse {
-         file_name,
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\analysis.rs:138:
-             } else {
-                 let s1 = df.column(&numeric_cols[i])?.as_materialized_series();
-                 let s2 = df.column(&numeric_cols[j])?.as_materialized_series();
--
-+
-                 // Pearson correlation
-                 let corr = if let (Ok(ca1), Ok(ca2)) = (s1.f64(), s2.f64()) {
-                     polars::prelude::cov::pearson_corr(ca1, ca2)
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:1:
-+use super::types::{ColumnCleanConfig, ColumnKind, ImputeMode, NormalizationMethod, TextCase};
- use anyhow::{Context as _, Result};
- use polars::prelude::*;
- use std::collections::HashMap;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:4:
--use super::types::{ColumnCleanConfig, ImputeMode, NormalizationMethod, TextCase, ColumnKind};
-
- #[derive(Debug, Clone)]
- pub struct StatsValues {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:20:
- ) -> Result<DataFrame> {
-     let lf = df.lazy();
-     let cleaned_lf = clean_df_lazy(lf, configs, restricted)?;
--    cleaned_lf.collect().context("Failed to collect cleaned dataframe")
-+    cleaned_lf
-+        .collect()
-+        .context("Failed to collect cleaned dataframe")
- }
-
- pub fn clean_df_lazy(
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:63:
-
-             // 7. Categorical Refinement (One-hot encoding is handled separately)
-             if config.ml_preprocessing && config.one_hot_encode {
--                one_hot_cols.push(if config.new_name.is_empty() { name.to_string() } else { config.new_name.clone() });
-+                one_hot_cols.push(if config.new_name.is_empty() {
-+                    name.to_string()
-+                } else {
-+                    config.new_name.clone()
-+                });
-             }
-
-             expressions.push(expr);
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:94:
-
- pub fn apply_text_cleaning(expr: Expr, config: &ColumnCleanConfig, _restricted: bool) -> Expr {
-     let mut expr = expr;
--
-+
-     if config.advanced_cleaning {
-         if config.trim_whitespace {
-             expr = expr.str().strip_chars(lit(NULL));
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:101:
-         }
--
-+
-         match config.text_case {
-             TextCase::Lowercase => expr = expr.str().to_lowercase(),
-             TextCase::Uppercase => expr = expr.str().to_uppercase(),
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:106:
--            TextCase::TitleCase => {},
-+            TextCase::TitleCase => {}
-             TextCase::None => {}
-         }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:110:
-         if config.remove_special_chars {
--             expr = expr.str().replace_all(lit(r"[^a-zA-Z0-9\s]"), lit(""), true);
-+            expr = expr
-+                .str()
-+                .replace_all(lit(r"[^a-zA-Z0-9\s]"), lit(""), true);
-         }
-
-         if config.remove_non_ascii {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:115:
--             expr = expr.str().replace_all(lit(r"[^\x00-\x7F]"), lit(""), true);
-+            expr = expr.str().replace_all(lit(r"[^\x00-\x7F]"), lit(""), true);
-         }
-
-         if !config.regex_find.is_empty() {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:119:
--            expr = expr.str().replace_all(lit(config.regex_find.as_str()), lit(config.regex_replace.as_str()), true);
-+            expr = expr.str().replace_all(
-+                lit(config.regex_find.as_str()),
-+                lit(config.regex_replace.as_str()),
-+                true,
-+            );
-         }
--
-+
-         if config.standardize_nulls {
--            let null_values = Series::new("nulls".into(), &["null", "NULL", "", "N/A", "nan", "NaN"]);
-+            let null_values =
-+                Series::new("nulls".into(), &["null", "NULL", "", "N/A", "nan", "NaN"]);
-             expr = when(expr.clone().is_in(lit(null_values)))
-                 .then(lit(NULL))
-                 .otherwise(expr);
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:127:
-         }
-     }
--
-+
-     expr
- }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:162:
-     }
- }
-
--pub fn apply_numeric_refinement(
--    expr: Expr,
--    config: &ColumnCleanConfig,
--) -> Expr {
-+pub fn apply_numeric_refinement(expr: Expr, config: &ColumnCleanConfig) -> Expr {
-     let mut expr = expr;
--
-+
-     if config.extract_numbers {
--        expr = expr.str().extract(lit(r"(\d+\.?\d*)"), 1).cast(DataType::Float64);
-+        expr = expr
-+            .str()
-+            .extract(lit(r"(\d+\.?\d*)"), 1)
-+            .cast(DataType::Float64);
-     }
-
-     if config.ml_preprocessing && config.clip_outliers {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:177:
-         let upper = expr.clone().quantile(lit(0.95), QuantileMethod::Linear);
-         expr = expr.clip(lower, upper);
-     }
--
-+
-     if let Some(decimals) = config.rounding {
-         expr = expr.round(decimals);
-     }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\cleaning.rs:184:
--
-+
-     expr
- }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:1:
-+use super::analysis::analyse_df;
-+use super::cleaning::clean_df_lazy;
-+use super::io::{load_df, load_df_lazy};
-+use super::types::{AnalysisResponse, ColumnCleanConfig};
-+use crate::analyser::db::DbClient;
- use anyhow::{Context as _, Result};
- use polars::prelude::*;
-+use sqlx::postgres::PgConnectOptions;
- use std::collections::HashMap;
- use std::path::PathBuf;
--use uuid::Uuid;
--use crate::analyser::db::DbClient;
--use super::types::{AnalysisResponse, ColumnCleanConfig};
--use super::io::{load_df, load_df_lazy};
--use super::cleaning::clean_df_lazy;
--use super::analysis::analyse_df;
--use sqlx::postgres::PgConnectOptions;
- use std::sync::Arc;
- use std::sync::atomic::AtomicU64;
-+use uuid::Uuid;
-
- pub async fn push_to_db_flow(
-     path: PathBuf,
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:20:
-     configs: HashMap<String, ColumnCleanConfig>,
- ) -> Result<()> {
-     let lf = load_df_lazy(&path).context("Failed to load data")?;
--
-+
-     let mut cleaned_lf = clean_df_lazy(lf, &configs, false).context("Cleaning failed")?;
-
--    let schema = cleaned_lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
-+    let schema = cleaned_lf
-+        .collect_schema()
-+        .map_err(|e| anyhow::anyhow!(e))?;
-     let temp_dir = std::env::temp_dir();
-     let temp_path = temp_dir.join(format!("beefcake_db_push_{}.csv", Uuid::new_v4()));
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:30:
--    crate::utils::log_event("Database", "Sinking to temp CSV for database push (streaming)...");
--
--    cleaned_lf.with_streaming(true)
-+    crate::utils::log_event(
-+        "Database",
-+        "Sinking to temp CSV for database push (streaming)...",
-+    );
-+
-+    cleaned_lf
-+        .with_streaming(true)
-         .sink_csv(&temp_path, Default::default(), None)
-         .context("Failed to sink to CSV for DB push")?;
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:36:
-     let client = DbClient::connect(opts).await?;
-     client
--        .push_from_csv_file(
--            &temp_path,
--            &schema,
--            Some(&schema_name),
--            Some(&table_name),
--        )
-+        .push_from_csv_file(&temp_path, &schema, Some(&schema_name), Some(&table_name))
-         .await?;
-
-     let _ = std::fs::remove_file(&temp_path);
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:48:
- }
-
- pub fn generate_auto_clean_configs(lf: LazyFrame) -> Result<HashMap<String, ColumnCleanConfig>> {
--    let sample_df = lf.limit(500_000).collect().context("Failed to sample data for auto-cleaning")?;
--    let summaries = analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
--
-+    let sample_df = lf
-+        .limit(500_000)
-+        .collect()
-+        .context("Failed to sample data for auto-cleaning")?;
-+    let summaries =
-+        analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
-+
-     let mut configs = HashMap::new();
-     for summary in summaries {
-         let mut config = ColumnCleanConfig::default();
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:61:
-     Ok(configs)
- }
-
--pub async fn analyze_file_flow(
--    path: PathBuf,
--    trim_pct: Option<f64>,
--) -> Result<AnalysisResponse> {
-+pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<AnalysisResponse> {
-     let start = std::time::Instant::now();
-     let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-     let path_str = path.to_string_lossy().to_string();
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:72:
-     let mut lf = load_df_lazy(&path).context("Failed to probe file")?;
-     let schema = lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
-     let col_count = schema.len();
--
-+
-     let total_rows = match lf.clone().select([polars::prelude::len()]).collect() {
-         Ok(df) => {
-             let col = df.column("len")?.as_materialized_series();
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:83:
-             } else {
-                 0
-             }
--        },
--        Err(_) => 0
-+        }
-+        Err(_) => 0,
-     };
-
-     let cell_count = total_rows * col_count;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:91:
-     let (df, is_sampled) = if cell_count > 5_000_000 || file_size > 20 * 1024 * 1024 {
--        crate::utils::log_event("Analyser", &format!("Large dataset detected, using sampling for summary analysis..."));
--        (lf.limit(500_000).collect().context("Failed to sample data")?, true)
-+        crate::utils::log_event(
-+            "Analyser",
-+            &format!("Large dataset detected, using sampling for summary analysis..."),
-+        );
-+        (
-+            lf.limit(500_000)
-+                .collect()
-+                .context("Failed to sample data")?,
-+            true,
-+        )
-     } else {
-         (load_df(&path, &Arc::new(AtomicU64::new(0)))?, false)
-     };
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\flows.rs:109:
-             first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of 500,000 rows due to large file size ({})", crate::utils::fmt_bytes(file_size)));
-         }
-     }
--
-+
-     Ok(response)
- }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\interpretation.rs:100:
-         self.collect_preprocessing_advice(is_likely_id, &mut advice);
-
-         if self.name != sanitize_column_name(&self.name) {
--            advice.push("Consider standardizing column name for better database and SQL compatibility.".to_owned());
-+            advice.push(
-+                "Consider standardizing column name for better database and SQL compatibility."
-+                    .to_owned(),
-+            );
-         }
-
-         if advice.is_empty() {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\interpretation.rs:211:
-             if s.zero_count > 0 {
-                 signals.push("Contains zero values.");
-                 if Self::calculate_zero_ratio(s) > 0.3 {
--                     signals.push("High proportion of zeros; check if these represent defaults or missing data.");
-+                    signals.push("High proportion of zeros; check if these represent defaults or missing data.");
-                 }
-             }
-             if s.negative_count > 0 {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\interpretation.rs:461:
-
-             if s.zero_count > 0 {
-                 if Self::calculate_zero_ratio(s) > 0.3 {
--                     insights.push("A high number of zero values suggests many records might be empty or inactive.");
-+                    insights.push("A high number of zero values suggests many records might be empty or inactive.");
-                 } else {
--                    insights.push("Includes zero values, which may represent a neutral or baseline state.");
-+                    insights.push(
-+                        "Includes zero values, which may represent a neutral or baseline state.",
-+                    );
-                 }
-             }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\interpretation.rs:563:
-     }
-
-     fn calculate_zero_ratio(s: &super::types::NumericStats) -> f64 {
--        let total = s.zero_count
--            + s.negative_count
--            + s.histogram.iter().map(|h| h.1).sum::<usize>();
-+        let total =
-+            s.zero_count + s.negative_count + s.histogram.iter().map(|h| h.1).sum::<usize>();
-         if total == 0 {
-             0.0
-         } else {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\io.rs:11:
-         .to_lowercase();
-
-     let df = match ext.as_str() {
--        "csv" => {
--            LazyCsvReader::new(path)
--                .with_infer_schema_length(Some(10000))
--                .with_has_header(true)
--                .finish()?
--                .collect()
--                .context("Failed to read CSV")?
--        }
--        "parquet" => {
--            ParquetReader::new(std::fs::File::open(path)?)
--                .finish()
--                .context("Failed to read Parquet")?
--        }
--        "json" => {
--            JsonReader::new(std::fs::File::open(path)?)
--                .finish()
--                .context("Failed to read JSON")?
--        }
-+        "csv" => LazyCsvReader::new(path)
-+            .with_infer_schema_length(Some(10000))
-+            .with_has_header(true)
-+            .finish()?
-+            .collect()
-+            .context("Failed to read CSV")?,
-+        "parquet" => ParquetReader::new(std::fs::File::open(path)?)
-+            .finish()
-+            .context("Failed to read Parquet")?,
-+        "json" => JsonReader::new(std::fs::File::open(path)?)
-+            .finish()
-+            .context("Failed to read JSON")?,
-         _ => return Err(anyhow::anyhow!("Unsupported file extension: {}", ext)),
-     };
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\io.rs:38:
- pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
-     let mut df = df;
-     let schema = df.schema();
--
-+
-     for (name, dtype) in schema.iter() {
-         if dtype.is_numeric() || dtype.is_temporal() || dtype.is_bool() {
-             continue;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\io.rs:46:
-
-         // Try parsing string columns as datetime
-         if let Ok(s) = df.column(name) {
--             let s = s.as_materialized_series();
--             if let Ok(casted) = s.cast(&DataType::Datetime(TimeUnit::Milliseconds, None)) {
--                 if casted.null_count() < s.len() / 2 {
--                     let _ = df.replace(name, casted);
--                 }
--             }
-+            let s = s.as_materialized_series();
-+            if let Ok(casted) = s.cast(&DataType::Datetime(TimeUnit::Milliseconds, None)) {
-+                if casted.null_count() < s.len() / 2 {
-+                    let _ = df.replace(name, casted);
-+                }
-+            }
-         }
-     }
-     Ok(df)
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\io.rs:92:
-     let col_count = schema.len();
-
-     // Conservative row group sizing to prevent OOM on large datasets
--    let mut row_group_size = if col_count >= 100 {
--        16_384
--    } else {
--        32_768
--    };
-+    let mut row_group_size = if col_count >= 100 { 16_384 } else { 32_768 };
-
-     // Allow environment variable override for emergency debugging
-     if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE") {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\io.rs:120:
-         .to_lowercase();
-
-     match ext.as_str() {
--        "csv" => {
--            LazyCsvReader::new(path)
--                .with_infer_schema_length(Some(10000))
--                .with_has_header(true)
--                .with_try_parse_dates(true)
--                .finish()
--                .context("Failed to scan CSV")
--        }
-+        "csv" => LazyCsvReader::new(path)
-+            .with_infer_schema_length(Some(10000))
-+            .with_has_header(true)
-+            .with_try_parse_dates(true)
-+            .finish()
-+            .context("Failed to scan CSV"),
-         "parquet" => {
--            LazyFrame::scan_parquet(path, Default::default())
--                .context("Failed to scan Parquet")
-+            LazyFrame::scan_parquet(path, Default::default()).context("Failed to scan Parquet")
-         }
-         "json" => {
-             // Polars doesn't have a truly lazy JSON reader in the same way as CSV/Parquet (it usually reads it all)
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:1:
-+use super::types::{BooleanStats, ColumnKind, ColumnStats, NumericStats, TemporalStats, TextStats};
- use anyhow::Result;
- use polars::prelude::*;
--use super::types::{ColumnKind, ColumnStats, NumericStats, BooleanStats, TemporalStats, TextStats};
-
- pub fn analyse_boolean(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
-     let series = col.as_materialized_series();
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:19:
-
- pub fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, ColumnStats)> {
-     let series = col.as_materialized_series();
--    let ca = series.cast(&DataType::Float64).map_err(|e| anyhow::anyhow!(e))?;
-+    let ca = series
-+        .cast(&DataType::Float64)
-+        .map_err(|e| anyhow::anyhow!(e))?;
-     let ca = ca.f64().map_err(|e| anyhow::anyhow!(e))?;
-
-     let min = ca.min();
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:41:
-     let skew = calculate_skew(mean, median, q1, q3, std_dev);
-     let trimmed_mean = calculate_trimmed_mean(ca, mean, trim_pct);
-     let (bin_width, histogram) = calculate_histogram(ca, min, max, q1, q3);
--
-+
-     let distinct_count = series.n_unique().unwrap_or(0);
-     let zero_count = ca.into_iter().flatten().filter(|&v| v == 0.0).count();
-     let negative_count = ca.into_iter().flatten().filter(|&v| v < 0.0).count();
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:48:
-     let is_integer = ca.into_iter().flatten().all(|v| v == v.floor());
--
-+
-     let is_sorted = series.is_sorted(SortOptions::default()).unwrap_or(false);
--    let is_sorted_rev = series.is_sorted(SortOptions { descending: true, ..Default::default() }).unwrap_or(false);
-+    let is_sorted_rev = series
-+        .is_sorted(SortOptions {
-+            descending: true,
-+            ..Default::default()
-+        })
-+        .unwrap_or(false);
-
-     Ok((
-         ColumnKind::Numeric,
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:122:
-     None
- }
-
--pub fn calculate_trimmed_mean(ca: &Float64Chunked, mean: Option<f64>, trim_pct: f64) -> Option<f64> {
-+pub fn calculate_trimmed_mean(
-+    ca: &Float64Chunked,
-+    mean: Option<f64>,
-+    trim_pct: f64,
-+) -> Option<f64> {
-     if trim_pct <= 0.0 {
-         return mean;
-     }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:150:
-         if min_v < max_v {
-             let n = ca.len() - ca.null_count();
-             let iqr = q3.unwrap_or(max_v) - q1.unwrap_or(min_v);
--
-+
-             let h = if iqr > 0.0 {
-                 2.0 * iqr / (n as f64).powf(1.0 / 3.0)
-             } else {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:181:
-
- pub fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
-     let series = col.as_materialized_series();
--    let ca = series.cast(&DataType::Datetime(TimeUnit::Milliseconds, None)).map_err(|e| anyhow::anyhow!(e))?;
-+    let ca = series
-+        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
-+        .map_err(|e| anyhow::anyhow!(e))?;
-     let ca = ca.datetime().map_err(|e| anyhow::anyhow!(e))?;
-
-     let min = ca.min().map(|v| v.to_string());
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:196:
-                 for i in 0..20 {
-                     let start = min_v + i * interval;
-                     let end = min_v + (i + 1) * interval;
--                    let count = ca.into_iter().flatten().filter(|&v| v >= start && v < end).count();
-+                    let count = ca
-+                        .into_iter()
-+                        .flatten()
-+                        .filter(|&v| v >= start && v < end)
-+                        .count();
-                     timeline.push((start.to_string(), count));
-                 }
-             }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:212:
-             p05: None, // Simplified for now
-             p95: None,
-             is_sorted: series.is_sorted(SortOptions::default()).unwrap_or(false),
--            is_sorted_rev: series.is_sorted(SortOptions { descending: true, ..Default::default() }).unwrap_or(false),
-+            is_sorted_rev: series
-+                .is_sorted(SortOptions {
-+                    descending: true,
-+                    ..Default::default()
-+                })
-+                .unwrap_or(false),
-             bin_width: 0.0,
-             histogram: Vec::new(),
-         }),
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:227:
-     let dtype = series.dtype();
-     let (min_length, max_length, avg_length) = get_text_lengths(&series, dtype)?;
-
--    let value_counts_df = series.value_counts(true, false, "counts".into(), false).ok();
-+    let value_counts_df = series
-+        .value_counts(true, false, "counts".into(), false)
-+        .ok();
-     let has_special = check_special_characters(name, dtype, &value_counts_df)?;
-
-     let top_value = if let Some(vc) = value_counts_df {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\profiling.rs:259:
-
- pub fn get_text_lengths(series: &Series, dtype: &DataType) -> Result<(usize, usize, f64)> {
-     let s = if dtype.is_numeric() || dtype.is_temporal() || dtype.is_bool() {
--        series.cast(&DataType::String).map_err(|e| anyhow::anyhow!(e))?
-+        series
-+            .cast(&DataType::String)
-+            .map_err(|e| anyhow::anyhow!(e))?
-     } else {
-         series.clone()
-     };
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:212:
-         interp.contains("Extreme outliers"),
-         "Should detect extreme outliers"
-     );
--    assert!(interp.contains("vast majority"), "Should detect dominant bin");
-+    assert!(
-+        interp.contains("vast majority"),
-+        "Should detect dominant bin"
-+    );
-     Ok(())
- }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:933:
-     configs.insert(
-         "to_skip".to_string(),
-         ColumnCleanConfig {
--            new_name: "renamed".to_string(),      // Should be skipped
--            impute_mode: ImputeMode::Zero, // Should be skipped
--            rounding: Some(0),                    // Should be skipped
-+            new_name: "renamed".to_string(),            // Should be skipped
-+            impute_mode: ImputeMode::Zero,              // Should be skipped
-+            rounding: Some(0),                          // Should be skipped
-             normalization: NormalizationMethod::MinMax, // Should be skipped
--            one_hot_encode: true,                 // Should be skipped
-+            one_hot_encode: true,                       // Should be skipped
-             ..Default::default()
-         },
-     );
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:972:
-     Ok(())
- }
-
--
- #[test]
- fn test_bulk_column_sanitization_collisions() {
--    let names = vec!(
-+    let names = vec![
-         "Duplicate Name".to_string(),
-         "Duplicate Name".to_string(),
-         "duplicate_name".to_string(),
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:982:
-         "Other".to_string(),
--    );
-+    ];
-     let sanitized = sanitize_column_names(&names);
-     assert_eq!(sanitized[0], "duplicate_name");
-     assert_eq!(sanitized[1], "duplicate_name_1");
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:994:
-         "a" => &[1, 2, 3],
-         "b" => &["x", "y", "z"]
-     )?;
--
-+
-     let temp_dir = std::env::temp_dir();
--
-+
-     // Test CSV
-     let csv_path = temp_dir.join("test_export.csv");
-     save_df(&mut df, &csv_path)?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:1003:
-     assert!(csv_path.exists());
-     let _ = std::fs::remove_file(csv_path);
--
-+
-     // Test Parquet
-     let parquet_path = temp_dir.join("test_export.parquet");
-     save_df(&mut df, &parquet_path)?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:1009:
-     assert!(parquet_path.exists());
-     let _ = std::fs::remove_file(parquet_path);
--
-+
-     // Test JSON
-     let json_path = temp_dir.join("test_export.json");
-     save_df(&mut df, &json_path)?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:1015:
-     assert!(json_path.exists());
-     let _ = std::fs::remove_file(json_path);
--
-+
-     Ok(())
- }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:1060:
-
-     let mut columns = Vec::new();
-     for i in 0..num_cols {
--        let s = Series::new(format!("col_{i}").into(), vec![Some(format!(" {} ", i)); num_rows]);
-+        let s = Series::new(
-+            format!("col_{i}").into(),
-+            vec![Some(format!(" {} ", i)); num_rows],
-+        );
-         columns.push(Column::from(s));
-     }
-     let df = DataFrame::new(columns)?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:1097:
- #[test]
- fn test_export_super_massive_columns() -> Result<()> {
-     let num_cols = 1000; // Even larger
--    let num_rows = 10;   // Keep rows small to focus on plan complexity
-+    let num_rows = 10; // Keep rows small to focus on plan complexity
-
-     let mut columns = Vec::new();
-     for i in 0..num_cols {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:1104:
--        let s = Series::new(format!("col_{i}").into(), vec![Some(format!(" {} ", i)); num_rows]);
-+        let s = Series::new(
-+            format!("col_{i}").into(),
-+            vec![Some(format!(" {} ", i)); num_rows],
-+        );
-         columns.push(Column::from(s));
-     }
-     let df = DataFrame::new(columns)?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:1193:
-     let n = 100_000;
-     let s = Series::new("vals".into(), (0..n).map(|i| i as f64).collect::<Vec<_>>());
-     let df = DataFrame::new(vec![Column::from(s)])?;
--
-+
-     let summaries = analyse_df(&df, 0.0)?;
-     let summary = summaries.first().unwrap();
--
-+
-     if let ColumnStats::Numeric(stats) = &summary.stats {
-         assert_eq!(stats.min, Some(0.0));
-         assert_eq!(stats.max, Some((n - 1) as f64));
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\analyser\logic\tests.rs:1207:
-     } else {
-         panic!("Expected NumericStats");
-     }
--
-+
-     Ok(())
- }
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\cli.rs:137:
-         "Importing {0} into table {schema}.{table} (streaming)...",
-         file.display()
-     );
--
-+
-     let lf = load_df_lazy(&file).context("Failed to load dataframe lazily")?;
-
-     let configs = if let Some(config_path) = config_path {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\cli.rs:166:
-
-     let opts =
-         PgConnectOptions::from_str(&effective_url).context("Failed to parse database URL")?;
--
-+
-     flows::push_to_db_flow(file.clone(), opts, schema, table, configs).await?;
-
-     println!("Successfully imported.");
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\cli.rs:219:
-             input_path.display(),
-             output_path.display()
-         );
--
-+
-         let lf = load_df_lazy(&input_path).context("Failed to load input file lazily")?;
-
-         let configs = if let Some(config_path) = config_path {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\cli.rs:235:
-         println!("Applying transformations...");
-         let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
-
--        let ext = output_path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
-+        let ext = output_path
-+            .extension()
-+            .and_then(|s| s.to_str())
-+            .unwrap_or("")
-+            .to_lowercase();
-         match ext.as_str() {
-             "parquet" => {
-                 let options = get_parquet_write_options(&cleaned_lf)?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\cli.rs:263:
-             }
-             _ => {
-                 println!("Collecting and saving to {}...", output_path.display());
--                let mut df = cleaned_lf.collect().context("Failed to collect data for export")?;
-+                let mut df = cleaned_lf
-+                    .collect()
-+                    .context("Failed to collect data for export")?;
-                 save_df(&mut df, &output_path).context("Failed to save output file")?;
-             }
-         }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\cli.rs:317:
-
-     let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
-
--    let ext = output_file.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
-+    let ext = output_file
-+        .extension()
-+        .and_then(|s| s.to_str())
-+        .unwrap_or("")
-+        .to_lowercase();
-     match ext.as_str() {
-         "parquet" => {
-             let options = get_parquet_write_options(&cleaned_lf)?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\cli.rs:345:
-         }
-         _ => {
-             println!("Collecting and saving to {}...", output_file.display());
--            let mut df = cleaned_lf.collect().context("Failed to collect data for saving")?;
-+            let mut df = cleaned_lf
-+                .collect()
-+                .context("Failed to collect data for saving")?;
-             save_df(&mut df, &output_file).context("Failed to save cleaned file")?;
-         }
-     }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:1:
-+use crate::python_runner::{
-+    execute_python, python_adaptive_sink_snippet, python_load_snippet, python_preamble,
-+};
-+use beefcake::analyser::logic::ColumnCleanConfig;
- use polars::prelude::*;
- use serde::Deserialize;
- use std::collections::HashMap;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:4:
- use std::path::PathBuf;
- use std::str::FromStr as _;
- use uuid::Uuid;
--use beefcake::analyser::logic::ColumnCleanConfig;
--use crate::python_runner::{python_preamble, python_load_snippet, python_adaptive_sink_snippet, execute_python};
-
- #[derive(Debug, Deserialize, Clone)]
- #[serde(rename_all = "PascalCase")]
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:68:
-                 .ok_or_else(|| "No data path provided for SQL source".to_string())?;
-
-             let temp_dir = std::env::temp_dir();
--            let temp_output = temp_dir.join(format!(
--                "beefcake_export_sql_{}.parquet",
--                Uuid::new_v4()
--            ));
-+            let temp_output =
-+                temp_dir.join(format!("beefcake_export_sql_{}.parquet", Uuid::new_v4()));
-             temp_files.push(temp_output.clone());
-
-             let python_script = format!(
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:110:
-             let path = source.path.as_ref();
-
-             let temp_dir = std::env::temp_dir();
--            let temp_output = temp_dir.join(format!(
--                "beefcake_export_python_{}.parquet",
--                Uuid::new_v4()
--            ));
-+            let temp_output =
-+                temp_dir.join(format!("beefcake_export_python_{}.parquet", Uuid::new_v4()));
-             temp_files.push(temp_output.clone());
-
-             let load_snippet = if let Some(p) = path {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:120:
--                format!("data_path = r\"{}\"\n{}", p, python_load_snippet("data_path", "df"))
-+                format!(
-+                    "data_path = r\"{}\"\n{}",
-+                    p,
-+                    python_load_snippet("data_path", "df")
-+                )
-             } else {
-                 "".to_string()
-             };
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:189:
-             let temp_path = temp_dir.join(format!("beefcake_export_{}.{}", Uuid::new_v4(), ext));
-             temp_files.push(temp_path.clone());
-
--            beefcake::utils::log_event("Export", &format!("Sinking data to temporary file: {:?}", temp_path));
--
-+            beefcake::utils::log_event(
-+                "Export",
-+                &format!("Sinking data to temporary file: {:?}", temp_path),
-+            );
-+
-             match ext.as_str() {
-                 "parquet" => {
-                     let options = beefcake::analyser::logic::get_parquet_write_options(&lf)
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:203:
-                         .map_err(|e| format!("CSV export failed: {e}"))?;
-                 }
-                 _ => {
--                    let mut df = lf.collect().map_err(|e| format!("Export failed (collect): {e}"))?;
-+                    let mut df = lf
-+                        .collect()
-+                        .map_err(|e| format!("Export failed (collect): {e}"))?;
-                     beefcake::analyser::logic::save_df(&mut df, &temp_path)
-                         .map_err(|e| format!("Failed to save file: {e}"))?;
-                 }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:214:
-                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-             }
-             if let Err(e) = std::fs::rename(&temp_path, &final_path) {
--                std::fs::copy(&temp_path, &final_path).map_err(|err| format!("Failed to move file: {err} (Rename error: {e})"))?;
-+                std::fs::copy(&temp_path, &final_path)
-+                    .map_err(|err| format!("Failed to move file: {err} (Rename error: {e})"))?;
-                 let _ = std::fs::remove_file(&temp_path);
-             }
--
--            beefcake::utils::log_event("Export", &format!("Successfully exported to {:?}", final_path));
-+
-+            beefcake::utils::log_event(
-+                "Export",
-+                &format!("Successfully exported to {:?}", final_path),
-+            );
-             Ok(())
-         }
-         ExportDestinationType::Database => {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:225:
-             let connection_id = options.destination.target.clone();
--
-+
-             let temp_dir = std::env::temp_dir();
-             let temp_path = temp_dir.join(format!("beefcake_db_push_{}.csv", Uuid::new_v4()));
-             temp_files.push(temp_path.clone());
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:230:
-
-             beefcake::utils::log_event("Export", "Sinking to temp CSV for database push...");
--
-+
-             lf.sink_csv(&temp_path, Default::default(), None)
-                 .map_err(|e| format!("Failed to prepare database push: {e}"))?;
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:236:
-             // Resolve connection and call flow
-             let config = beefcake::utils::load_app_config();
--            let conn = config.connections.iter()
-+            let conn = config
-+                .connections
-+                .iter()
-                 .find(|c| c.id == connection_id)
-                 .ok_or_else(|| "Connection not found".to_string())?;
--
-+
-             let url = conn.settings.connection_string(&connection_id);
-             let opts = sqlx::postgres::PgConnectOptions::from_str(&url)
-                 .map_err(|e| format!("Invalid connection URL: {e}"))?;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\export.rs:278:
-
-     // 2. Apply cleaning/transformation logic
-     if !options.configs.is_empty() {
--        beefcake::utils::log_event("Export", "Step 2/3: Applying optimized streaming cleaning pipeline...");
-+        beefcake::utils::log_event(
-+            "Export",
-+            "Step 2/3: Applying optimized streaming cleaning pipeline...",
-+        );
-         lf = beefcake::analyser::logic::clean_df_lazy(lf, &options.configs, false)
-             .map_err(|e| format!("Failed to apply cleaning: {e}"))?;
--
-+
-         if beefcake::utils::is_aborted() {
-             return Err("Operation aborted by user".to_string());
-         }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\main.rs:3:
- #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
- mod cli;
--mod tauri_app;
--mod python_runner;
- mod export;
-+mod python_runner;
- mod system;
-+mod tauri_app;
-
- use anyhow::Result;
- use clap::Parser as _;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\python_runner.rs:1:
- use anyhow::Result;
-+use beefcake::analyser::logic::ColumnCleanConfig;
- use std::collections::HashMap;
- use std::io::Write;
- use std::path::{Path, PathBuf};
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\python_runner.rs:5:
- use std::process::{Command, Stdio};
- use uuid::Uuid;
--use beefcake::analyser::logic::ColumnCleanConfig;
-
- pub fn python_preamble() -> String {
-     r#"import os
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\python_runner.rs:14:
- # Disable column truncation
- pl.Config.set_tbl_cols(-1)
- pl.Config.set_tbl_rows(100)
--"#.to_string()
-+"#
-+    .to_string()
- }
-
- pub fn python_load_snippet(data_path: &str, lf_var: &str) -> String {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\python_runner.rs:72:
-
-     if let Some(path) = &data_path {
-         if !path.is_empty() {
--            beefcake::utils::log_event(log_tag, &format!("Setting BEEFCAKE_DATA_PATH to: {}", path));
-+            beefcake::utils::log_event(
-+                log_tag,
-+                &format!("Setting BEEFCAKE_DATA_PATH to: {}", path),
-+            );
-             cmd.env("BEEFCAKE_DATA_PATH", path);
-         }
-     }
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\python_runner.rs:111:
- ) -> Result<Option<String>, String> {
-     if let (Some(path), Some(cfgs)) = (&data_path, &configs) {
-         if !cfgs.is_empty() && !path.is_empty() {
--            beefcake::utils::log_event(log_tag, "Applying cleaning configurations before execution (streaming)");
--
-+            beefcake::utils::log_event(
-+                log_tag,
-+                "Applying cleaning configurations before execution (streaming)",
-+            );
-+
-             let lf = beefcake::analyser::logic::load_df_lazy(&PathBuf::from(path))
-                 .map_err(|e| format!("Failed to load data for cleaning: {e}"))?;
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\python_runner.rs:120:
-                 .map_err(|e| format!("Failed to apply cleaning: {e}"))?;
-
-             let temp_dir = std::env::temp_dir();
--            let temp_path = temp_dir.join(format!("beefcake_cleaned_data_{}_{}.parquet", log_tag.to_lowercase(), Uuid::new_v4()));
-+            let temp_path = temp_dir.join(format!(
-+                "beefcake_cleaned_data_{}_{}.parquet",
-+                log_tag.to_lowercase(),
-+                Uuid::new_v4()
-+            ));
-
-             // Use adaptive sink_parquet for memory efficiency
-             let options = beefcake::analyser::logic::get_parquet_write_options(&cleaned_lf)
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\python_runner.rs:133:
-                 );
-             }
-
--            cleaned_lf.with_streaming(true)
-+            cleaned_lf
-+                .with_streaming(true)
-                 .sink_parquet(&temp_path, options, None)
-                 .map_err(|e| format!("Failed to save cleaned data to temp file: {e}"))?;
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\system.rs:1:
--use std::process::Command;
- use anyhow::{Result, anyhow};
-+use std::process::Command;
-
- pub fn run_powershell(script: &str) -> Result<String> {
-     let output = if cfg!(target_os = "windows") {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:1:
--#![allow(clippy::let_underscore_must_use, clippy::let_underscore_untyped, clippy::print_stderr, clippy::exit, clippy::collapsible_if)]
-+#![allow(
-+    clippy::let_underscore_must_use,
-+    clippy::let_underscore_untyped,
-+    clippy::print_stderr,
-+    clippy::exit,
-+    clippy::collapsible_if
-+)]
- use beefcake::analyser::logic::flows::analyze_file_flow;
- use beefcake::analyser::logic::{AnalysisResponse, ColumnCleanConfig};
--use beefcake::utils::{load_app_config, push_audit_log, save_app_config, AppConfig, DbSettings};
-+use beefcake::utils::{AppConfig, DbSettings, load_app_config, push_audit_log, save_app_config};
- use std::collections::HashMap;
- use std::path::PathBuf;
- use std::str::FromStr;
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:8:
-
--use crate::python_runner;
- use crate::export;
-+use crate::python_runner;
-
- async fn run_on_worker_thread<F, Fut, R>(name_str: &str, f: F) -> Result<R, String>
- where
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:39:
-             })
-             .map_err(|e| format!("Failed to spawn {name_for_err} thread: {e}"))?;
-
--        handle.join().map_err(|_| format!("{name_for_join} thread joined with error (panic)"))?
-+        handle
-+            .join()
-+            .map_err(|_| format!("{name_for_join} thread joined with error (panic)"))?
-     })
-     .await
-     .map_err(|e| format!("{name_outer} task execution failed: {e}"))?
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:57:
-             path_buf = abs_path.join(path_buf);
-         }
-     }
--
-+
-     let path_str = path_buf.to_string_lossy().to_string();
-     beefcake::utils::log_event("Analyser", &format!("Started analysis of {path_str}"));
-
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:105:
-
- #[tauri::command]
- pub async fn save_config(mut config: AppConfig) -> Result<(), String> {
--    use beefcake::utils::{set_db_password, KEYRING_PLACEHOLDER};
-+    use beefcake::utils::{KEYRING_PLACEHOLDER, set_db_password};
-     use secrecy::ExposeSecret as _;
-
-     for conn in &mut config.connections {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:191:
- ) -> Result<String, String> {
-     beefcake::utils::log_event("Python", "Executing Python script.");
-
--    let actual_data_path = python_runner::prepare_data(data_path.clone(), configs, "Python").await?;
-+    let actual_data_path =
-+        python_runner::prepare_data(data_path.clone(), configs, "Python").await?;
-     let res = python_runner::execute_python(&script, actual_data_path.clone(), "Python").await;
-
-     if let (Some(actual), Some(original)) = (&actual_data_path, &data_path) {
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:267:
-             .iter()
-             .find(|c| c.id == connection_id)
-             .ok_or_else(|| "Connection not found".to_owned())?;
--        (conn.name.clone(), conn.settings.table.clone(), conn.settings.schema.clone())
-+        (
-+            conn.name.clone(),
-+            conn.settings.table.clone(),
-+            conn.settings.schema.clone(),
-+        )
-     };
-
-     push_audit_log(
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:284:
-         .ok_or_else(|| "Connection not found".to_owned())?;
-
-     let url = conn.settings.connection_string(&connection_id);
--    let opts = PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
-+    let opts =
-+        PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
-
-     beefcake::analyser::logic::flows::push_to_db_flow(
-         PathBuf::from(path),
-Diff in \\?\C:\Users\antho\OneDrive\beefcake\beefcake\src\tauri_app.rs:318:
-     use sqlx::postgres::PgConnectOptions;
-
-     let url = settings.connection_string(&connection_id.unwrap_or_default());
--    let opts = PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
-+    let opts =
-+        PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
-
-     match DbClient::connect(opts).await {
-         Ok(_) => Ok("Connection successful!".to_owned()),
+    Checking cfg-if v1.0.4
+    Checking windows-link v0.2.1
+    Checking serde_core v1.0.228
+    Checking memchr v2.7.6
+    Checking crossbeam-utils v0.8.21
+    Checking libm v0.2.15
+    Checking zerocopy v0.8.31
+    Checking itoa v1.0.17
+    Checking once_cell v1.21.3
+    Checking thiserror v2.0.17
+    Checking bytes v1.11.0
+    Checking scopeguard v1.2.0
+    Checking windows_x86_64_msvc v0.52.6
+    Checking regex-syntax v0.8.8
+    Checking libc v0.2.179
+    Checking pin-project-lite v0.2.16
+    Checking getrandom v0.3.4
+    Checking windows-sys v0.61.2
+    Checking windows-targets v0.52.6
+    Checking lock_api v0.4.14
+    Checking getrandom v0.2.16
+    Checking siphasher v1.0.1
+    Checking allocator-api2 v0.2.21
+    Checking zerofrom v0.1.6
+    Checking equivalent v1.0.2
+    Checking stable_deref_trait v1.2.1
+    Checking windows-sys v0.59.0
+    Checking rand_core v0.6.4
+    Checking zmij v1.0.11
+    Checking hashbrown v0.16.1
+    Checking yoke v0.8.1
+    Checking windows_x86_64_msvc v0.53.1
+    Checking winapi v0.3.9
+    Checking crossbeam-epoch v0.9.18
+    Checking aho-corasick v1.1.4
+    Checking rawpointer v0.2.1
+    Checking foldhash v0.1.5
+    Checking windows-targets v0.53.5
+    Checking percent-encoding v2.3.2
+    Checking zerovec v0.11.5
+    Checking windows-result v0.1.2
+    Checking windows-sys v0.60.2
+    Checking matrixmultiply v0.3.10
+    Checking futures-core v0.3.31
+    Checking alloc-no-stdlib v2.0.4
+    Checking crossbeam-deque v0.8.6
+    Checking ryu v1.0.22
+    Checking array-init-cursor v0.2.1
+    Checking alloc-stdlib v0.2.2
+    Checking windows-core v0.57.0
+    Checking rayon-core v1.13.0
+    Checking planus v0.3.1
+    Checking num-traits v0.2.19
+    Checking psm v0.1.28
+    Checking unicode-segmentation v1.12.0
+    Checking tinystr v0.8.2
+    Checking litemap v0.8.1
+    Checking writeable v0.6.2
+    Checking simdutf8 v0.1.5
+    Checking potential_utf v0.1.4
+    Checking castaway v0.2.4
+    Checking zerotrie v0.2.3
+    Checking windows-link v0.1.3
+    Checking static_assertions v1.1.0
+    Checking bytemuck v1.24.0
+    Checking icu_locale_core v2.1.1
+    Checking ppv-lite86 v0.2.21
+    Checking ahash v0.8.12
+    Checking icu_collections v2.1.1
+    Checking zstd-sys v2.0.16+zstd.1.5.7
+    Checking windows v0.57.0
+    Checking num-complex v0.4.6
+    Checking num-integer v0.1.46
+    Checking approx v0.5.1
+    Checking regex-automata v0.4.13
+    Checking phf_shared v0.12.1
+    Checking memmap2 v0.9.9
+    Checking futures-sink v0.3.31
+    Checking log v0.4.29
+    Checking rand_chacha v0.3.1
+    Checking serde v1.0.228
+    Checking bitflags v2.10.0
+    Checking serde_json v1.0.148
+    Checking indexmap v2.12.1
+    Checking phf v0.12.1
+    Checking icu_properties_data v2.1.2
+    Checking icu_normalizer_data v2.1.1
+    Checking target-features v0.1.6
+    Checking raw-cpuid v11.6.0
+    Checking rand v0.8.5
+    Checking zstd-safe v7.2.4
+    Checking lz4-sys v1.11.1+lz4-1.10.0
+    Checking futures-channel v0.3.31
+    Checking multiversion v0.7.4
+    Checking icu_provider v2.1.1
+    Checking lz4 v1.28.1
+    Checking zstd v0.13.3
+    Checking smallvec v1.15.1
+    Checking either v1.15.0
+    Checking chrono v0.4.42
+    Checking polars-arrow-format v0.1.0
+    Checking compact_str v0.8.1
+    Checking windows-strings v0.4.2
+    Checking parking_lot_core v0.9.12
+    Checking icu_normalizer v2.1.1
+    Checking icu_properties v2.1.2
+    Checking stacker v0.1.22
+    Checking windows-result v0.3.4
+    Checking rayon v1.11.0
+    Checking dyn-clone v1.0.20
+    Checking ntapi v0.4.2
+    Checking ethnum v1.5.2
+    Checking parking_lot v0.12.5
+    Checking streaming-iterator v0.1.9
+    Checking pin-utils v0.1.0
+    Checking strength_reduce v0.2.4
+    Checking futures-io v0.3.31
+    Checking debug_unsafe v0.1.3
+    Checking slab v0.4.11
+    Checking futures-task v0.3.31
+    Checking atoi_simd v0.16.1
+    Checking windows-core v0.61.2
+    Checking glob v0.3.3
+    Checking utf8_iter v1.0.4
+    Checking futures-util v0.3.31
+    Checking fast-float2 v0.2.3
+    Checking itoap v1.0.1
+    Checking form_urlencoded v1.2.2
+    Checking chrono-tz v0.10.4
+    Checking crossterm_winapi v0.9.1
+    Checking rand_distr v0.4.3
+    Checking uuid v1.19.0
+    Checking windows-threading v0.1.0
+    Checking typenum v1.19.0
+    Checking anyhow v1.0.100
+    Checking idna_adapter v1.2.1
+    Checking regex v1.12.2
+    Checking windows-future v0.2.1
+    Checking crossterm v0.29.0
+    Checking idna v1.1.0
+    Checking windows-collections v0.2.0
+    Checking windows-numerics v0.2.0
+    Checking base64 v0.22.1
+    Checking raw-window-handle v0.6.2
+    Checking byteorder v1.5.0
+    Checking unicode-width v0.2.2
+    Checking thiserror v1.0.69
+    Checking mio v1.1.1
+    Checking home v0.5.12
+    Checking windows v0.61.3
+    Checking url v2.5.8
+    Checking polars-error v0.45.1
+    Checking float-cmp v0.10.0
+    Checking atoi v2.0.0
+    Checking crossbeam-channel v0.5.15
+    Checking tracing-core v0.1.36
+    Checking powerfmt v0.2.0
+    Checking fallible-streaming-iterator v0.1.9
+    Checking generic-array v0.14.7
+    Checking unic-common v0.9.0
+    Checking comfy-table v7.2.1
+    Checking xxhash-rust v0.8.15
+    Checking adler2 v2.0.1
+    Checking unic-char-range v0.9.0
+    Checking simd-adler32 v0.3.8
+    Checking unic-ucd-version v0.9.0
+    Checking deranged v0.5.5
+    Checking ref-cast v1.0.25
+    Checking unic-char-property v0.9.0
+    Checking tracing v0.1.44
+    Checking hashbrown v0.15.5
+    Checking ndarray v0.16.1
+    Checking hashbrown v0.14.5
+    Checking miniz_oxide v0.8.9
+    Checking typeid v1.0.3
+    Checking crc32fast v1.5.0
+    Checking winapi-util v0.1.11
+   Compiling tauri v2.9.5
+    Checking dpi v0.1.2
+    Checking socket2 v0.6.1
+    Checking argminmax v0.6.3
+    Checking brotli-decompressor v4.0.3
+    Checking fnv v1.0.7
+    Checking num-conv v0.1.0
+    Checking dunce v1.0.5
+    Checking time-core v0.1.6
+    Checking winnow v0.7.14
+    Checking cfb v0.7.3
+    Checking tokio v1.49.0
+    Checking flate2 v1.1.5
+    Checking same-file v1.0.6
+    Checking async-stream v0.3.6
+    Checking halfbrown v0.2.5
+    Checking erased-serde v0.4.9
+    Checking crypto-common v0.1.7
+    Checking block-buffer v0.10.4
+    Checking unic-ucd-ident v0.9.0
+    Checking value-trait v0.10.1
+    Checking snap v1.1.1
+    Checking streaming-decompression v0.1.2
+    Checking now v0.1.3
+    Checking futures-executor v0.3.31
+    Checking jsonptr v0.6.3
+    Checking time v0.3.44
+    Checking brotli v7.0.0
+    Checking toml_datetime v0.7.5+spec-1.1.0
+    Checking serde_spanned v1.0.4
+    Checking brotli-decompressor v5.0.0
+    Checking futures v0.3.31
+    Checking http v1.4.0
+    Checking simd-json v0.14.3
+    Checking phf_shared v0.11.3
+    Checking windows-version v0.1.7
+    Checking polars-parquet-format v0.1.0
+    Checking toml_writer v1.0.6+spec-1.1.0
+    Checking subtle v2.6.1
+    Checking json-patch v3.0.1
+    Checking phf v0.11.3
+    Checking serde-untagged v0.1.9
+    Checking toml_parser v1.0.6+spec-1.1.0
+    Checking digest v0.10.7
+    Checking urlpattern v0.3.0
+    Checking infer v0.19.0
+    Checking walkdir v2.5.0
+    Checking serde_with v3.16.1
+    Checking rand_core v0.9.3
+    Checking brotli v8.0.2
+    Checking toml v0.9.10+spec-1.1.0
+    Checking semver v1.0.27
+    Checking recursive v0.1.1
+    Checking crossbeam-queue v0.3.12
+    Checking option-ext v0.2.0
+    Checking cookie v0.18.1
+    Checking lazy_static v1.5.0
+    Checking dirs-sys v0.5.0
+    Checking windows_x86_64_msvc v0.48.5
+    Checking rand_chacha v0.9.0
+    Checking softbuffer v0.4.8
+    Checking keyboard-types v0.7.0
+    Checking once_cell_polyfill v1.70.2
+    Checking anstyle v1.0.13
+    Checking utf8parse v0.2.2
+    Checking tinyvec_macros v0.1.1
+    Checking rand v0.9.2
+    Checking dirs v6.0.0
+    Checking anstyle-wincon v3.0.11
+    Checking serialize-to-javascript v0.1.2
+    Checking anstyle-parse v0.2.7
+    Checking tinyvec v1.10.0
+    Checking windows-targets v0.48.5
+   Compiling tauri-plugin-fs v2.4.4
+   Compiling tauri-macros v2.5.2
+    Checking sprs v0.11.2
+    Checking window-vibrancy v0.6.0
+    Checking anstyle-query v1.1.5
+    Checking concurrent-queue v2.5.0
+    Checking is_terminal_polyfill v1.70.2
+    Checking parking v2.2.1
+    Checking mime v0.3.17
+    Checking colorchoice v1.0.4
+    Checking cpufeatures v0.2.17
+    Checking heck v0.5.0
+    Checking crc-catalog v2.4.0
+    Checking anstream v0.6.21
+    Checking muda v0.17.1
+    Checking event-listener v5.4.1
+    Checking sha2 v0.10.9
+    Checking crc v3.4.0
+    Checking unicode-normalization v0.1.25
+    Checking argmin-math v0.5.1
+    Checking windows-sys v0.48.0
+    Checking rand_xoshiro v0.7.0
+    Checking hmac v0.12.1
+    Checking hashlink v0.10.0
+    Checking futures-intrusive v0.5.0
+    Checking web-time v1.1.0
+    Checking unicode-bidi v0.3.18
+    Checking tokio-util v0.7.18
+    Checking tokio-stream v0.1.18
+    Checking unicode-properties v0.1.4
+   Compiling tauri-plugin-shell v2.3.3
+   Compiling tauri-plugin-dialog v2.4.2
+    Checking hkdf v0.12.4
+    Checking linfa v0.8.1
+    Checking md-5 v0.10.6
+    Checking stringprep v0.1.5
+    Checking itertools v0.13.0
+    Checking sqlx-core v0.8.6
+    Checking noisy_float v0.2.0
+    Checking dotenvy v0.15.7
+    Checking clap_lex v0.7.6
+    Checking etcetera v0.8.0
+    Checking tauri-utils v2.8.1
+    Checking argmin v0.11.0
+    Checking whoami v1.6.1
+    Checking hex v0.4.3
+    Checking strsim v0.11.1
+    Checking zeroize v1.8.2
+    Checking rfd v0.15.4
+    Checking linfa-linalg v0.2.1
+    Checking ndarray-rand v0.15.0
+    Checking open v5.3.3
+    Checking shared_child v1.1.1
+    Checking os_pipe v1.2.3
+    Checking clap_builder v4.5.54
+    Checking env_filter v0.1.4
+    Checking encoding_rs v0.8.35
+    Checking jiff v0.2.18
+   Compiling beefcake v0.2.0 (C:\Users\antho\OneDrive\beefcake\beefcake)
+    Checking keyring v3.6.3
+    Checking secrecy v0.10.3
+    Checking linfa-trees v0.8.1
+    Checking linfa-linear v0.8.1
+    Checking ndarray-stats v0.6.0
+    Checking linfa-logistic v0.8.1
+    Checking clap v4.5.54
+    Checking sqlx-postgres v0.8.6
+    Checking sysinfo v0.32.1
+    Checking polars-utils v0.45.1
+    Checking env_logger v0.11.8
+    Checking polars-schema v0.45.1
+    Checking polars-arrow v0.45.1
+    Checking sqlx v0.8.6
+    Checking polars-compute v0.45.1
+    Checking polars-row v0.45.1
+    Checking polars-json v0.45.1
+    Checking polars-parquet v0.45.1
+    Checking polars-core v0.45.1
+    Checking webview2-com-sys v0.38.0
+    Checking tao v0.34.5
+    Checking webview2-com v0.38.0
+    Checking wry v0.53.5
+    Checking tauri-runtime v2.9.2
+    Checking tauri-runtime-wry v2.9.3
+    Checking polars-ops v0.45.1
+    Checking polars-time v0.45.1
+    Checking polars-io v0.45.1
+    Checking polars-plan v0.45.1
+    Checking polars-expr v0.45.1
+    Checking polars-pipe v0.45.1
+    Checking polars-mem-engine v0.45.1
+    Checking polars-lazy v0.45.1
+    Checking polars v0.45.1
+warning: trivial numeric cast: `usize` as `usize`
+   --> src\analyser\logic\analysis.rs:602:8
+    |
+602 |     if sample_uniques as usize > MAX_UNIQUE_TRACKED {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: cast can be replaced by coercion; this might require a temporary variable
+    = note: requested on the command line with `-W trivial-numeric-casts`
+warning: `beefcake` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 47.50s

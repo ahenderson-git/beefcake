@@ -118,7 +118,9 @@ export class AnalyserComponent extends Component {
           const checked = (target as HTMLInputElement).checked;
           Object.values(state.cleaningConfigs).forEach(c => c.one_hot_encode = checked);
         }
-        
+
+        // Re-render to update UI with new config values
+        this.render(state);
         this.actions.onStateChange();
       });
     });
@@ -146,6 +148,16 @@ export class AnalyserComponent extends Component {
       if (path) {
         this.actions.runAnalysis(path);
       }
+    });
+
+    document.getElementById('btn-reanalyze')?.addEventListener('click', () => {
+      if (state.analysisResponse) {
+        this.actions.runAnalysis(state.analysisResponse.path);
+      }
+    });
+
+    document.getElementById('btn-export')?.addEventListener('click', () => {
+      this.handleExport(state);
     });
 
     document.getElementById('btn-export-analyser')?.addEventListener('click', () => {

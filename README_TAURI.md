@@ -57,6 +57,18 @@ const result = await invoke("analyze_file", { path: "/path/to/file.csv" });
 ### "127.0.0.1 / localhost refused to connect"
 This happens if the Vite development server is not running or is unreachable from the Tauri WebView.
 
+**In Development:**
+Always use `npm run tauri dev` or `cargo tauri dev`. Do not use `cargo run`.
+
+**In Production (--release):**
+If you see this error in a release build, it means the application was built without the `custom-protocol` feature or the frontend assets were not correctly bundled.
+
+**Recommended Build Command:**
+```bash
+npm run tauri build
+```
+This command automatically builds the frontend (`npm run build`) and then embeds the assets into the Rust binary.
+
 **Checklist:**
 1. **Did you run the right command?** 
    - ❌ `cargo run` -> **WRONG** (Vite won't start)

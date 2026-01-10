@@ -35,7 +35,7 @@ impl DbClient {
 
         // Fast data transfer using PostgreSQL COPY in chunks to avoid memory explosion
         let mut conn = self.pool.acquire().await?;
-        let full_identifier = self.get_full_identifier(analysis_id, schema_name, table_name);
+        let full_identifier = Self::get_full_identifier(analysis_id, schema_name, table_name);
 
         let mut writer = conn
             .copy_in_raw(&format!(
@@ -84,7 +84,7 @@ impl DbClient {
             .await?;
 
         let mut conn = self.pool.acquire().await?;
-        let full_identifier = self.get_full_identifier(0, schema_name, table_name);
+        let full_identifier = Self::get_full_identifier(0, schema_name, table_name);
 
         let mut writer = conn
             .copy_in_raw(&format!(
@@ -93,7 +93,7 @@ impl DbClient {
             .await
             .context("Failed to initiate COPY command")?;
 
-        use std::io::Read;
+        use std::io::Read as _;
         let mut file = std::fs::File::open(path).context("Failed to open CSV file for DB push")?;
         let mut buf = vec![0u8; 1024 * 1024]; // 1MB buffer
 
@@ -104,8 +104,12 @@ impl DbClient {
             if n == 0 {
                 break;
             }
+            let chunk = buf
+                .get(..n)
+                .ok_or_else(|| anyhow::anyhow!("Buffer slice error"))?
+                .to_vec();
             writer
-                .send(buf[..n].to_vec())
+                .send(chunk)
                 .await
                 .context("Failed to send CSV chunk to DB")?;
         }
@@ -118,7 +122,6 @@ impl DbClient {
     }
 
     fn get_full_identifier(
-        &self,
         analysis_id: i32,
         schema_name: Option<&str>,
         table_name: Option<&str>,
@@ -139,7 +142,7 @@ impl DbClient {
         schema_name: Option<&str>,
         table_name: Option<&str>,
     ) -> Result<()> {
-        let full_identifier = self.get_full_identifier(analysis_id, schema_name, table_name);
+        let full_identifier = Self::get_full_identifier(analysis_id, schema_name, table_name);
         let quote = |s: &str| format!("\"{}\"", s.replace('"', "\"\""));
 
         let mut create_table_query = format!("CREATE TABLE IF NOT EXISTS {full_identifier} (");

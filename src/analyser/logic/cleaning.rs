@@ -252,6 +252,61 @@ pub fn apply_normalization_with_stats(
     }
 }
 
-pub fn apply_one_hot_encoding_lazy(lf: LazyFrame, _one_hot_cols: Vec<String>) -> Result<LazyFrame> {
-    Ok(lf)
+pub fn apply_one_hot_encoding_lazy(lf: LazyFrame, one_hot_cols: Vec<String>) -> Result<LazyFrame> {
+    use polars::prelude::*;
+
+    if one_hot_cols.is_empty() {
+        return Ok(lf);
+    }
+
+    let mut result_lf = lf;
+
+    for col_name in one_hot_cols {
+        // Get the column and collect to get unique values
+        let df_temp = result_lf.clone().select([col(&col_name)]).collect()
+            .context(format!("Failed to collect column {col_name} for one-hot encoding"))?;
+
+        let series = df_temp.column(&col_name)
+            .context(format!("Column {col_name} not found"))?;
+
+        // Get unique values (excluding nulls)
+        let unique_vals = series.unique()
+            .context(format!("Failed to get unique values from {col_name}"))?
+            .drop_nulls();
+
+        // Convert to string vec for iteration
+        let unique_strings: Vec<String> = unique_vals
+            .str()
+            .context("One-hot encoding requires string column")?
+            .into_iter()
+            .flatten()
+            .map(std::borrow::ToOwned::to_owned)
+            .collect();
+
+        // Create binary columns for each unique value
+        let mut expressions: Vec<Expr> = Vec::new();
+
+        // Add all existing columns except the one being encoded
+        let schema = result_lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
+        for (name, _) in schema.iter() {
+            if name.as_str() != col_name {
+                expressions.push(col(name.as_str()));
+            }
+        }
+
+        // Add one-hot encoded columns
+        for val in unique_strings {
+            let new_col_name = format!("{col_name}_{val}");
+            expressions.push(
+                when(col(&col_name).eq(lit(val.as_str())))
+                    .then(lit(1i32))
+                    .otherwise(lit(0i32))
+                    .alias(&new_col_name)
+            );
+        }
+
+        result_lf = result_lf.select(expressions);
+    }
+
+    Ok(result_lf)
 }

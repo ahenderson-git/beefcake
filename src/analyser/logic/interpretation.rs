@@ -2,9 +2,10 @@ use super::naming::sanitize_column_name;
 use super::types::{ColumnKind, ColumnStats, ColumnSummary};
 use std::f64::consts::PI;
 
+pub const MISSING_DATA_CRITICAL: f64 = 40.0;
 pub const MISSING_DATA_HIGH: f64 = 15.0;
 pub const MISSING_DATA_MEDIUM: f64 = 5.0;
-pub const SKEW_THRESHOLD: f64 = 0.1;
+pub const SKEW_THRESHOLD: f64 = 0.5;
 pub const GAP_RATIO_THRESHOLD: f64 = 0.1;
 pub const NONPARAMETRIC_SKEW_THRESHOLD: f64 = 0.3;
 pub const VARIABILITY_LOW: f64 = 0.1;
@@ -160,10 +161,9 @@ impl ColumnSummary {
         let null_pct = self.null_pct();
 
         if self.nulls > 0 {
-            if null_pct > 40.0 {
+            if null_pct > MISSING_DATA_CRITICAL {
                 advice.push(
-                    "Very high missing data (>40%). Consider excluding this column from ML routines."
-                        .to_owned(),
+                    format!("Very high missing data (>{}%). Consider excluding this column from ML routines.", MISSING_DATA_CRITICAL),
                 );
             } else {
                 match self.kind {
@@ -221,6 +221,14 @@ impl ColumnSummary {
                 signals.push("Contains negative values.");
             }
 
+            // Outlier detection using IQR method
+            let lower_fence = q1 - 1.5 * iqr;
+            let upper_fence = q3 + 1.5 * iqr;
+
+            if min < lower_fence || max > upper_fence {
+                signals.push("Contains statistical outliers beyond 1.5× IQR from quartiles.");
+            }
+
             Self::collect_numeric_distribution_signals(s, mean, median, iqr, signals);
             Self::collect_numeric_histogram_signals(s, range, iqr, signals);
         }
@@ -271,6 +279,16 @@ impl ColumnSummary {
             if nonparametric_skew > NONPARAMETRIC_SKEW_THRESHOLD {
                 signals.push("Standard deviation may be less reliable as an indicator of 'typical' spread because the mean is significantly offset by skew or outliers.");
             }
+
+            // Coefficient of Variation
+            if mean.abs() > 1e-9 {
+                let cv = std_dev / mean.abs();
+                if cv > 1.0 {
+                    signals.push("High relative variability (CV > 1); spread exceeds average magnitude.");
+                } else if cv < 0.1 {
+                    signals.push("Low relative variability; values are tightly clustered around average.");
+                }
+            }
         }
     }
 
@@ -288,13 +306,14 @@ impl ColumnSummary {
                 signals.push("High variability across the range.");
             }
 
-            // Range-based signals (Skinny bars & Gaps)
-            if Self::has_histogram_gaps(&s.histogram, s.bin_width, 1.5) {
+            // Range-based signals (Empty bins & Gaps)
+            if Self::has_empty_bins(&s.histogram) {
                 signals.push("Gaps between bars indicate sparse data or isolated clusters.");
-                let num_bins = range / s.bin_width;
-                if num_bins > 100.0 {
-                    signals.push("Highly granular data spread across many distinct value ranges.");
-                }
+            }
+
+            // Check for high granularity
+            if s.histogram.len() > 40 {
+                signals.push("Highly granular data spread across many distinct value ranges.");
             }
 
             if let (Some(p05), Some(p95)) = (s.p05, s.p95) {
@@ -338,6 +357,14 @@ impl ColumnSummary {
                 signals.push("Data is more widely spread or multi-modal than expected for a standard normal distribution.");
             }
         }
+
+        // Bimodality detection
+        if !s.histogram.is_empty() && s.histogram.len() > 5 {
+            let peaks = Self::count_histogram_peaks(&s.histogram);
+            if peaks >= 2 {
+                signals.push("Distribution shows multiple peaks, suggesting distinct subgroups in the data.");
+            }
+        }
     }
 
     fn collect_categorical_signals(
@@ -347,7 +374,15 @@ impl ColumnSummary {
         if freq.len() == 1 {
             signals.push("Constant value across all records.");
         }
-        signals.push("Categorical field.");
+
+        // Check if all values are unique (identifier pattern)
+        let all_unique = freq.values().all(|&count| count == 1);
+        if all_unique && freq.len() > 1 {
+            signals.push("Likely a unique identifier or sequential ID.");
+        } else {
+            signals.push("Categorical field.");
+        }
+
         if freq.len() == 2 {
             signals.push("Binary field; suggests a toggle or yes/no choice.");
         }
@@ -357,8 +392,16 @@ impl ColumnSummary {
         {
             signals.push("Value distribution is heavily uneven (Pareto-like).");
         }
-        if freq.len() > 50 {
-            signals.push("Very high cardinality; consider grouping rare values.");
+
+        // Enhanced cardinality detection with ratio
+        let total_values: usize = freq.values().sum();
+        if total_values > 0 {
+            let cardinality_ratio = freq.len() as f64 / total_values as f64;
+            if cardinality_ratio > 0.5 {
+                signals.push("Very high cardinality (>50% unique); consider grouping rare values or dimensionality reduction.");
+            } else if freq.len() > 100 {
+                signals.push("High cardinality; may need special handling for ML models.");
+            }
         }
     }
 
@@ -373,6 +416,27 @@ impl ColumnSummary {
         // Check for gaps in temporal data
         if Self::has_histogram_gaps(&s.histogram, s.bin_width, 2.5) {
             signals.push("Large gaps detected in the time sequence.");
+        }
+
+        // Check for regular intervals (e.g., daily, hourly data)
+        if s.distinct_count > 10 && s.histogram.len() > 2 {
+            let intervals: Vec<f64> = s.histogram
+                .windows(2)
+                .map(|w| w[1].0 - w[0].0)
+                .collect();
+
+            if !intervals.is_empty() {
+                let avg_interval = intervals.iter().sum::<f64>() / intervals.len() as f64;
+                let variance: f64 = intervals
+                    .iter()
+                    .map(|&i| (i - avg_interval).powi(2))
+                    .sum::<f64>()
+                    / intervals.len() as f64;
+
+                if variance < (avg_interval * 0.1).powi(2) {
+                    signals.push("Data follows a regular time interval pattern.");
+                }
+            }
         }
     }
 
@@ -496,6 +560,16 @@ impl ColumnSummary {
                     insights.push("The 'average' is being heavily distorted by extreme outliers and might not represent a 'typical' case.");
                 }
             }
+
+            // Add percentile range insight for better business understanding
+            if let (Some(p05), Some(p95)) = (s.p05, s.p95) {
+                if min >= 0.0 && max <= 100.0 && p05 >= 0.0 && p95 <= 100.0 {
+                    // Likely percentage/score data
+                    insights.push("90% of values fall within a typical performance or completion range.");
+                } else {
+                    insights.push("The central 90% of values provides a reliable range for typical cases, excluding extreme outliers.");
+                }
+            }
         }
     }
 
@@ -505,7 +579,17 @@ impl ColumnSummary {
     ) {
         if freq.len() == 1 {
             insights.push("This column is constant; every record has the same category.");
-        } else if freq.len() == 2 {
+            return;
+        }
+
+        // Check for unique identifier pattern
+        let all_unique = freq.values().all(|&count| count == 1);
+        if all_unique {
+            insights.push("This appears to be a unique tracking number or identifier for each record.");
+            return;
+        }
+
+        if freq.len() == 2 {
             insights.push("This captures a simple choice or binary state (like Yes/No).");
         } else if freq.len() > 1
             && let (Some(max_v), Some(min_v)) = (freq.values().max(), freq.values().min())
@@ -553,6 +637,31 @@ impl ColumnSummary {
         }
     }
 
+    fn has_empty_bins(histogram: &[(f64, usize)]) -> bool {
+        if histogram.len() < 3 {
+            return false;
+        }
+        // Check for empty bins (count == 0) that aren't at the edges
+        histogram[1..histogram.len()-1].iter().any(|&(_, count)| count == 0)
+    }
+
+    fn count_histogram_peaks(histogram: &[(f64, usize)]) -> usize {
+        if histogram.len() < 3 {
+            return 0;
+        }
+        let mut peaks = 0;
+        for i in 1..histogram.len()-1 {
+            if histogram[i].1 > histogram[i-1].1 && histogram[i].1 > histogram[i+1].1 {
+                // Only count significant peaks (not tiny bumps)
+                let avg = (histogram[i-1].1 + histogram[i].1 + histogram[i+1].1) as f64 / 3.0;
+                if histogram[i].1 as f64 > avg * 1.2 {
+                    peaks += 1;
+                }
+            }
+        }
+        peaks
+    }
+
     fn has_histogram_gaps(histogram: &[(f64, usize)], bin_width: f64, threshold: f64) -> bool {
         if histogram.len() < 2 {
             return false;
@@ -568,8 +677,8 @@ impl ColumnSummary {
     }
 
     fn calculate_zero_ratio(s: &super::types::NumericStats) -> f64 {
-        let total =
-            s.zero_count + s.negative_count + s.histogram.iter().map(|h| h.1).sum::<usize>();
+        // Histogram already includes all values (zeros, negatives, positives)
+        let total = s.histogram.iter().map(|h| h.1).sum::<usize>();
         if total == 0 {
             0.0
         } else {

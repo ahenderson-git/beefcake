@@ -22,9 +22,9 @@ export class SQLComponent extends Component {
   private initMonaco(state: AppState) {
     const editorContainer = document.getElementById('sql-editor');
     if (editorContainer) {
+      // noinspection SqlNoDataSourceInspection
       const defaultValue = '-- SQL Query\n' +
         '-- The loaded dataset is automatically registered as the table "data"\n' +
-        // noinspection SqlNoDataSourceInspection
         'SELECT * FROM data LIMIT 10;';
 
       this.editor = monaco.editor.create(editorContainer, {

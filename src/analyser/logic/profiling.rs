@@ -2,6 +2,20 @@ use super::types::{BooleanStats, ColumnKind, ColumnStats, NumericStats, Temporal
 use anyhow::Result;
 use polars::prelude::*;
 
+pub fn get_adaptive_sample_size(total_rows: usize) -> usize {
+    // Reduced sample sizes to minimize memory usage
+    // Histograms and statistics are still accurate with smaller samples
+    if total_rows < 10_000 {
+        total_rows
+    } else if total_rows < 100_000 {
+        10_000
+    } else {
+        // For large datasets, cap at 10k rows for memory efficiency
+        // This is sufficient for histogram binning and statistical accuracy
+        10_000
+    }
+}
+
 pub fn analyse_boolean(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
     let series = col.as_materialized_series();
     let ca = series.bool().map_err(|e| anyhow::anyhow!(e))?;
@@ -202,6 +216,84 @@ pub fn calculate_histogram(
         }
     }
     (bin_width, histogram)
+}
+
+pub fn build_histogram_streaming(
+    lf: LazyFrame,
+    name: &str,
+    min: Option<f64>,
+    max: Option<f64>,
+    q1: Option<f64>,
+    q3: Option<f64>,
+    total_count: usize,
+    null_count: usize,
+) -> Result<(f64, Vec<(f64, usize)>)> {
+    if let (Some(min_v), Some(max_v)) = (min, max) {
+        if (max_v - min_v).abs() < f64::EPSILON {
+            let num_bins = 20;
+            let bin_width = 1.0;
+            let mut bins = vec![0; num_bins];
+            bins[10] = total_count.saturating_sub(null_count);
+            let start = min_v - 10.0 * bin_width;
+            let mut histogram = Vec::new();
+            for (i, count) in bins.into_iter().enumerate() {
+                histogram.push((start + i as f64 * bin_width, count));
+            }
+            return Ok((bin_width, histogram));
+        }
+
+        let n = total_count.saturating_sub(null_count);
+        let iqr = q3.unwrap_or(max_v) - q1.unwrap_or(min_v);
+        let h = if iqr > 0.0 {
+            2.0 * iqr / (n as f64).powf(1.0 / 3.0)
+        } else {
+            (max_v - min_v) / (n as f64).sqrt()
+        };
+
+        let mut num_bins = ((max_v - min_v) / h).ceil() as usize;
+        num_bins = num_bins.clamp(5, 50);
+        let bin_width = (max_v - min_v) / num_bins as f64;
+
+        let mut bins = vec![0; num_bins];
+
+        // Process in chunks (up to adaptive sample size as per requirement)
+        let max_rows = get_adaptive_sample_size(total_count);
+        let effective_rows = total_count.min(max_rows);
+        let chunk_size = 50_000;
+        let total_chunks = (effective_rows + chunk_size - 1) / chunk_size;
+
+        for i in 0..total_chunks {
+            let offset = (i * chunk_size) as i64;
+            let current_chunk_size = chunk_size.min(effective_rows - i * chunk_size);
+
+            let chunk_df = lf
+                .clone()
+                .slice(offset, current_chunk_size as u32)
+                .select([col(name)])
+                .collect()?;
+
+            let s = chunk_df.column(name)?.as_materialized_series();
+            let ca = s.cast(&DataType::Float64)?;
+            let ca = ca.f64()?;
+
+            for val in ca.into_iter().flatten() {
+                let bin_idx = ((val - min_v) / bin_width).floor() as usize;
+                if bin_idx < num_bins {
+                    bins[bin_idx] += 1;
+                } else if (val - max_v).abs() < f64::EPSILON {
+                    bins[num_bins - 1] += 1;
+                }
+            }
+        }
+
+        let mut histogram = Vec::new();
+        for (i, count) in bins.into_iter().enumerate() {
+            histogram.push((min_v + i as f64 * bin_width, count));
+        }
+        Ok((bin_width, histogram))
+    } else {
+        Ok((0.0, Vec::new()))
+    }
 }
 
 pub fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {

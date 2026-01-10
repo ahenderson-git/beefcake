@@ -11,7 +11,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
 anyhow = "1.0.100"
-tauri = { version = "2.1.1", features = [] }
+tauri = { version = "2.1.1", features = ["custom-protocol"] }
 tauri-plugin-shell = "2.0.1"
 tauri-plugin-dialog = "2.0.1"
 env_logger = "0.11.8"

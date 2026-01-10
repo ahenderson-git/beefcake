@@ -50,7 +50,7 @@ class BeefcakeApp {
 
   async init() {
     this.renderInitialLayout();
-    
+
     try {
       [this.state.config, this.state.version] = await Promise.all([
         api.loadAppConfig(),
@@ -67,6 +67,20 @@ class BeefcakeApp {
     this.initComponents();
     this.setupNavigation();
     this.render();
+
+    // Hide loading screen after app is ready
+    this.hideLoadingScreen();
+  }
+
+  private hideLoadingScreen() {
+    const loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+      loadingScreen.classList.add('hidden');
+      // Remove from DOM after transition completes
+      setTimeout(() => {
+        loadingScreen.remove();
+      }, 300);
+    }
   }
 
   private renderInitialLayout() {
