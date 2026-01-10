@@ -212,7 +212,10 @@ fn test_interpretation_histogram_signals() -> Result<()> {
         interp.contains("Extreme outliers"),
         "Should detect extreme outliers"
     );
-    assert!(interp.contains("vast majority"), "Should detect dominant bin");
+    assert!(
+        interp.contains("vast majority"),
+        "Should detect dominant bin"
+    );
     Ok(())
 }
 
@@ -933,11 +936,11 @@ fn test_restricted_cleaning() -> Result<()> {
     configs.insert(
         "to_skip".to_string(),
         ColumnCleanConfig {
-            new_name: "renamed".to_string(),      // Should be skipped
-            impute_mode: ImputeMode::Zero, // Should be skipped
-            rounding: Some(0),                    // Should be skipped
+            new_name: "renamed".to_string(),            // Should be skipped
+            impute_mode: ImputeMode::Zero,              // Should be skipped
+            rounding: Some(0),                          // Should be skipped
             normalization: NormalizationMethod::MinMax, // Should be skipped
-            one_hot_encode: true,                 // Should be skipped
+            one_hot_encode: true,                       // Should be skipped
             ..Default::default()
         },
     );
@@ -972,15 +975,14 @@ fn test_restricted_cleaning() -> Result<()> {
     Ok(())
 }
 
-
 #[test]
 fn test_bulk_column_sanitization_collisions() {
-    let names = vec!(
+    let names = vec![
         "Duplicate Name".to_string(),
         "Duplicate Name".to_string(),
         "duplicate_name".to_string(),
         "Other".to_string(),
-    );
+    ];
     let sanitized = sanitize_column_names(&names);
     assert_eq!(sanitized[0], "duplicate_name");
     assert_eq!(sanitized[1], "duplicate_name_1");
@@ -994,27 +996,27 @@ fn test_save_df_formats() -> Result<()> {
         "a" => &[1, 2, 3],
         "b" => &["x", "y", "z"]
     )?;
-    
+
     let temp_dir = std::env::temp_dir();
-    
+
     // Test CSV
     let csv_path = temp_dir.join("test_export.csv");
     save_df(&mut df, &csv_path)?;
     assert!(csv_path.exists());
     let _ = std::fs::remove_file(csv_path);
-    
+
     // Test Parquet
     let parquet_path = temp_dir.join("test_export.parquet");
     save_df(&mut df, &parquet_path)?;
     assert!(parquet_path.exists());
     let _ = std::fs::remove_file(parquet_path);
-    
+
     // Test JSON
     let json_path = temp_dir.join("test_export.json");
     save_df(&mut df, &json_path)?;
     assert!(json_path.exists());
     let _ = std::fs::remove_file(json_path);
-    
+
     Ok(())
 }
 
@@ -1060,7 +1062,10 @@ fn test_export_massive_columns() -> Result<()> {
 
     let mut columns = Vec::new();
     for i in 0..num_cols {
-        let s = Series::new(format!("col_{i}").into(), vec![Some(format!(" {} ", i)); num_rows]);
+        let s = Series::new(
+            format!("col_{i}").into(),
+            vec![Some(format!(" {} ", i)); num_rows],
+        );
         columns.push(Column::from(s));
     }
     let df = DataFrame::new(columns)?;
@@ -1097,11 +1102,14 @@ fn test_export_massive_columns() -> Result<()> {
 #[test]
 fn test_export_super_massive_columns() -> Result<()> {
     let num_cols = 1000; // Even larger
-    let num_rows = 10;   // Keep rows small to focus on plan complexity
+    let num_rows = 10; // Keep rows small to focus on plan complexity
 
     let mut columns = Vec::new();
     for i in 0..num_cols {
-        let s = Series::new(format!("col_{i}").into(), vec![Some(format!(" {} ", i)); num_rows]);
+        let s = Series::new(
+            format!("col_{i}").into(),
+            vec![Some(format!(" {} ", i)); num_rows],
+        );
         columns.push(Column::from(s));
     }
     let df = DataFrame::new(columns)?;
@@ -1193,10 +1201,10 @@ fn test_export_tall_dataset() -> Result<()> {
     let n = 100_000;
     let s = Series::new("vals".into(), (0..n).map(|i| i as f64).collect::<Vec<_>>());
     let df = DataFrame::new(vec![Column::from(s)])?;
-    
+
     let summaries = analyse_df(&df, 0.0)?;
     let summary = summaries.first().unwrap();
-    
+
     if let ColumnStats::Numeric(stats) = &summary.stats {
         assert_eq!(stats.min, Some(0.0));
         assert_eq!(stats.max, Some((n - 1) as f64));
@@ -1207,6 +1215,6 @@ fn test_export_tall_dataset() -> Result<()> {
     } else {
         panic!("Expected NumericStats");
     }
-    
+
     Ok(())
 }

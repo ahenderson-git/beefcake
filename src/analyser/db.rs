@@ -30,7 +30,8 @@ impl DbClient {
         table_name: Option<&str>,
     ) -> Result<()> {
         let schema = df.schema();
-        self.prepare_table(&schema, analysis_id, schema_name, table_name).await?;
+        self.prepare_table(&schema, analysis_id, schema_name, table_name)
+            .await?;
 
         // Fast data transfer using PostgreSQL COPY in chunks to avoid memory explosion
         let mut conn = self.pool.acquire().await?;
@@ -45,11 +46,11 @@ impl DbClient {
 
         let chunk_size = 10_000;
         let height = df.height();
-        
+
         for i in (0..height).step_by(chunk_size) {
             let len = std::cmp::min(chunk_size, height - i);
             let mut chunk = df.slice(i as i64, len);
-            
+
             let mut buf = Vec::new();
             CsvWriter::new(&mut buf)
                 .include_header(false)
@@ -79,7 +80,8 @@ impl DbClient {
         schema_name: Option<&str>,
         table_name: Option<&str>,
     ) -> Result<()> {
-        self.prepare_table(schema, 0, schema_name, table_name).await?;
+        self.prepare_table(schema, 0, schema_name, table_name)
+            .await?;
 
         let mut conn = self.pool.acquire().await?;
         let full_identifier = self.get_full_identifier(0, schema_name, table_name);
@@ -96,18 +98,31 @@ impl DbClient {
         let mut buf = vec![0u8; 1024 * 1024]; // 1MB buffer
 
         loop {
-            let n = file.read(&mut buf).context("Failed to read from CSV file")?;
+            let n = file
+                .read(&mut buf)
+                .context("Failed to read from CSV file")?;
             if n == 0 {
                 break;
             }
-            writer.send(buf[..n].to_vec()).await.context("Failed to send CSV chunk to DB")?;
+            writer
+                .send(buf[..n].to_vec())
+                .await
+                .context("Failed to send CSV chunk to DB")?;
         }
 
-        writer.finish().await.context("Failed to finish COPY command")?;
+        writer
+            .finish()
+            .await
+            .context("Failed to finish COPY command")?;
         Ok(())
     }
 
-    fn get_full_identifier(&self, analysis_id: i32, schema_name: Option<&str>, table_name: Option<&str>) -> String {
+    fn get_full_identifier(
+        &self,
+        analysis_id: i32,
+        schema_name: Option<&str>,
+        table_name: Option<&str>,
+    ) -> String {
         let final_table_name =
             table_name.map_or_else(|| format!("data_{analysis_id}"), ToOwned::to_owned);
         let quote = |s: &str| format!("\"{}\"", s.replace('"', "\"\""));

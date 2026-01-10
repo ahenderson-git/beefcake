@@ -1,0 +1,80 @@
+import { AppConfig } from "../types";
+import { escapeHtml } from "../utils";
+
+export function renderSettingsView(config: AppConfig, isAddingConnection: boolean): string {
+  return `
+    <div class="settings-view">
+      <div class="settings-section">
+        <h3><i class="ph ph-plug-connect"></i> Database Connections</h3>
+        <div class="connections-list">
+          ${config.connections.length === 0 ? '<p class="empty-msg">No connections configured.</p>' : ''}
+          ${config.connections.map(conn => `
+            <div class="connection-card">
+              <div class="conn-info">
+                <strong>${escapeHtml(conn.name)}</strong>
+                <span>${escapeHtml(conn.settings.host)}:${conn.settings.port} / ${escapeHtml(conn.settings.database)}</span>
+              </div>
+              <div class="conn-actions">
+                <button class="btn-secondary btn-small btn-test-conn" data-id="${conn.id}">Test</button>
+                <button class="btn-danger btn-small btn-delete-conn" data-id="${conn.id}"><i class="ph ph-trash"></i></button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        
+        ${isAddingConnection ? `
+          <div class="connection-form active">
+            <h4>Add New Connection</h4>
+            <div class="form-grid">
+              <input type="text" id="new-conn-name" placeholder="Connection Name (e.g. Production DB)">
+              <input type="text" id="new-conn-host" placeholder="Host (localhost)">
+              <input type="number" id="new-conn-port" value="5432" placeholder="Port">
+              <input type="text" id="new-conn-user" placeholder="User">
+              <input type="password" id="new-conn-pass" placeholder="Password">
+              <input type="text" id="new-conn-db" placeholder="Database">
+              <input type="text" id="new-conn-schema" value="public" placeholder="Schema (public)">
+              <input type="text" id="new-conn-table" placeholder="Table">
+            </div>
+            <div class="form-actions">
+              <button id="btn-test-new-conn" class="btn-secondary"><i class="ph ph-plugs-connected"></i> Test</button>
+              <button id="btn-save-new-conn" class="btn-primary">Save Connection</button>
+              <button id="btn-cancel-new-conn" class="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        ` : `
+          <button id="btn-add-conn" class="btn-secondary"><i class="ph ph-plus"></i> Add Connection</button>
+        `}
+      </div>
+
+      <div class="settings-section">
+        <h3><i class="ph ph-gear"></i> Application Preferences</h3>
+        <div class="pref-item">
+          <label>Default Import Connection</label>
+          <select id="select-import-id">
+            <option value="">None</option>
+            ${config.connections.map(c => `
+              <option value="${c.id}" ${config.active_import_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>
+            `).join('')}
+          </select>
+        </div>
+        <div class="pref-item">
+          <label>Default Export Connection</label>
+          <select id="select-export-id">
+            <option value="">None</option>
+            ${config.connections.map(c => `
+              <option value="${c.id}" ${config.active_export_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>
+            `).join('')}
+          </select>
+        </div>
+        <div class="pref-item">
+          <label>Auto-archive processed files</label>
+          <input type="checkbox" checked disabled>
+        </div>
+        <div class="pref-item">
+          <label>Memory Limit (streaming threshold)</label>
+          <input type="text" value="2.0 GB" disabled>
+        </div>
+      </div>
+    </div>
+  `;
+}

@@ -1,13 +1,19 @@
-#![allow(clippy::let_underscore_must_use, clippy::let_underscore_untyped, clippy::print_stderr, clippy::exit, clippy::collapsible_if)]
+#![allow(
+    clippy::let_underscore_must_use,
+    clippy::let_underscore_untyped,
+    clippy::print_stderr,
+    clippy::exit,
+    clippy::collapsible_if
+)]
 use beefcake::analyser::logic::flows::analyze_file_flow;
 use beefcake::analyser::logic::{AnalysisResponse, ColumnCleanConfig};
-use beefcake::utils::{load_app_config, push_audit_log, save_app_config, AppConfig, DbSettings};
+use beefcake::utils::{AppConfig, DbSettings, load_app_config, push_audit_log, save_app_config};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use crate::python_runner;
 use crate::export;
+use crate::python_runner;
 
 async fn run_on_worker_thread<F, Fut, R>(name_str: &str, f: F) -> Result<R, String>
 where
@@ -39,7 +45,9 @@ where
             })
             .map_err(|e| format!("Failed to spawn {name_for_err} thread: {e}"))?;
 
-        handle.join().map_err(|_| format!("{name_for_join} thread joined with error (panic)"))?
+        handle
+            .join()
+            .map_err(|_| format!("{name_for_join} thread joined with error (panic)"))?
     })
     .await
     .map_err(|e| format!("{name_outer} task execution failed: {e}"))?
@@ -57,7 +65,7 @@ pub async fn analyze_file(path: String, trim_pct: Option<f64>) -> Result<Analysi
             path_buf = abs_path.join(path_buf);
         }
     }
-    
+
     let path_str = path_buf.to_string_lossy().to_string();
     beefcake::utils::log_event("Analyser", &format!("Started analysis of {path_str}"));
 
@@ -105,7 +113,7 @@ pub async fn reset_abort_signal() -> Result<(), String> {
 
 #[tauri::command]
 pub async fn save_config(mut config: AppConfig) -> Result<(), String> {
-    use beefcake::utils::{set_db_password, KEYRING_PLACEHOLDER};
+    use beefcake::utils::{KEYRING_PLACEHOLDER, set_db_password};
     use secrecy::ExposeSecret as _;
 
     for conn in &mut config.connections {
@@ -191,7 +199,8 @@ pub async fn run_python(
 ) -> Result<String, String> {
     beefcake::utils::log_event("Python", "Executing Python script.");
 
-    let actual_data_path = python_runner::prepare_data(data_path.clone(), configs, "Python").await?;
+    let actual_data_path =
+        python_runner::prepare_data(data_path.clone(), configs, "Python").await?;
     let res = python_runner::execute_python(&script, actual_data_path.clone(), "Python").await;
 
     if let (Some(actual), Some(original)) = (&actual_data_path, &data_path) {
@@ -267,7 +276,11 @@ pub async fn push_to_db_internal(
             .iter()
             .find(|c| c.id == connection_id)
             .ok_or_else(|| "Connection not found".to_owned())?;
-        (conn.name.clone(), conn.settings.table.clone(), conn.settings.schema.clone())
+        (
+            conn.name.clone(),
+            conn.settings.table.clone(),
+            conn.settings.schema.clone(),
+        )
     };
 
     push_audit_log(
@@ -284,7 +297,8 @@ pub async fn push_to_db_internal(
         .ok_or_else(|| "Connection not found".to_owned())?;
 
     let url = conn.settings.connection_string(&connection_id);
-    let opts = PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
+    let opts =
+        PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
 
     beefcake::analyser::logic::flows::push_to_db_flow(
         PathBuf::from(path),
@@ -318,7 +332,8 @@ pub async fn test_connection(
     use sqlx::postgres::PgConnectOptions;
 
     let url = settings.connection_string(&connection_id.unwrap_or_default());
-    let opts = PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
+    let opts =
+        PgConnectOptions::from_str(&url).map_err(|e| format!("Invalid connection URL: {e}"))?;
 
     match DbClient::connect(opts).await {
         Ok(_) => Ok("Connection successful!".to_owned()),

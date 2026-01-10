@@ -1,8 +1,8 @@
+use super::naming;
+use super::profiling;
+use super::types::{AnalysisResponse, ColumnSummary, CorrelationMatrix};
 use anyhow::{Context as _, Result};
 use polars::prelude::*;
-use super::types::{AnalysisResponse, ColumnSummary, CorrelationMatrix};
-use super::profiling;
-use super::naming;
 
 pub fn run_full_analysis(
     df: DataFrame,
@@ -20,7 +20,8 @@ pub fn run_full_analysis(
     let file_name = std::path::Path::new(&path)
         .file_name()
         .and_then(|s| s.to_str())
-        .unwrap_or("Unknown").to_owned();
+        .unwrap_or("Unknown")
+        .to_owned();
 
     Ok(AnalysisResponse {
         file_name,
@@ -138,7 +139,7 @@ pub fn calculate_correlation_matrix(df: &DataFrame) -> Result<Option<Correlation
             } else {
                 let s1 = df.column(&numeric_cols[i])?.as_materialized_series();
                 let s2 = df.column(&numeric_cols[j])?.as_materialized_series();
-                
+
                 // Pearson correlation
                 let corr = if let (Ok(ca1), Ok(ca2)) = (s1.f64(), s2.f64()) {
                     polars::prelude::cov::pearson_corr(ca1, ca2)

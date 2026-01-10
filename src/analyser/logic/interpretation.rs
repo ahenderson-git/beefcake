@@ -100,7 +100,10 @@ impl ColumnSummary {
         self.collect_preprocessing_advice(is_likely_id, &mut advice);
 
         if self.name != sanitize_column_name(&self.name) {
-            advice.push("Consider standardizing column name for better database and SQL compatibility.".to_owned());
+            advice.push(
+                "Consider standardizing column name for better database and SQL compatibility."
+                    .to_owned(),
+            );
         }
 
         if advice.is_empty() {
@@ -211,7 +214,7 @@ impl ColumnSummary {
             if s.zero_count > 0 {
                 signals.push("Contains zero values.");
                 if Self::calculate_zero_ratio(s) > 0.3 {
-                     signals.push("High proportion of zeros; check if these represent defaults or missing data.");
+                    signals.push("High proportion of zeros; check if these represent defaults or missing data.");
                 }
             }
             if s.negative_count > 0 {
@@ -461,9 +464,11 @@ impl ColumnSummary {
 
             if s.zero_count > 0 {
                 if Self::calculate_zero_ratio(s) > 0.3 {
-                     insights.push("A high number of zero values suggests many records might be empty or inactive.");
+                    insights.push("A high number of zero values suggests many records might be empty or inactive.");
                 } else {
-                    insights.push("Includes zero values, which may represent a neutral or baseline state.");
+                    insights.push(
+                        "Includes zero values, which may represent a neutral or baseline state.",
+                    );
                 }
             }
 
@@ -563,9 +568,8 @@ impl ColumnSummary {
     }
 
     fn calculate_zero_ratio(s: &super::types::NumericStats) -> f64 {
-        let total = s.zero_count
-            + s.negative_count
-            + s.histogram.iter().map(|h| h.1).sum::<usize>();
+        let total =
+            s.zero_count + s.negative_count + s.histogram.iter().map(|h| h.1).sum::<usize>();
         if total == 0 {
             0.0
         } else {

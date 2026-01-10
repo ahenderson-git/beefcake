@@ -3,10 +3,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod cli;
-mod tauri_app;
-mod python_runner;
 mod export;
+mod python_runner;
 mod system;
+mod tauri_app;
 
 use anyhow::Result;
 use clap::Parser as _;

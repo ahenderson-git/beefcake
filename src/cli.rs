@@ -137,7 +137,7 @@ async fn handle_import(
         "Importing {0} into table {schema}.{table} (streaming)...",
         file.display()
     );
-    
+
     let lf = load_df_lazy(&file).context("Failed to load dataframe lazily")?;
 
     let configs = if let Some(config_path) = config_path {
@@ -166,7 +166,7 @@ async fn handle_import(
 
     let opts =
         PgConnectOptions::from_str(&effective_url).context("Failed to parse database URL")?;
-    
+
     flows::push_to_db_flow(file.clone(), opts, schema, table, configs).await?;
 
     println!("Successfully imported.");
@@ -219,7 +219,7 @@ async fn handle_export(
             input_path.display(),
             output_path.display()
         );
-        
+
         let lf = load_df_lazy(&input_path).context("Failed to load input file lazily")?;
 
         let configs = if let Some(config_path) = config_path {
@@ -235,7 +235,11 @@ async fn handle_export(
         println!("Applying transformations...");
         let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
 
-        let ext = output_path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        let ext = output_path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
         match ext.as_str() {
             "parquet" => {
                 let options = get_parquet_write_options(&cleaned_lf)?;
@@ -263,7 +267,9 @@ async fn handle_export(
             }
             _ => {
                 println!("Collecting and saving to {}...", output_path.display());
-                let mut df = cleaned_lf.collect().context("Failed to collect data for export")?;
+                let mut df = cleaned_lf
+                    .collect()
+                    .context("Failed to collect data for export")?;
                 save_df(&mut df, &output_path).context("Failed to save output file")?;
             }
         }
@@ -317,7 +323,11 @@ async fn handle_clean(
 
     let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
 
-    let ext = output_file.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    let ext = output_file
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
     match ext.as_str() {
         "parquet" => {
             let options = get_parquet_write_options(&cleaned_lf)?;
@@ -345,7 +355,9 @@ async fn handle_clean(
         }
         _ => {
             println!("Collecting and saving to {}...", output_file.display());
-            let mut df = cleaned_lf.collect().context("Failed to collect data for saving")?;
+            let mut df = cleaned_lf
+                .collect()
+                .context("Failed to collect data for saving")?;
             save_df(&mut df, &output_file).context("Failed to save cleaned file")?;
         }
     }
