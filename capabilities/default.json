@@ -12,6 +12,23 @@
     "core:menu:default",
     "core:tray:default",
     "shell:allow-open",
-    "dialog:default"
+    "dialog:default",
+    "allow-get-app-version",
+    "allow-get-config",
+    "allow-analyze-file",
+    "allow-run-powershell",
+    "allow-run-python",
+    "allow-read-text-file",
+    "allow-write-text-file",
+    "allow-save-config",
+    "allow-push-to-db",
+    "allow-test-connection",
+    "allow-delete-connection",
+    "allow-install-python-package",
+    "allow-run-sql",
+    "allow-sanitize-headers",
+    "allow-export-data",
+    "allow-abort-processing",
+    "allow-reset-abort-signal"
   ]
 }

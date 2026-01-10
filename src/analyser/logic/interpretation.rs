@@ -1,4 +1,4 @@
-use super::analysis::sanitize_column_name;
+use super::naming::sanitize_column_name;
 use super::types::{ColumnKind, ColumnStats, ColumnSummary};
 use std::f64::consts::PI;
 

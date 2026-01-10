@@ -170,6 +170,7 @@ export interface AppState {
   cleaningConfigs: Record<string, ColumnCleanConfig>;
   isAddingConnection: boolean;
   isLoading: boolean;
+  isAborting: boolean;
   loadingMessage: string;
   trimPct: number;
   pythonScript: string | null;

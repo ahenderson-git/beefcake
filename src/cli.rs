@@ -1,5 +1,4 @@
 use anyhow::{Context as _, Result};
-use beefcake::analyser::db::DbClient;
 use beefcake::analyser::logic::types::ColumnCleanConfig;
 use beefcake::analyser::logic::*;
 use clap::{Parser, Subcommand};
@@ -146,21 +145,10 @@ async fn handle_import(
         load_config(&config_path)?
     } else if clean {
         println!("Auto-cleaning (sampling 500k rows for analysis)...");
-        let sample_df = lf.clone().limit(500_000).collect().context("Failed to sample data for auto-cleaning")?;
-        let summaries = beefcake::analyser::logic::analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
-        let mut configs = HashMap::new();
-        for summary in summaries {
-            let mut config = ColumnCleanConfig::default();
-            config.new_name = summary.standardized_name.clone();
-            summary.apply_advice_to_config(&mut config);
-            configs.insert(summary.name.clone(), config);
-        }
-        configs
+        flows::generate_auto_clean_configs(lf.clone())?
     } else {
         HashMap::new()
     };
-
-    let mut cleaned_lf = clean_df_lazy(lf, &configs, true)?;
 
     let config = beefcake::utils::load_app_config();
     let effective_url = if let Some(url) = db_url {
@@ -178,26 +166,9 @@ async fn handle_import(
 
     let opts =
         PgConnectOptions::from_str(&effective_url).context("Failed to parse database URL")?;
-    let client = DbClient::connect(opts).await?;
+    
+    flows::push_to_db_flow(file.clone(), opts, schema, table, configs).await?;
 
-    client.init_schema().await?;
-    
-    let schema_ref = cleaned_lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
-    
-    // Sink to temp CSV for streaming push
-    let temp_dir = std::env::temp_dir();
-    let temp_path = temp_dir.join(format!("beefcake_import_{}.csv", uuid::Uuid::new_v4()));
-    
-    println!("Sinking to temp CSV for database push...");
-    cleaned_lf.with_streaming(true)
-        .sink_csv(&temp_path, Default::default(), None)
-        .context("Failed to sink to CSV for DB import")?;
-
-    client
-        .push_from_csv_file(&temp_path, &schema_ref, Some(&schema), Some(&table))
-        .await?;
-        
-    let _ = std::fs::remove_file(&temp_path);
     println!("Successfully imported.");
 
     // Archive
@@ -256,17 +227,7 @@ async fn handle_export(
             load_config(&config_path)?
         } else if clean {
             println!("Auto-cleaning (sampling 500k rows for analysis)...");
-            // Important: Use limit only for the analysis/config generation
-            let sample_df = lf.clone().limit(500_000).collect().context("Failed to sample data for auto-cleaning")?;
-            let summaries = beefcake::analyser::logic::analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
-            let mut configs = HashMap::new();
-            for summary in summaries {
-                let mut config = ColumnCleanConfig::default();
-                config.new_name = summary.standardized_name.clone();
-                summary.apply_advice_to_config(&mut config);
-                configs.insert(summary.name.clone(), config);
-            }
-            configs
+            flows::generate_auto_clean_configs(lf.clone())?
         } else {
             HashMap::new()
         };
@@ -351,17 +312,7 @@ async fn handle_clean(
         load_config(&cp)?
     } else {
         println!("Auto-cleaning (sampling 500k rows for analysis)...");
-        // Important: Use limit only for analysis, but clean the full LazyFrame later
-        let sample_df = lf.clone().limit(500_000).collect().context("Failed to sample data for auto-cleaning")?;
-        let summaries = beefcake::analyser::logic::analyse_df(&sample_df, 0.0).context("Failed to analyse sample for auto-cleaning")?;
-        let mut configs = HashMap::new();
-        for summary in summaries {
-            let mut config = ColumnCleanConfig::default();
-            config.new_name = summary.standardized_name.clone();
-            summary.apply_advice_to_config(&mut config);
-            configs.insert(summary.name.clone(), config);
-        }
-        configs
+        flows::generate_auto_clean_configs(lf.clone())?
     };
 
     let cleaned_lf = clean_df_lazy(lf, &configs, true)?;

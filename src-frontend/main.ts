@@ -34,6 +34,7 @@ class BeefcakeApp {
     cleaningConfigs: {},
     isAddingConnection: false,
     isLoading: false,
+    isAborting: false,
     loadingMessage: '',
     trimPct: 0.1,
     config: null,
@@ -50,11 +51,21 @@ class BeefcakeApp {
   }
 
   async init() {
-    [this.state.config, this.state.version] = await Promise.all([
-      api.loadAppConfig(),
-      api.getAppVersion()
-    ]);
     this.renderInitialLayout();
+    
+    try {
+      [this.state.config, this.state.version] = await Promise.all([
+        api.loadAppConfig(),
+        api.getAppVersion()
+      ]);
+    } catch (err) {
+      console.error('Failed to load initial app data:', err);
+      // We still proceed so the UI renders, but we show a toast
+      setTimeout(() => {
+        this.showToast('Initialization warning: Failed to load app config. Some features may be limited.', 'error');
+      }, 1000);
+    }
+
     this.initComponents();
     this.setupNavigation();
     this.render();
@@ -128,6 +139,7 @@ class BeefcakeApp {
   public async handleAnalysis(path: string) {
     try {
       this.state.isLoading = true;
+      this.state.isAborting = false;
       this.state.loadingMessage = `Analyzing ${path}...`;
       this.switchView('Analyser');
       
@@ -160,10 +172,11 @@ class BeefcakeApp {
     const toastEl = toast.firstElementChild!;
     container.appendChild(toastEl);
 
+    const duration = type === 'error' ? 10000 : 3000;
     setTimeout(() => {
       toastEl.classList.add('fade-out');
       setTimeout(() => toastEl.remove(), 500);
-    }, 3000);
+    }, duration);
   }
 }
 

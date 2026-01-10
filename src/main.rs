@@ -4,6 +4,9 @@
 
 mod cli;
 mod tauri_app;
+mod python_runner;
+mod export;
+mod system;
 
 use anyhow::Result;
 use clap::Parser as _;
@@ -13,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = cli::Cli::parse();
 
     if let Some(command) = cli.command {
-        beefcake::utils::TOKIO_RUNTIME.block_on(cli::run_command(command))?;
+        tokio::runtime::Runtime::new()?.block_on(cli::run_command(command))?;
         return Ok(());
     }
 

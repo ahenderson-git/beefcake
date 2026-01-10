@@ -5,7 +5,7 @@
     clippy::indexing_slicing
 )]
 use super::*;
-use crate::analyser::logic::analysis::sanitize_column_names;
+use crate::analyser::logic::naming::sanitize_column_names;
 use anyhow::Result;
 use polars::prelude::*;
 use std::collections::HashMap;

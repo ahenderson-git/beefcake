@@ -50,6 +50,14 @@ export async function exportData(options: ExportOptions): Promise<void> {
   await invoke("export_data", { options });
 }
 
+export async function abortProcessing(): Promise<void> {
+  await invoke("abort_processing");
+}
+
+export async function resetAbortSignal(): Promise<void> {
+  await invoke("reset_abort_signal");
+}
+
 export async function readTextFile(path: string): Promise<string> {
   return await invoke("read_text_file", { path });
 }

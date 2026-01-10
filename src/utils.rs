@@ -3,13 +3,26 @@ use keyring::Entry;
 use secrecy::SecretString;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
-use tokio::runtime::Runtime;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const DATA_INPUT_DIR: &str = "data/input";
 pub const DATA_PROCESSED_DIR: &str = "data/processed";
 pub const KEYRING_SERVICE: &str = "com.beefcake.app";
 pub const KEYRING_PLACEHOLDER: &str = "__KEYRING__";
+
+pub static ABORT_SIGNAL: AtomicBool = AtomicBool::new(false);
+
+pub fn is_aborted() -> bool {
+    ABORT_SIGNAL.load(Ordering::SeqCst)
+}
+
+pub fn reset_abort_signal() {
+    ABORT_SIGNAL.store(false, Ordering::SeqCst);
+}
+
+pub fn trigger_abort() {
+    ABORT_SIGNAL.store(true, Ordering::SeqCst);
+}
 
 pub fn get_db_password(connection_id: &str) -> Option<String> {
     let entry = Entry::new(KEYRING_SERVICE, connection_id).ok()?;
@@ -26,9 +39,6 @@ pub fn delete_db_password(connection_id: &str) -> anyhow::Result<()> {
     let entry = Entry::new(KEYRING_SERVICE, connection_id)?;
     entry.delete_credential().map_err(|e| anyhow::anyhow!(e))
 }
-
-pub static TOKIO_RUNTIME: LazyLock<Runtime> =
-    LazyLock::new(|| Runtime::new().expect("Failed to create Tokio runtime"));
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct DbConnection {
@@ -218,4 +228,16 @@ pub fn fmt_bytes(bytes: u64) -> String {
     let i = std::cmp::min(i, units.len() - 1);
     let value = bytes as f64 / 1024.0f64.powi(i as i32);
     format!("{:.2} {}", value, units[i])
+}
+
+pub fn fmt_count(count: usize) -> String {
+    if count >= 1_000_000_000 {
+        format!("{:.2}B", count as f64 / 1_000_000_000.0)
+    } else if count >= 1_000_000 {
+        format!("{:.2}M", count as f64 / 1_000_000.0)
+    } else if count >= 1_000 {
+        format!("{:.1}K", count as f64 / 1_000.0)
+    } else {
+        count.to_string()
+    }
 }
