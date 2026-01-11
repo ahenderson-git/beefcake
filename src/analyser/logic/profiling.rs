@@ -1,3 +1,20 @@
+//! Statistical profiling for data columns.
+//!
+//! This module provides comprehensive statistical analysis for different column types
+//! (numeric, text, temporal, boolean). It implements adaptive sampling strategies to
+//! efficiently handle large datasets while maintaining statistical accuracy.
+//!
+//! Key features:
+//! - Adaptive sampling based on dataset size to optimize memory usage
+//! - Histogram generation with configurable binning strategies
+//! - Quantile calculation and outlier detection using IQR method
+//! - Distribution analysis (skewness, kurtosis) for numeric data
+//! - Frequency analysis for categorical and text data
+//! - Temporal pattern detection (min/max dates, resolution)
+//!
+//! The profiling algorithms are designed to work with Polars LazyFrame for
+//! memory-efficient processing of datasets that exceed available RAM.
+
 use super::types::{BooleanStats, ColumnKind, ColumnStats, NumericStats, TemporalStats, TextStats};
 use anyhow::Result;
 use polars::prelude::*;

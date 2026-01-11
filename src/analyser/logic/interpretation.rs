@@ -1,3 +1,21 @@
+//! Data quality interpretation and insight generation.
+//!
+//! This module transforms raw statistical metrics into human-readable insights about
+//! data quality, distribution patterns, and potential issues. It applies domain knowledge
+//! and heuristics to identify actionable patterns in the data.
+//!
+//! Key features:
+//! - Missing data severity assessment (critical, high, medium, low)
+//! - Distribution shape detection (normal, skewed, multi-modal, uniform)
+//! - Outlier detection and characterization using IQR and Z-score methods
+//! - Variability assessment (high, moderate, low coefficient of variation)
+//! - Histogram analysis for visual pattern recognition
+//! - Data quality recommendations based on detected patterns
+//!
+//! The interpretation logic uses evidence-based thresholds (e.g., 40% missing data is
+//! critical, skewness > 0.5 indicates asymmetry) to provide consistent and actionable
+//! feedback to data analysts.
+
 use super::naming::sanitize_column_name;
 use super::types::{ColumnKind, ColumnStats, ColumnSummary};
 use std::f64::consts::PI;

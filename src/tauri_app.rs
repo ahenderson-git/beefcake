@@ -228,14 +228,18 @@ if not data_path:
     print("Error: No data path provided in environment variable BEEFCAKE_DATA_PATH")
     sys.exit(1)
 
+query_str = os.environ.get("BEEFCAKE_SQL_QUERY")
+if not query_str:
+    print("Error: No SQL query provided in environment variable BEEFCAKE_SQL_QUERY")
+    sys.exit(1)
+
 try:
 {}
     # Execute SQL query
     ctx = pl.SQLContext()
     ctx.register("data", df)
 
-    query = """{}"""
-    result = ctx.execute(query)
+    result = ctx.execute(query_str)
     # Limit for preview to avoid OOM on large datasets
     result_df = result.limit(100).collect()
 
@@ -246,11 +250,10 @@ except Exception as e:
     sys.exit(1)
 "#,
         python_runner::python_preamble(),
-        indented_load,
-        query.replace(r#"""#, r#"\"""#)
+        indented_load
     );
 
-    let res = python_runner::execute_python(&python_script, actual_data_path, "SQL").await.map_err(String::from);
+    let res = python_runner::execute_python_with_env(&python_script, actual_data_path, Some(query), "SQL").await.map_err(String::from);
 
     // _temp_guard will automatically clean up the temp file when dropped
     res
@@ -352,6 +355,12 @@ pub async fn install_python_package(package: String) -> Result<String, String> {
     crate::system::install_python_package(&package).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn check_python_environment() -> Result<String, String> {
+    beefcake::utils::log_event("System", "Checking Python environment");
+    crate::system::check_python_environment().map_err(|e| e.to_string())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -371,6 +380,7 @@ pub fn run() {
             test_connection,
             delete_connection,
             install_python_package,
+            check_python_environment,
             run_sql,
             sanitize_headers,
             export_data

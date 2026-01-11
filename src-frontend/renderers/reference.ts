@@ -10,17 +10,64 @@ export function renderReferenceView(): string {
         <section class="ref-section">
           <h3><i class="ph ph-magic-wand"></i> Data Cleaning Logic</h3>
           <div class="ref-card">
-            <h4>Imputation (Handling Nulls)</h4>
-            <ul>
-              <li><strong>Mean/Median:</strong> Replaces nulls with the average or middle value of the column (Numeric only).</li>
-              <li><strong>Mode:</strong> Replaces nulls with the most frequent value (All types).</li>
-              <li><strong>Zero:</strong> Replaces nulls with 0 (Numeric only).</li>
-            </ul>
-            <h4>Normalization</h4>
-            <ul>
-              <li><strong>Z-Score:</strong> Scales data to mean=0 and std_dev=1. Useful for many ML algorithms.</li>
-              <li><strong>Min-Max:</strong> Scales data strictly between 0 and 1.</li>
-            </ul>
+            <h4>The Clean Function Pipeline</h4>
+            <p>The clean function processes data through multiple stages in this order:</p>
+            <ol>
+              <li><strong>Text Cleaning & Regex:</strong>
+                <ul>
+                  <li>Trim whitespace from values</li>
+                  <li>Convert text case (lowercase, uppercase, titlecase)</li>
+                  <li>Remove special characters (non-alphanumeric)</li>
+                  <li>Remove non-ASCII characters</li>
+                  <li>Apply custom regex find/replace patterns</li>
+                  <li>Standardize null representations ("null", "NULL", "", "N/A", "nan", "NaN")</li>
+                </ul>
+              </li>
+              <li><strong>Number Extraction:</strong>
+                <ul>
+                  <li>Extract numeric values from text using regex pattern</li>
+                  <li>Converts result to Float64 type</li>
+                </ul>
+              </li>
+              <li><strong>Type Casting:</strong>
+                <ul>
+                  <li>Convert to target data type (Numeric, Text, Boolean, Temporal, Categorical)</li>
+                  <li>Boolean casting recognizes "true"/"false", "yes"/"no", "1"/"0"</li>
+                </ul>
+              </li>
+              <li><strong>Imputation (Null Handling):</strong>
+                <ul>
+                  <li><strong>Mean:</strong> Replace nulls with column average</li>
+                  <li><strong>Median:</strong> Replace nulls with middle value</li>
+                  <li><strong>Mode:</strong> Replace nulls with most frequent value</li>
+                  <li><strong>Zero:</strong> Replace nulls with 0</li>
+                </ul>
+              </li>
+              <li><strong>Numeric Refinement:</strong>
+                <ul>
+                  <li><strong>Outlier Clipping:</strong> Clips values to 5th-95th percentile range</li>
+                  <li><strong>Rounding:</strong> Round to specified decimal places</li>
+                </ul>
+              </li>
+              <li><strong>Normalization (Scaling):</strong>
+                <ul>
+                  <li><strong>Z-Score:</strong> Scales data to mean=0 and std_dev=1</li>
+                  <li><strong>Min-Max:</strong> Scales data to range [0, 1]</li>
+                </ul>
+              </li>
+              <li><strong>Column Renaming:</strong>
+                <ul>
+                  <li>Applies new column names if specified</li>
+                </ul>
+              </li>
+              <li><strong>Categorical Encoding:</strong>
+                <ul>
+                  <li><strong>One-Hot Encoding:</strong> Creates binary columns for each unique categorical value</li>
+                  <li>Removes original categorical column and replaces with new binary columns</li>
+                </ul>
+              </li>
+            </ol>
+            <p><small>Note: Operations are applied lazily for optimal performance. Some operations are restricted in certain contexts.</small></p>
           </div>
         </section>
 

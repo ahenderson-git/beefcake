@@ -108,14 +108,26 @@ pub fn train_model(
                 .f64()?
                 .into_no_null_iter()
                 .collect();
-            let dataset = Dataset::new(x, y);
+
+            // Split into train (80%) and test (20%)
+            let n_samples = x.nrows();
+            let train_size = (n_samples as f64 * 0.8) as usize;
+
+            let x_train = x.slice(ndarray::s![..train_size, ..]);
+            let y_train = y.slice(ndarray::s![..train_size]);
+            let x_test = x.slice(ndarray::s![train_size.., ..]);
+            let y_test = y.slice(ndarray::s![train_size..]);
+
+            let train_dataset = Dataset::new(x_train.to_owned(), y_train.to_owned());
+            let test_dataset = Dataset::new(x_test.to_owned(), y_test.to_owned());
+
             let model = LinearRegression::default()
-                .fit(&dataset)
+                .fit(&train_dataset)
                 .map_err(|e| anyhow!("Linear Regression training failed: {e}"))?;
 
-            let prediction = model.predict(&dataset);
-            results.r2_score = Some(prediction.r2(&dataset)?);
-            results.mse = Some(prediction.mean_squared_error(&dataset)?);
+            let prediction = model.predict(&test_dataset);
+            results.r2_score = Some(prediction.r2(&test_dataset)?);
+            results.mse = Some(prediction.mean_squared_error(&test_dataset)?);
 
             let mut coeffs = HashMap::new();
             for (i, name) in feature_cols.iter().enumerate() {
@@ -131,13 +143,25 @@ pub fn train_model(
                 .into_no_null_iter()
                 .map(|v| v as usize)
                 .collect();
-            let dataset = Dataset::new(x, y);
+
+            // Split into train (80%) and test (20%)
+            let n_samples = x.nrows();
+            let train_size = (n_samples as f64 * 0.8) as usize;
+
+            let x_train = x.slice(ndarray::s![..train_size, ..]);
+            let y_train = y.slice(ndarray::s![..train_size]);
+            let x_test = x.slice(ndarray::s![train_size.., ..]);
+            let y_test = y.slice(ndarray::s![train_size..]);
+
+            let train_dataset = Dataset::new(x_train.to_owned(), y_train.to_owned());
+            let test_dataset = Dataset::new(x_test.to_owned(), y_test.to_owned());
+
             let model = DecisionTree::params()
-                .fit(&dataset)
+                .fit(&train_dataset)
                 .map_err(|e| anyhow!("Decision Tree training failed: {e}"))?;
 
-            let prediction = model.predict(&dataset);
-            let cm = prediction.confusion_matrix(&dataset)?;
+            let prediction = model.predict(&test_dataset);
+            let cm = prediction.confusion_matrix(&test_dataset)?;
             results.accuracy = Some(cm.accuracy() as f64);
         }
         MlModelKind::LogisticRegression => {
@@ -147,13 +171,25 @@ pub fn train_model(
                 .into_no_null_iter()
                 .map(|v| v as usize)
                 .collect();
-            let dataset = Dataset::new(x, y);
+
+            // Split into train (80%) and test (20%)
+            let n_samples = x.nrows();
+            let train_size = (n_samples as f64 * 0.8) as usize;
+
+            let x_train = x.slice(ndarray::s![..train_size, ..]);
+            let y_train = y.slice(ndarray::s![..train_size]);
+            let x_test = x.slice(ndarray::s![train_size.., ..]);
+            let y_test = y.slice(ndarray::s![train_size..]);
+
+            let train_dataset = Dataset::new(x_train.to_owned(), y_train.to_owned());
+            let test_dataset = Dataset::new(x_test.to_owned(), y_test.to_owned());
+
             let model = LogisticRegression::default()
-                .fit(&dataset)
+                .fit(&train_dataset)
                 .map_err(|e| anyhow!("Logistic Regression training failed: {e}"))?;
 
-            let prediction = model.predict(&dataset);
-            let cm = prediction.confusion_matrix(&dataset)?;
+            let prediction = model.predict(&test_dataset);
+            let cm = prediction.confusion_matrix(&test_dataset)?;
             results.accuracy = Some(cm.accuracy() as f64);
         }
     }

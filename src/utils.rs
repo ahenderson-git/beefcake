@@ -108,6 +108,12 @@ pub struct AppSettings {
     pub powershell_font_size: u32,
     pub python_font_size: u32,
     pub sql_font_size: u32,
+    /// Maximum number of rows to display in SQL/Python previews (default: 100)
+    pub preview_row_limit: u32,
+    /// Whether to show security warning on first Python/PowerShell execution
+    pub security_warning_acknowledged: bool,
+    /// Whether to skip full row counting for large CSV files (improves load times)
+    pub skip_full_row_count: bool,
 }
 
 impl Default for AppSettings {
@@ -119,6 +125,9 @@ impl Default for AppSettings {
             powershell_font_size: 14,
             python_font_size: 14,
             sql_font_size: 14,
+            preview_row_limit: 100,
+            security_warning_acknowledged: false,
+            skip_full_row_count: false,
         }
     }
 }

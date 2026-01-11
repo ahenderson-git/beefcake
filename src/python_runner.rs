@@ -61,6 +61,15 @@ pub async fn execute_python(
     data_path: Option<String>,
     log_tag: &str,
 ) -> Result<String> {
+    execute_python_with_env(script, data_path, None, log_tag).await
+}
+
+pub async fn execute_python_with_env(
+    script: &str,
+    data_path: Option<String>,
+    sql_query: Option<String>,
+    log_tag: &str,
+) -> Result<String> {
     let mut cmd = if cfg!(target_os = "windows") {
         Command::new("python")
     } else {
@@ -86,6 +95,16 @@ pub async fn execute_python(
                 &format!("Setting BEEFCAKE_DATA_PATH to: {}", path),
             );
             cmd.env("BEEFCAKE_DATA_PATH", path);
+        }
+    }
+
+    if let Some(query) = &sql_query {
+        if !query.is_empty() {
+            beefcake::utils::log_event(
+                log_tag,
+                "Setting BEEFCAKE_SQL_QUERY environment variable",
+            );
+            cmd.env("BEEFCAKE_SQL_QUERY", query);
         }
     }
 
