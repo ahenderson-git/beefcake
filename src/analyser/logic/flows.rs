@@ -74,24 +74,8 @@ pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<A
     // Rule of thumb: files > 20MB or wide schemas (>50 cols) should be sampled
     let should_sample = file_size > 20 * 1024 * 1024 || col_count > 50;
 
-    let max_cells = 5_000_000;
-    let (lf_for_analysis, is_sampled, sampled_rows_count) = if should_sample {
-        let sample_rows = if col_count > 0 {
-            std::cmp::min(500_000, (max_cells / col_count) as u32)
-        } else {
-            500_000
-        };
-        crate::utils::log_event(
-            "Analyser",
-            &format!("Large dataset detected, using sampling ({} rows) for summary analysis...", sample_rows),
-        );
-        (lf.limit(sample_rows), true, sample_rows)
-    } else {
-        (lf.clone(), false, 0)
-    };
-
-    // Count rows AFTER sampling to avoid materializing huge files
-    let total_rows = match lf_for_analysis.clone().select([polars::prelude::len()]).collect() {
+    // Count true total rows from original LazyFrame (streaming, doesn't materialize)
+    let true_total_rows = match lf.clone().select([polars::prelude::len()]).with_streaming(true).collect() {
         Ok(df) => {
             let col = df.column("len")?.as_materialized_series();
             if let Ok(ca) = col.u32() {
@@ -105,11 +89,35 @@ pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<A
         Err(_) => 0,
     };
 
+    let max_cells = 5_000_000;
+    let (lf_for_analysis, is_sampled, sampled_rows_count) = if should_sample {
+        let sample_rows = if col_count > 0 {
+            std::cmp::min(500_000, (max_cells / col_count) as u32)
+        } else {
+            500_000
+        };
+        crate::utils::log_event(
+            "Analyser",
+            &format!("Large dataset detected, using sampling ({} rows) for summary analysis...", sample_rows),
+        );
+        (lf.clone().limit(sample_rows), true, sample_rows)
+    } else {
+        (lf.clone(), false, 0)
+    };
+
+    // Count sampled rows (what we're actually analyzing)
+    let sampled_rows = if is_sampled {
+        sampled_rows_count as usize
+    } else {
+        true_total_rows
+    };
+
     let mut response = crate::analyser::logic::analysis::run_full_analysis_streaming(
         lf_for_analysis,
         path_str,
         file_size,
-        total_rows,
+        true_total_rows,
+        sampled_rows,
         trim_pct.unwrap_or(0.05),
         start,
     )?;

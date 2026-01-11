@@ -35,7 +35,7 @@ export class ExportModal extends Component {
     this.bindEvents(state);
   }
 
-  bindEvents(state: AppState): void {
+  override bindEvents(state: AppState): void {
     const modal = document.getElementById('export-modal');
     if (!modal) return;
 
@@ -114,7 +114,7 @@ export class ExportModal extends Component {
       destination: {
         type: this.currentDestType,
         target,
-        format
+        ...(format && { format })
       }
     };
 

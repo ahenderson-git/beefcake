@@ -54,19 +54,63 @@ pub struct AuditEntry {
     pub details: String,
 }
 
+/// Audit log for tracking application events.
+/// Separated from settings to allow independent management.
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Default)]
+pub struct AuditLog {
+    entries: Vec<AuditEntry>,
+}
+
+impl AuditLog {
+    /// Create a new empty audit log.
+    pub fn new() -> Self {
+        Self { entries: Vec::new() }
+    }
+
+    /// Add an entry to the audit log.
+    /// Automatically limits to the last 100 entries to prevent unbounded growth.
+    pub fn push(&mut self, action: impl Into<String>, details: impl Into<String>) {
+        self.entries.push(AuditEntry {
+            timestamp: Local::now(),
+            action: action.into(),
+            details: details.into(),
+        });
+        // Keep only last 100 entries to prevent config file bloat
+        if self.entries.len() > 100 {
+            self.entries.remove(0);
+        }
+    }
+
+    /// Get all entries in the log.
+    pub fn entries(&self) -> &[AuditEntry] {
+        &self.entries
+    }
+
+    /// Check if the log is empty.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Get the number of entries in the log.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+/// Application settings (connections, fonts, preferences).
+/// Separated from audit log for cleaner organization.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 #[serde(default)]
-pub struct AppConfig {
+pub struct AppSettings {
     pub connections: Vec<DbConnection>,
     pub active_import_id: Option<String>,
     pub active_export_id: Option<String>,
     pub powershell_font_size: u32,
     pub python_font_size: u32,
     pub sql_font_size: u32,
-    pub audit_log: Vec<AuditEntry>,
 }
 
-impl Default for AppConfig {
+impl Default for AppSettings {
     fn default() -> Self {
         Self {
             connections: Vec::new(),
@@ -75,22 +119,76 @@ impl Default for AppConfig {
             powershell_font_size: 14,
             python_font_size: 14,
             sql_font_size: 14,
-            audit_log: Vec::new(),
+        }
+    }
+}
+
+/// Top-level configuration structure that combines settings and audit log.
+/// Maintains backward compatibility with existing JSON config files.
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[serde(default)]
+pub struct AppConfig {
+    #[serde(flatten)]
+    pub settings: AppSettings,
+    #[serde(rename = "audit_log")]
+    audit_log_entries: Vec<AuditEntry>,
+}
+
+impl AppConfig {
+    /// Get a reference to the settings.
+    pub fn settings(&self) -> &AppSettings {
+        &self.settings
+    }
+
+    /// Get a mutable reference to the settings.
+    pub fn settings_mut(&mut self) -> &mut AppSettings {
+        &mut self.settings
+    }
+
+    /// Get the audit log.
+    pub fn audit_log(&self) -> AuditLog {
+        AuditLog {
+            entries: self.audit_log_entries.clone(),
+        }
+    }
+
+    /// Set the audit log.
+    pub fn set_audit_log(&mut self, log: AuditLog) {
+        self.audit_log_entries = log.entries;
+    }
+
+    /// Add an entry to the audit log (convenience method).
+    pub fn log_event(&mut self, action: impl Into<String>, details: impl Into<String>) {
+        let mut log = self.audit_log();
+        log.push(action, details);
+        self.set_audit_log(log);
+    }
+
+    // Maintain backward compatibility with direct field access
+    #[allow(dead_code)]
+    pub fn connections(&self) -> &[DbConnection] {
+        &self.settings.connections
+    }
+
+    #[allow(dead_code)]
+    pub fn connections_mut(&mut self) -> &mut Vec<DbConnection> {
+        &mut self.settings.connections
+    }
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            settings: AppSettings::default(),
+            audit_log_entries: Vec::new(),
         }
     }
 }
 
 /// Helper to push a new entry to an audit log.
+/// This is a convenience function that uses the new AppConfig::log_event method.
 pub fn push_audit_log(config: &mut AppConfig, action: &str, details: &str) {
-    config.audit_log.push(AuditEntry {
-        timestamp: Local::now(),
-        action: action.to_owned(),
-        details: details.to_owned(),
-    });
-    // Keep only last 100 entries to prevent config file bloat
-    if config.audit_log.len() > 100 {
-        config.audit_log.remove(0);
-    }
+    config.log_event(action, details);
 }
 
 /// Loads config, adds an audit entry, and saves it.
@@ -239,5 +337,138 @@ pub fn fmt_count(count: usize) -> String {
         format!("{:.1}K", count as f64 / 1_000.0)
     } else {
         count.to_string()
+    }
+}
+
+/// RAII guard that automatically deletes a temporary file when dropped.
+/// This ensures cleanup happens even if an error occurs.
+pub struct TempFileGuard {
+    path: Option<PathBuf>,
+}
+
+impl TempFileGuard {
+    /// Create a new guard for the given path.
+    pub fn new(path: PathBuf) -> Self {
+        Self { path: Some(path) }
+    }
+
+    /// Get the path to the temporary file.
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
+    }
+
+    /// Consume the guard and return the path without deleting the file.
+    /// Use this if you want to keep the temporary file.
+    pub fn keep(mut self) -> Option<PathBuf> {
+        self.path.take()
+    }
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        if let Some(path) = &self.path {
+            if path.exists() {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+}
+
+/// Manages a collection of temporary files that will be cleaned up when dropped.
+pub struct TempFileCollection {
+    files: Vec<TempFileGuard>,
+}
+
+impl TempFileCollection {
+    /// Create a new empty collection.
+    pub fn new() -> Self {
+        Self { files: Vec::new() }
+    }
+
+    /// Add a temporary file to the collection.
+    pub fn add(&mut self, path: PathBuf) {
+        self.files.push(TempFileGuard::new(path));
+    }
+
+    /// Get all paths in the collection.
+    pub fn paths(&self) -> Vec<&Path> {
+        self.files.iter().filter_map(|g| g.path()).collect()
+    }
+}
+
+impl Default for TempFileCollection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_temp_file_guard_cleanup() {
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("beefcake_test_temp_file.txt");
+
+        // Create a test file
+        std::fs::write(&test_file, "test content").unwrap();
+        assert!(test_file.exists());
+
+        // Create guard and drop it
+        {
+            let _guard = TempFileGuard::new(test_file.clone());
+            assert!(test_file.exists());
+        }
+
+        // File should be deleted after guard is dropped
+        assert!(!test_file.exists());
+    }
+
+    #[test]
+    fn test_temp_file_guard_keep() {
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("beefcake_test_keep_file.txt");
+
+        // Create a test file
+        std::fs::write(&test_file, "test content").unwrap();
+        assert!(test_file.exists());
+
+        // Create guard, keep it, then drop
+        {
+            let guard = TempFileGuard::new(test_file.clone());
+            let _ = guard.keep();
+        }
+
+        // File should still exist because we called keep()
+        assert!(test_file.exists());
+
+        // Clean up
+        std::fs::remove_file(&test_file).unwrap();
+    }
+
+    #[test]
+    fn test_temp_file_collection() {
+        let temp_dir = std::env::temp_dir();
+        let test_file1 = temp_dir.join("beefcake_test_collection_1.txt");
+        let test_file2 = temp_dir.join("beefcake_test_collection_2.txt");
+
+        // Create test files
+        std::fs::write(&test_file1, "test1").unwrap();
+        std::fs::write(&test_file2, "test2").unwrap();
+        assert!(test_file1.exists());
+        assert!(test_file2.exists());
+
+        // Create collection and drop it
+        {
+            let mut collection = TempFileCollection::new();
+            collection.add(test_file1.clone());
+            collection.add(test_file2.clone());
+            assert_eq!(collection.paths().len(), 2);
+        }
+
+        // Both files should be deleted
+        assert!(!test_file1.exists());
+        assert!(!test_file2.exists());
     }
 }

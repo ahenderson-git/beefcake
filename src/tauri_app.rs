@@ -116,14 +116,14 @@ pub async fn save_config(mut config: AppConfig) -> Result<(), String> {
     use beefcake::utils::{KEYRING_PLACEHOLDER, set_db_password};
     use secrecy::ExposeSecret as _;
 
-    for conn in &mut config.connections {
+    for conn in &mut config.settings.connections {
         let pwd = conn.settings.password.expose_secret();
         if pwd != KEYRING_PLACEHOLDER && !pwd.is_empty() {
             set_db_password(&conn.id, pwd).map_err(|e| e.to_string())?;
         }
     }
 
-    if !config.audit_log.is_empty() {
+    if !config.audit_log().is_empty() {
         beefcake::utils::push_audit_log(&mut config, "Config", "Updated application settings");
     }
     beefcake::utils::save_app_config(&config).map_err(|e| e.to_string())
@@ -174,19 +174,15 @@ pub async fn export_data(options: export::ExportOptions) -> Result<(), String> {
     }
 
     run_on_worker_thread("export-worker", move || async move {
-        let mut temp_files = Vec::new();
+        let mut temp_files = beefcake::utils::TempFileCollection::new();
         let res = export::export_data_execution(options, &mut temp_files).await;
 
         if let Err(e) = &res {
             beefcake::utils::log_event("Export", &format!("Export failed: {e}"));
         }
 
-        for path in temp_files {
-            if path.exists() {
-                let _ = std::fs::remove_file(&path);
-            }
-        }
-        res
+        // temp_files will be automatically cleaned up when it goes out of scope
+        res.map_err(String::from)
     })
     .await
 }
@@ -199,15 +195,11 @@ pub async fn run_python(
 ) -> Result<String, String> {
     beefcake::utils::log_event("Python", "Executing Python script.");
 
-    let actual_data_path =
-        python_runner::prepare_data(data_path.clone(), configs, "Python").await?;
-    let res = python_runner::execute_python(&script, actual_data_path.clone(), "Python").await;
+    let (actual_data_path, _temp_guard) =
+        python_runner::prepare_data(data_path, configs, "Python").await.map_err(String::from)?;
+    let res = python_runner::execute_python(&script, actual_data_path, "Python").await.map_err(String::from);
 
-    if let (Some(actual), Some(original)) = (&actual_data_path, &data_path) {
-        if actual != original {
-            let _ = std::fs::remove_file(actual);
-        }
-    }
+    // _temp_guard will automatically clean up the temp file when dropped
     res
 }
 
@@ -219,7 +211,15 @@ pub async fn run_sql(
 ) -> Result<String, String> {
     beefcake::utils::log_event("SQL", "Executing SQL query.");
 
-    let actual_data_path = python_runner::prepare_data(data_path.clone(), configs, "SQL").await?;
+    let (actual_data_path, _temp_guard) = python_runner::prepare_data(data_path, configs, "SQL").await.map_err(String::from)?;
+
+    // Generate the load snippet and indent it properly for the try block
+    let load_snippet = python_runner::python_load_snippet("data_path", "df");
+    let indented_load = load_snippet
+        .lines()
+        .map(|line| if line.is_empty() { line.to_string() } else { format!("    {}", line) })
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let python_script = format!(
         r#"{}
@@ -230,30 +230,29 @@ if not data_path:
 
 try:
 {}
-    
+    # Execute SQL query
     ctx = pl.SQLContext()
     ctx.register("data", df)
-    
+
     query = """{}"""
     result = ctx.execute(query)
     # Limit for preview to avoid OOM on large datasets
-    print(result.limit(100).collect())
+    result_df = result.limit(100).collect()
+
+    # Print the result - Polars will format it nicely
+    print(result_df)
 except Exception as e:
     print(f"SQL Error: {{e}}")
     sys.exit(1)
 "#,
         python_runner::python_preamble(),
-        python_runner::python_load_snippet("data_path", "df"),
+        indented_load,
         query.replace(r#"""#, r#"\"""#)
     );
 
-    let res = python_runner::execute_python(&python_script, actual_data_path.clone(), "SQL").await;
+    let res = python_runner::execute_python(&python_script, actual_data_path, "SQL").await.map_err(String::from);
 
-    if let (Some(actual), Some(original)) = (&actual_data_path, &data_path) {
-        if actual != original {
-            let _ = std::fs::remove_file(actual);
-        }
-    }
+    // _temp_guard will automatically clean up the temp file when dropped
     res
 }
 
@@ -272,7 +271,7 @@ pub async fn push_to_db_internal(
     let mut config = load_app_config();
     let (conn_name, table_name, schema_name) = {
         let conn = config
-            .connections
+            .settings.connections
             .iter()
             .find(|c| c.id == connection_id)
             .ok_or_else(|| "Connection not found".to_owned())?;
@@ -291,7 +290,7 @@ pub async fn push_to_db_internal(
     let _ = save_app_config(&config).ok();
 
     let conn = config
-        .connections
+        .settings.connections
         .iter()
         .find(|c| c.id == connection_id)
         .ok_or_else(|| "Connection not found".to_owned())?;

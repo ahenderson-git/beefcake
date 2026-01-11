@@ -1,3 +1,4 @@
+use crate::error::{BeefcakeError, Result, ResultExt};
 use crate::python_runner::{
     execute_python, python_adaptive_sink_snippet, python_load_snippet, python_preamble,
 };
@@ -48,31 +49,31 @@ pub struct ExportOptions {
 
 pub async fn prepare_export_source(
     source: &ExportSource,
-    temp_files: &mut Vec<PathBuf>,
-) -> Result<LazyFrame, String> {
+    temp_files: &mut beefcake::utils::TempFileCollection,
+) -> Result<LazyFrame> {
     match source.source_type {
         ExportSourceType::Analyser => {
             let path = source
                 .path
                 .as_ref()
-                .ok_or_else(|| "No path provided for Analyser source".to_string())?;
+                .ok_or_else(|| BeefcakeError::InvalidPath("No path provided for Analyser source".to_string()))?;
             beefcake::analyser::logic::load_df_lazy(&PathBuf::from(path))
-                .map_err(|e| format!("Failed to load data: {e}"))
+                .context("Failed to load data")
         }
         ExportSourceType::SQL => {
             let query = source
                 .content
                 .as_ref()
-                .ok_or_else(|| "No query provided for SQL source".to_string())?;
+                .ok_or_else(|| BeefcakeError::Config("No query provided for SQL source".to_string()))?;
             let path = source
                 .path
                 .as_ref()
-                .ok_or_else(|| "No data path provided for SQL source".to_string())?;
+                .ok_or_else(|| BeefcakeError::InvalidPath("No data path provided for SQL source".to_string()))?;
 
             let temp_dir = std::env::temp_dir();
             let temp_output =
                 temp_dir.join(format!("beefcake_export_sql_{}.parquet", Uuid::new_v4()));
-            temp_files.push(temp_output.clone());
+            temp_files.add(temp_output.clone());
 
             let python_script = format!(
                 r#"{}
@@ -100,19 +101,19 @@ except Exception as e:
 
             execute_python(&python_script, None, "Export (SQL)").await?;
             LazyFrame::scan_parquet(temp_output, Default::default())
-                .map_err(|e| format!("Failed to scan SQL result: {e}"))
+                .context("Failed to scan SQL result")
         }
         ExportSourceType::Python => {
             let script = source
                 .content
                 .as_ref()
-                .ok_or_else(|| "No script provided for Python source".to_string())?;
+                .ok_or_else(|| BeefcakeError::Config("No script provided for Python source".to_string()))?;
             let path = source.path.as_ref();
 
             let temp_dir = std::env::temp_dir();
             let temp_output =
                 temp_dir.join(format!("beefcake_export_python_{}.parquet", Uuid::new_v4()));
-            temp_files.push(temp_output.clone());
+            temp_files.add(temp_output.clone());
 
             let load_snippet = if let Some(p) = path {
                 format!(
@@ -166,7 +167,7 @@ except Exception as e:
 
             execute_python(&wrapped_script, None, "Export (Python)").await?;
             LazyFrame::scan_parquet(temp_output, Default::default())
-                .map_err(|e| format!("Failed to scan Python result: {e}"))
+                .context("Failed to scan Python result")
         }
     }
 }
@@ -174,8 +175,8 @@ except Exception as e:
 pub async fn execute_export_destination(
     options: &ExportOptions,
     mut lf: LazyFrame,
-    temp_files: &mut Vec<PathBuf>,
-) -> Result<(), String> {
+    temp_files: &mut beefcake::utils::TempFileCollection,
+) -> Result<()> {
     lf = lf.with_streaming(true);
 
     match options.destination.dest_type {
@@ -189,7 +190,7 @@ pub async fn execute_export_destination(
 
             let temp_dir = std::env::temp_dir();
             let temp_path = temp_dir.join(format!("beefcake_export_{}.{}", Uuid::new_v4(), ext));
-            temp_files.push(temp_path.clone());
+            temp_files.add(temp_path.clone());
 
             beefcake::utils::log_event(
                 "Export",
@@ -199,30 +200,30 @@ pub async fn execute_export_destination(
             match ext.as_str() {
                 "parquet" => {
                     let options = beefcake::analyser::logic::get_parquet_write_options(&lf)
-                        .map_err(|e| format!("Failed to determine Parquet options: {e}"))?;
+                        .context("Failed to determine Parquet options")?;
                     lf.sink_parquet(&temp_path, options, None)
-                        .map_err(|e| format!("Parquet export failed: {e}"))?;
+                        .context("Parquet export failed")?;
                 }
                 "csv" => {
                     lf.sink_csv(&temp_path, Default::default(), None)
-                        .map_err(|e| format!("CSV export failed: {e}"))?;
+                        .context("CSV export failed")?;
                 }
                 _ => {
                     let mut df = lf
                         .collect()
-                        .map_err(|e| format!("Export failed (collect): {e}"))?;
+                        .context("Export failed (collect)")?;
                     beefcake::analyser::logic::save_df(&mut df, &temp_path)
-                        .map_err(|e| format!("Failed to save file: {e}"))?;
+                        .context("Failed to save file")?;
                 }
             }
 
             // Move temp file to final destination
             if let Some(parent) = final_path.parent() {
-                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                std::fs::create_dir_all(parent)?;
             }
             if let Err(e) = std::fs::rename(&temp_path, &final_path) {
                 std::fs::copy(&temp_path, &final_path)
-                    .map_err(|err| format!("Failed to move file: {err} (Rename error: {e})"))?;
+                    .with_context(|| format!("Failed to move file (Rename error: {e})"))?;
                 let _ = std::fs::remove_file(&temp_path);
             }
 
@@ -237,24 +238,24 @@ pub async fn execute_export_destination(
 
             let temp_dir = std::env::temp_dir();
             let temp_path = temp_dir.join(format!("beefcake_db_push_{}.csv", Uuid::new_v4()));
-            temp_files.push(temp_path.clone());
+            temp_files.add(temp_path.clone());
 
             beefcake::utils::log_event("Export", "Sinking to temp CSV for database push...");
 
             lf.sink_csv(&temp_path, Default::default(), None)
-                .map_err(|e| format!("Failed to prepare database push: {e}"))?;
+                .context("Failed to prepare database push")?;
 
             // Resolve connection and call flow
             let config = beefcake::utils::load_app_config();
             let conn = config
-                .connections
+                .settings.connections
                 .iter()
                 .find(|c| c.id == connection_id)
-                .ok_or_else(|| "Connection not found".to_string())?;
+                .ok_or_else(|| BeefcakeError::Database("Connection not found".to_string()))?;
 
             let url = conn.settings.connection_string(&connection_id);
             let opts = sqlx::postgres::PgConnectOptions::from_str(&url)
-                .map_err(|e| format!("Invalid connection URL: {e}"))?;
+                .context("Invalid connection URL")?;
 
             beefcake::analyser::logic::flows::push_to_db_flow(
                 temp_path,
@@ -264,17 +265,17 @@ pub async fn execute_export_destination(
                 options.configs.clone(),
             )
             .await
-            .map_err(|e| e.to_string())
+            .map_err(BeefcakeError::from)
         }
     }
 }
 
 pub async fn export_data_execution(
     options: ExportOptions,
-    temp_files: &mut Vec<PathBuf>,
-) -> Result<(), String> {
+    temp_files: &mut beefcake::utils::TempFileCollection,
+) -> Result<()> {
     if beefcake::utils::is_aborted() {
-        return Err("Operation aborted by user".to_string());
+        return Err(BeefcakeError::Aborted);
     }
 
     beefcake::utils::log_event(
@@ -296,10 +297,10 @@ pub async fn export_data_execution(
             "Step 2/3: Applying optimized streaming cleaning pipeline...",
         );
         lf = beefcake::analyser::logic::clean_df_lazy(lf, &options.configs, false)
-            .map_err(|e| format!("Failed to apply cleaning: {e}"))?;
+            .context("Failed to apply cleaning")?;
 
         if beefcake::utils::is_aborted() {
-            return Err("Operation aborted by user".to_string());
+            return Err(BeefcakeError::Aborted);
         }
     }
 
@@ -307,7 +308,7 @@ pub async fn export_data_execution(
     execute_export_destination(&options, lf, temp_files).await?;
 
     if beefcake::utils::is_aborted() {
-        return Err("Operation aborted by user".to_string());
+        return Err(BeefcakeError::Aborted);
     }
 
     Ok(())

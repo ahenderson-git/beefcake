@@ -53,7 +53,7 @@ export class AnalyserComponent extends Component {
     });
   }
 
-  bindEvents(state: AppState): void {
+  override bindEvents(state: AppState): void {
     if (!state.analysisResponse) return;
 
     // Expand/Collapse rows
@@ -131,8 +131,9 @@ export class AnalyserComponent extends Component {
         const action = target.dataset.action!;
         if (action === 'standardize-all' && state.analysisResponse) {
           state.analysisResponse.summary.forEach((s) => {
-            if (state.cleaningConfigs[s.name]) {
-              state.cleaningConfigs[s.name].new_name = s.standardized_name;
+            const config = state.cleaningConfigs[s.name];
+            if (config) {
+              config.new_name = s.standardized_name;
             }
           });
           this.actions.showToast("Headers standardized", "success");

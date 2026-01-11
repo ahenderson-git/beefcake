@@ -99,7 +99,8 @@ fn test_histogram_streaming_large() -> Result<()> {
 
     assert!(!histogram.is_empty(), "Histogram should not be empty");
     let total_count: usize = histogram.iter().map(|h| h.1).sum();
-    assert_eq!(total_count, 100_000);
+    // Updated expectation: get_adaptive_sample_size() now caps at 10k for memory efficiency
+    assert_eq!(total_count, 10_000);
     assert!(bin_width > 0.0);
 
     Ok(())

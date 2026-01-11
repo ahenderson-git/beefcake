@@ -44,7 +44,7 @@ export class SQLComponent extends Component {
     }
   }
 
-  bindEvents(state: AppState): void {
+  override bindEvents(state: AppState): void {
     document.getElementById('btn-run-sql')?.addEventListener('click', () => this.runSql(state));
     document.getElementById('btn-clear-sql')?.addEventListener('click', () => {
       const output = document.getElementById('sql-output');
@@ -55,8 +55,14 @@ export class SQLComponent extends Component {
     document.getElementById('btn-dec-font-sql')?.addEventListener('click', () => this.updateFontSize(state, -1));
     document.getElementById('btn-load-sql')?.addEventListener('click', () => this.handleLoadScript());
     document.getElementById('btn-save-sql')?.addEventListener('click', () => this.handleSaveScript());
+    document.getElementById('btn-install-polars')?.addEventListener('click', () => this.handleInstallPolars());
     document.getElementById('btn-sql-docs')?.addEventListener('click', () => {
       window.open('https://docs.pola.rs/user-guide/sql/intro/', '_blank');
+    });
+    document.getElementById('btn-copy-output-sql')?.addEventListener('click', () => this.handleCopyOutput());
+    document.getElementById('sql-skip-cleaning')?.addEventListener('change', (e) => {
+      state.sqlSkipCleaning = (e.target as HTMLInputElement).checked;
+      this.actions.onStateChange();
     });
   }
 
@@ -119,14 +125,43 @@ export class SQLComponent extends Component {
 
     output.textContent = 'Executing query...';
     try {
-      output.innerHTML = await api.runSql(query, dataPath, state.cleaningConfigs);
+      const configs = state.sqlSkipCleaning ? undefined : state.cleaningConfigs;
+      const result = await api.runSql(query, dataPath, configs);
+      // Display result as plain text with horizontal scrolling
+      output.textContent = result;
     } catch (err) {
       let errorMsg = String(err);
       if (errorMsg.includes("ModuleNotFoundError: No module named 'polars'")) {
-        errorMsg += "\n\nTip: Click the 'Install Polars' button in the Python IDE toolbar to install the required library.";
+        errorMsg += "\n\nTip: Click the 'Install Polars' button in the SQL IDE toolbar to install the required library.";
       }
       output.textContent = errorMsg;
     }
+  }
+
+  private async handleInstallPolars() {
+    const output = document.getElementById('sql-output');
+    if (!output) return;
+
+    output.textContent = 'Installing polars package...\n';
+    try {
+      const result = await api.installPythonPackage('polars');
+      output.textContent = result;
+      this.actions.showToast('Polars installed successfully', 'success');
+    } catch (err) {
+      output.textContent = `Installation failed:\n${err}`;
+      this.actions.showToast('Installation failed', 'error');
+    }
+  }
+
+  private handleCopyOutput() {
+    const output = document.getElementById('sql-output');
+    if (!output) return;
+
+    const text = output.textContent || '';
+    navigator.clipboard.writeText(text).then(
+      () => this.actions.showToast('Output copied to clipboard', 'success'),
+      () => this.actions.showToast('Failed to copy output', 'error')
+    );
   }
 
   private async handleExport(state: AppState) {

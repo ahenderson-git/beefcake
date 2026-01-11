@@ -37,7 +37,9 @@ class BeefcakeApp {
     trimPct: 0.1,
     config: null,
     pythonScript: null,
-    sqlScript: null
+    sqlScript: null,
+    pythonSkipCleaning: true,
+    sqlSkipCleaning: true
   };
 
   private components: Partial<Record<View, Component>> = {};

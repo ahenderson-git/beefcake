@@ -175,6 +175,8 @@ export interface AppState {
   trimPct: number;
   pythonScript: string | null;
   sqlScript: string | null;
+  pythonSkipCleaning: boolean;
+  sqlSkipCleaning: boolean;
 }
 
 export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConfig {

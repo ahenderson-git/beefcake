@@ -682,6 +682,34 @@ td {
   gap: var(--spacing-small);
 }
 
+.toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.toggle-label:hover {
+  background: #e8e8e8;
+}
+
+.toggle-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.toggle-label span {
+  font-weight: 500;
+  color: #555;
+}
+
 .ide-editor {
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -719,8 +747,8 @@ td {
   font-family: 'Fira Code', monospace;
   font-size: 0.85rem;
   overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
+  white-space: pre;
+  word-break: normal;
 }
 
 /* Polars HTML output styling inside IDE output */
@@ -751,6 +779,78 @@ td {
 
 .output-content tr:hover {
     background-color: #2a2a2a;
+}
+
+/* Enhanced output styling for rich content */
+.output-content a {
+    color: #4dabf7;
+    text-decoration: underline;
+}
+
+.output-content a:hover {
+    color: #74c0fc;
+}
+
+/* Better scrollbar for output */
+.output-content::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.output-content::-webkit-scrollbar-track {
+    background: #1e1e1e;
+}
+
+.output-content::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.output-content::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* Better contrast for numbers and values in output */
+.output-content .numeric-value {
+    color: #b392f0;
+    font-weight: 500;
+}
+
+/* Improve readability of boolean/null values */
+.output-content .bool-true {
+    color: #73d13d;
+}
+
+.output-content .bool-false {
+    color: #ff7875;
+}
+
+.output-content .null-value {
+    color: #8c8c8c;
+    font-style: italic;
+}
+
+/* Better table styling for large datasets */
+.output-content table.dataframe,
+.output-content table.df-table {
+    font-size: 0.8rem;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.output-content table.dataframe td,
+.output-content table.df-table td {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.output-content table.dataframe td:hover,
+.output-content table.df-table td:hover {
+    overflow: visible;
+    white-space: normal;
+    word-wrap: break-word;
 }
 
 .ide-sidebar {

@@ -12,7 +12,7 @@ export class ReferenceComponent extends Component {
     this.bindEvents(state);
   }
 
-  bindEvents(_state: AppState): void {
+  override bindEvents(_state: AppState): void {
     // No specific events for now, just static content with links
   }
 }

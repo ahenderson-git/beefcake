@@ -54,6 +54,16 @@ const result = await invoke("analyze_file", { path: "/path/to/file.csv" });
 
 ## Troubleshooting
 
+### "npm : The term 'npm' is not recognized"
+If you see an error saying `npm` is not recognized, it means Node.js is not in your system's PATH.
+
+1. **Check if Node.js is installed**: Download and install it from [nodejs.org](https://nodejs.org/).
+2. **Restart your terminal**: Close and reopen PowerShell, CMD, or VS Code to refresh environment variables.
+3. **Use the Helper Script**: We've included a helper script that tries to find `npm` even if it's not in your PATH:
+   ```powershell
+   .\build-frontend.ps1
+   ```
+
 ### "127.0.0.1 / localhost refused to connect"
 This happens if the Vite development server is not running or is unreachable from the Tauri WebView.
 

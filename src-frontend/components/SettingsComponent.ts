@@ -14,7 +14,7 @@ export class SettingsComponent extends Component {
     this.bindEvents(state);
   }
 
-  bindEvents(state: AppState): void {
+  override bindEvents(state: AppState): void {
     if (state.isAddingConnection) {
       document.getElementById('btn-save-new-conn')?.addEventListener('click', () => {
         this.saveNewConnection(state);

@@ -1,55 +1,90 @@
 import { Component, ComponentActions } from "./Component";
-import { AppState } from "../types";
+import { AppState, ExportSource } from "../types";
 import * as renderers from "../renderers";
 import * as api from "../api";
 import * as monaco from 'monaco-editor';
 import { ExportModal } from "./ExportModal";
+import { AnsiUp } from 'ansi_up';
+
+const DEFAULT_PYTHON_SCRIPT = `# Python script
+import os
+import polars as pl
+
+# Note: Beefcake passes the currently analyzed dataset as BEEFCAKE_DATA_PATH.
+# For large datasets, use "scan_*" (Lazy) instead of "read_*" to avoid OOM crashes.
+
+data_path = os.environ.get("BEEFCAKE_DATA_PATH")
+if data_path:
+    print(f"Loading data from: {data_path}")
+    # Handle both raw files (CSV/JSON) and prepared files (Parquet)
+    if data_path.endswith(".parquet"):
+        df = pl.scan_parquet(data_path)
+    elif data_path.endswith(".json"):
+        df = pl.read_json(data_path).lazy()
+    else:
+        df = pl.scan_csv(data_path, try_parse_dates=True)
+
+    if df is not None:
+        print("Lazy Dataset initialized successfully!")
+        # Use .collect() only when you need the actual data (e.g. for preview or final export)
+        # For 10M+ rows, ALWAYS use .limit() or .sample() before .collect() for previews.
+        preview = df.head(10).collect()
+        print(f"Schema: {df.schema}")
+        print(preview)
+
+        # 🎨 TIP: For fancy colored output, install 'rich':
+        #   pip install rich
+        # Then use:
+        #   from rich.console import Console
+        #   console = Console(force_terminal=True)
+        #   console.print(df, style="bold cyan")
+        #   console.print("[green]✓[/green] Success!")
+else:
+    print("No dataset loaded in Beefcake.")
+    print("Tip: Load a file in the Analyser first.")`;
 
 export class PythonComponent extends Component {
   private editor: monaco.editor.IStandaloneCodeEditor | null = null;
+  private ansiConverter: AnsiUp;
 
   constructor(containerId: string, actions: ComponentActions) {
     super(containerId, actions);
+    this.ansiConverter = new AnsiUp();
+    // Configure ANSI converter for better output
+    this.ansiConverter.use_classes = false; // Use inline styles for portability
   }
 
   render(state: AppState): void {
     this.container.innerHTML = renderers.renderPythonView(state);
-    this.initMonaco(state);
-    this.bindEvents(state);
-    this.bindSidebarEvents();
+    // Use setTimeout to ensure DOM is fully ready before initializing Monaco
+    setTimeout(() => {
+      this.initMonaco(state);
+      this.bindEvents(state);
+      this.bindSidebarEvents();
+    }, 0);
   }
 
   private initMonaco(state: AppState) {
     const editorContainer = document.getElementById('py-editor');
-    if (editorContainer) {
-      const defaultValue = '# Python script\n' +
-        'import os\n' +
-        'import polars as pl\n\n' +
-        '# Note: Beefcake passes the currently analyzed dataset as BEEFCAKE_DATA_PATH.\n' +
-        '# For large datasets, use "scan_*" (Lazy) instead of "read_*" to avoid OOM crashes.\n\n' +
-        'data_path = os.environ.get("BEEFCAKE_DATA_PATH")\n' +
-        'if data_path:\n' +
-        '    print(f"Loading data from: {data_path}")\n' +
-        '    # Handle both raw files (CSV/JSON) and prepared files (Parquet)\n' +
-        '    if data_path.endswith(".parquet"):\n' +
-        '        df = pl.scan_parquet(data_path)\n' +
-        '    elif data_path.endswith(".json"):\n' +
-        '        df = pl.read_json(data_path).lazy()\n' +
-        '    else:\n' +
-        '        df = pl.scan_csv(data_path, try_parse_dates=True)\n\n' +
-        '    if df is not None:\n' +
-        '        print("Lazy Dataset initialized successfully!")\n' +
-        '        # Use .collect() only when you need the actual data (e.g. for preview or final export)\n' +
-        '        # For 10M+ rows, ALWAYS use .limit() or .sample() before .collect() for previews.\n' +
-        '        preview = df.head(10).collect()\n' +
-        '        print(f"Schema: {df.schema}")\n' +
-        '        print(preview)\n' +
-        'else:\n' +
-        '    print("No dataset loaded in Beefcake.")\n' +
-        '    print("Tip: Load a file in the Analyser first.")';
+    if (!editorContainer) {
+      console.error('PythonComponent: py-editor container not found');
+      return;
+    }
 
+    // Dispose old editor if it exists to prevent memory leaks
+    if (this.editor) {
+      try {
+        this.editor.dispose();
+      } catch (e) {
+        console.warn('Failed to dispose Monaco editor:', e);
+      }
+      this.editor = null;
+    }
+
+    try {
+      // Create new editor instance
       this.editor = monaco.editor.create(editorContainer, {
-        value: state.pythonScript || defaultValue,
+        value: state.pythonScript || DEFAULT_PYTHON_SCRIPT,
         language: 'python',
         theme: 'vs-dark',
         automaticLayout: true,
@@ -62,10 +97,14 @@ export class PythonComponent extends Component {
       this.editor.onDidChangeModelContent(() => {
         state.pythonScript = this.editor?.getValue() || null;
       });
+
+      console.log('Monaco editor created successfully');
+    } catch (e) {
+      console.error('Failed to create Monaco editor:', e);
     }
   }
 
-  bindEvents(state: AppState): void {
+  override bindEvents(state: AppState): void {
     document.getElementById('btn-run-py')?.addEventListener('click', () => this.runPython(state));
     document.getElementById('btn-clear-py')?.addEventListener('click', () => {
       const output = document.getElementById('py-output');
@@ -77,6 +116,10 @@ export class PythonComponent extends Component {
     document.getElementById('btn-load-py')?.addEventListener('click', () => this.handleLoadScript());
     document.getElementById('btn-save-py')?.addEventListener('click', () => this.handleSaveScript());
     document.getElementById('btn-install-polars')?.addEventListener('click', () => this.handleInstallPolars());
+    document.getElementById('btn-copy-output-py')?.addEventListener('click', () => this.handleCopyOutput());
+    document.getElementById('py-skip-cleaning')?.addEventListener('change', (e) => {
+      state.pythonSkipCleaning = (e.target as HTMLInputElement).checked;
+    });
   }
 
   private bindSidebarEvents() {
@@ -153,24 +196,35 @@ export class PythonComponent extends Component {
 
     output.textContent = 'Running script...';
     try {
-      output.innerHTML = await api.runPython(script, dataPath, state.cleaningConfigs);
+      // Use cleaning configs only if skip cleaning is disabled
+      const configs = state.pythonSkipCleaning ? undefined : state.cleaningConfigs;
+      const result = await api.runPython(script, dataPath, configs);
+      // Convert ANSI escape codes to HTML for colored output
+      const htmlOutput = this.ansiConverter.ansi_to_html(result);
+      output.innerHTML = htmlOutput;
     } catch (err) {
       let errorMsg = String(err);
       if (errorMsg.includes("ModuleNotFoundError: No module named 'polars'")) {
         errorMsg += "\n\nTip: Click the 'Install Polars' button in the toolbar to install the required library.";
       }
-      output.textContent = errorMsg;
+      // Also convert errors to HTML (they might have ANSI codes too)
+      const htmlError = this.ansiConverter.ansi_to_html(errorMsg);
+      output.innerHTML = htmlError;
     }
   }
 
   private async handleExport(state: AppState) {
     if (!this.editor) return;
 
-    const modal = new ExportModal('modal-container', this.actions, {
+    const source: ExportSource = {
       type: 'Python',
       content: this.editor.getValue(),
-      path: state.analysisResponse?.path
-    });
+    };
+    if (state.analysisResponse?.path) {
+      source.path = state.analysisResponse.path;
+    }
+
+    const modal = new ExportModal('modal-container', this.actions, source);
 
     document.getElementById('modal-container')?.classList.add('active');
     await modal.show(state);
@@ -213,6 +267,26 @@ export class PythonComponent extends Component {
       }
     } catch (err) {
       this.actions.showToast(`Error saving script: ${err}`, 'error');
+    }
+  }
+
+  private async handleCopyOutput() {
+    const output = document.getElementById('py-output');
+    if (!output) return;
+
+    try {
+      // Get plain text content (strips HTML/ANSI formatting)
+      const text = output.textContent || '';
+
+      if (!text || text === 'Running script...') {
+        this.actions.showToast('No output to copy', 'info');
+        return;
+      }
+
+      await navigator.clipboard.writeText(text);
+      this.actions.showToast('Output copied to clipboard', 'success');
+    } catch (err) {
+      this.actions.showToast(`Failed to copy: ${err}`, 'error');
     }
   }
 }

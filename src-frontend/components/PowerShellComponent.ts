@@ -33,7 +33,7 @@ export class PowerShellComponent extends Component {
     }
   }
 
-  bindEvents(state: AppState): void {
+  override bindEvents(state: AppState): void {
     document.getElementById('btn-run-ps')?.addEventListener('click', () => this.runPowerShell());
     document.getElementById('btn-clear-ps')?.addEventListener('click', () => {
       const output = document.getElementById('ps-output');

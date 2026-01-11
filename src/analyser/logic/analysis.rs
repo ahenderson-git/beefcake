@@ -13,6 +13,7 @@ pub fn run_full_analysis_streaming(
     path: String,
     file_size: u64,
     total_row_count: usize,
+    sampled_row_count: usize,
     trim_pct: f64,
     start_time: std::time::Instant,
 ) -> Result<AnalysisResponse> {
@@ -23,7 +24,7 @@ pub fn run_full_analysis_streaming(
     // Collect a small sample for the response (e.g. 100 rows)
     let df = lf.limit(100).collect()?;
 
-    let row_count = total_row_count;
+    let row_count = sampled_row_count;
     let column_count = df.width();
     let file_name = std::path::Path::new(&path)
         .file_name()
@@ -51,10 +52,11 @@ pub fn run_full_analysis(
     path: String,
     file_size: u64,
     total_row_count: usize,
+    sampled_row_count: usize,
     trim_pct: f64,
     start_time: std::time::Instant,
 ) -> Result<AnalysisResponse> {
-    run_full_analysis_streaming(lf, path, file_size, total_row_count, trim_pct, start_time)
+    run_full_analysis_streaming(lf, path, file_size, total_row_count, sampled_row_count, trim_pct, start_time)
 }
 
 pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
@@ -599,7 +601,7 @@ pub fn compute_categorical_stats(
         }
     }
 
-    if sample_uniques as usize > MAX_UNIQUE_TRACKED {
+    if sample_uniques > MAX_UNIQUE_TRACKED {
         freq.insert("__TRUNCATED__".to_string(), 1);
     }
 

@@ -126,7 +126,8 @@ function getMeanOrMode(col: ColumnSummary): string {
   if (col.stats.Categorical) {
     const entries = Object.entries(col.stats.Categorical);
     if (entries.length === 0) return 'N/A';
-    return entries.sort((a, b) => b[1] - a[1])[0][0];
+    const firstEntry = entries.sort((a, b) => b[1] - a[1])[0];
+    return firstEntry ? firstEntry[0] : 'N/A';
   }
   if (col.stats.Boolean) return col.stats.Boolean.true_count >= col.stats.Boolean.false_count ? 'True' : 'False';
   return 'N/A';

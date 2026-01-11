@@ -13,7 +13,7 @@ export class DashboardComponent extends Component {
     this.bindEvents(state);
   }
 
-  bindEvents(_state: AppState): void {
+  override bindEvents(_state: AppState): void {
     document.getElementById('btn-open-file')?.addEventListener('click', () => {
       this.handleOpenFile();
     });

@@ -2,6 +2,7 @@ use anyhow::{Context as _, Result};
 use beefcake::analyser::logic::types::ColumnCleanConfig;
 use beefcake::analyser::logic::*;
 use clap::{Parser, Subcommand};
+use polars::prelude::*;
 use sqlx::postgres::PgConnectOptions;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -12,6 +13,37 @@ use std::str::FromStr as _;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
+}
+
+/// Context object for CLI operations, holding shared application state.
+struct CliContext {
+    app_config: beefcake::utils::AppConfig,
+}
+
+impl CliContext {
+    fn new() -> Self {
+        Self {
+            app_config: beefcake::utils::load_app_config(),
+        }
+    }
+
+    /// Resolve database URL from explicit parameter or config.
+    fn resolve_db_url(&self, explicit_url: Option<String>, config_id: Option<String>) -> Result<String> {
+        if let Some(url) = explicit_url {
+            return Ok(url);
+        }
+
+        if let Some(id) = config_id {
+            return self.app_config
+                .settings.connections
+                .iter()
+                .find(|c| c.id == id)
+                .map(|c| c.settings.connection_string(&c.id))
+                .ok_or_else(|| anyhow::anyhow!("Connection with ID '{id}' not found in config"));
+        }
+
+        anyhow::bail!("No database URL provided and no active connection set")
+    }
 }
 
 #[derive(Subcommand)]
@@ -84,7 +116,6 @@ pub enum Commands {
     },
 }
 
-#[expect(clippy::too_many_lines)]
 pub async fn run_command(command: Commands) -> Result<()> {
     match command {
         Commands::Import {
@@ -119,19 +150,14 @@ async fn handle_import(
     clean: bool,
     config_path: Option<PathBuf>,
 ) -> Result<()> {
-    let file = match file {
-        Some(f) => f,
-        None => get_default_input_file()?,
-    };
-
-    let table = match table {
-        Some(t) => t,
-        None => file
-            .file_stem()
-            .ok_or_else(|| anyhow::anyhow!("Invalid file name"))?
+    let ctx = CliContext::new();
+    let file = file.unwrap_or(get_default_input_file()?);
+    let table = table.unwrap_or_else(|| {
+        file.file_stem()
+            .unwrap_or_default()
             .to_string_lossy()
-            .to_string(),
-    };
+            .to_string()
+    });
 
     println!(
         "Importing {0} into table {schema}.{table} (streaming)...",
@@ -139,149 +165,50 @@ async fn handle_import(
     );
 
     let lf = load_df_lazy(&file).context("Failed to load dataframe lazily")?;
+    let configs = resolve_cleaning_config(config_path, clean, lf.clone())?;
 
-    let configs = if let Some(config_path) = config_path {
-        println!("Loading config from {}...", config_path.display());
-        load_config(&config_path)?
-    } else if clean {
-        println!("Auto-cleaning (sampling 500k rows for analysis)...");
-        flows::generate_auto_clean_configs(lf.clone())?
-    } else {
-        HashMap::new()
-    };
-
-    let config = beefcake::utils::load_app_config();
-    let effective_url = if let Some(url) = db_url {
-        url
-    } else if let Some(id) = config.active_import_id {
-        config
-            .connections
-            .iter()
-            .find(|c| c.id == id)
-            .map(|c| c.settings.connection_string(&c.id))
-            .ok_or_else(|| anyhow::anyhow!("Active import connection not found in config"))?
-    } else {
-        anyhow::bail!("No database URL provided and no active import connection set.");
-    };
-
-    let opts =
-        PgConnectOptions::from_str(&effective_url).context("Failed to parse database URL")?;
+    let effective_url = ctx.resolve_db_url(db_url, ctx.app_config.settings.active_import_id.clone())?;
+    let opts = PgConnectOptions::from_str(&effective_url).context("Failed to parse database URL")?;
 
     flows::push_to_db_flow(file.clone(), opts, schema, table, configs).await?;
 
     println!("Successfully imported.");
-
-    // Archive
-    let archived = beefcake::utils::archive_processed_file(&file)?;
-    println!("File archived to: {}", archived.display());
+    archive_and_log(&file, "File archived to")?;
     Ok(())
 }
 
 async fn handle_export(
     input: Option<String>,
     output: Option<PathBuf>,
-    db_url: Option<String>,
+    _db_url: Option<String>,
     _schema: String,
     clean: bool,
     config_path: Option<PathBuf>,
 ) -> Result<()> {
-    let config_data = beefcake::utils::load_app_config();
-    let _effective_url = if let Some(url) = db_url {
-        Some(url)
-    } else if let Some(id) = config_data.active_export_id {
-        config_data
-            .connections
-            .iter()
-            .find(|c| c.id == id)
-            .map(|c| c.settings.connection_string(&c.id))
-    } else {
-        None
-    };
+    let input_path = input.map(PathBuf::from).unwrap_or(get_default_input_file()?);
 
-    let input_path = match input {
-        Some(i) => PathBuf::from(i),
-        None => get_default_input_file()?,
-    };
-
-    let output_path = if let Some(o) = output {
-        o
-    } else {
-        let stem = input_path.file_stem().unwrap_or_default().to_string_lossy();
-        PathBuf::from(format!(
-            "{}/exported_{stem}.parquet",
-            beefcake::utils::DATA_PROCESSED_DIR
-        ))
-    };
-
-    if input_path.exists() {
-        println!(
-            "Converting {0} to {1} (lazily)...",
-            input_path.display(),
-            output_path.display()
-        );
-
-        let lf = load_df_lazy(&input_path).context("Failed to load input file lazily")?;
-
-        let configs = if let Some(config_path) = config_path {
-            println!("Loading config from {}...", config_path.display());
-            load_config(&config_path)?
-        } else if clean {
-            println!("Auto-cleaning (sampling 500k rows for analysis)...");
-            flows::generate_auto_clean_configs(lf.clone())?
-        } else {
-            HashMap::new()
-        };
-
-        println!("Applying transformations...");
-        let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
-
-        let ext = output_path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        match ext.as_str() {
-            "parquet" => {
-                let options = get_parquet_write_options(&cleaned_lf)?;
-                if let Some(rgs) = options.row_group_size {
-                    println!(
-                        "Streaming to parquet: {} (adaptive row group size: {})...",
-                        output_path.display(),
-                        rgs
-                    );
-                } else {
-                    println!("Streaming to parquet: {}...", output_path.display());
-                }
-
-                cleaned_lf
-                    .with_streaming(true)
-                    .sink_parquet(&output_path, options, None)
-                    .context("Failed to sink to parquet")?;
-            }
-            "csv" => {
-                println!("Streaming to csv: {}...", output_path.display());
-                cleaned_lf
-                    .with_streaming(true)
-                    .sink_csv(&output_path, Default::default(), None)
-                    .context("Failed to sink to csv")?;
-            }
-            _ => {
-                println!("Collecting and saving to {}...", output_path.display());
-                let mut df = cleaned_lf
-                    .collect()
-                    .context("Failed to collect data for export")?;
-                save_df(&mut df, &output_path).context("Failed to save output file")?;
-            }
-        }
-
-        println!("Successfully exported.");
-
-        // Archive
-        let archived = beefcake::utils::archive_processed_file(&input_path)?;
-        println!("Input file archived to: {}", archived.display());
-    } else {
+    if !input_path.exists() {
         anyhow::bail!("Input file not found. Table export from DB is not yet implemented.");
     }
+
+    let output_path = output.unwrap_or_else(|| get_default_output_path(&input_path, "exported", "parquet"));
+
+    println!(
+        "Converting {0} to {1} (lazily)...",
+        input_path.display(),
+        output_path.display()
+    );
+
+    let lf = load_df_lazy(&input_path).context("Failed to load input file lazily")?;
+    let configs = resolve_cleaning_config(config_path, clean, lf.clone())?;
+
+    println!("Applying transformations...");
+    let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
+
+    sink_to_file(cleaned_lf, &output_path)?;
+
+    println!("Successfully exported.");
+    archive_and_log(&input_path, "Input file archived to")?;
     Ok(())
 }
 
@@ -290,20 +217,8 @@ async fn handle_clean(
     output: Option<PathBuf>,
     config_path: Option<PathBuf>,
 ) -> Result<()> {
-    let input_file = match file {
-        Some(f) => f,
-        None => get_default_input_file()?,
-    };
-
-    let output_file = if let Some(o) = output {
-        o
-    } else {
-        let stem = input_file.file_stem().unwrap_or_default().to_string_lossy();
-        PathBuf::from(format!(
-            "{}/cleaned_{stem}.parquet",
-            beefcake::utils::DATA_PROCESSED_DIR
-        ))
-    };
+    let input_file = file.unwrap_or(get_default_input_file()?);
+    let output_file = output.unwrap_or_else(|| get_default_output_path(&input_file, "cleaned", "parquet"));
 
     println!(
         "Cleaning {0} and saving to {1} (lazily)...",
@@ -313,69 +228,25 @@ async fn handle_clean(
 
     let lf = load_df_lazy(&input_file).context("Failed to load input file lazily")?;
 
-    let configs = if let Some(cp) = config_path {
-        println!("Loading config from {}...", cp.display());
-        load_config(&cp)?
-    } else {
-        println!("Auto-cleaning (sampling 500k rows for analysis)...");
-        flows::generate_auto_clean_configs(lf.clone())?
-    };
-
+    // For clean command, always auto-clean if no config provided
+    let configs = resolve_cleaning_config(config_path, true, lf.clone())?;
     let cleaned_lf = clean_df_lazy(lf, &configs, true)?;
 
-    let ext = output_file
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    match ext.as_str() {
-        "parquet" => {
-            let options = get_parquet_write_options(&cleaned_lf)?;
-            if let Some(rgs) = options.row_group_size {
-                println!(
-                    "Streaming to parquet: {} (adaptive row group size: {})...",
-                    output_file.display(),
-                    rgs
-                );
-            } else {
-                println!("Streaming to parquet: {}...", output_file.display());
-            }
-
-            cleaned_lf
-                .with_streaming(true)
-                .sink_parquet(&output_file, options, None)
-                .context("Failed to sink to parquet")?;
-        }
-        "csv" => {
-            println!("Streaming to csv: {}...", output_file.display());
-            cleaned_lf
-                .with_streaming(true)
-                .sink_csv(&output_file, Default::default(), None)
-                .context("Failed to sink to csv")?;
-        }
-        _ => {
-            println!("Collecting and saving to {}...", output_file.display());
-            let mut df = cleaned_lf
-                .collect()
-                .context("Failed to collect data for saving")?;
-            save_df(&mut df, &output_file).context("Failed to save cleaned file")?;
-        }
-    }
+    sink_to_file(cleaned_lf, &output_file)?;
 
     println!("Successfully cleaned.");
-
-    // Archive
-    let archived = beefcake::utils::archive_processed_file(&input_file)?;
-    println!("Original file archived to: {}", archived.display());
+    archive_and_log(&input_file, "Original file archived to")?;
     Ok(())
 }
 
+/// Load cleaning configuration from a JSON file.
 fn load_config(path: &PathBuf) -> Result<HashMap<String, ColumnCleanConfig>> {
     let content = std::fs::read_to_string(path)
         .context(format!("Failed to read config file: {}", path.display()))?;
     serde_json::from_str(&content).context("Failed to parse JSON config")
 }
 
+/// Get the first file from the default input directory.
 fn get_default_input_file() -> Result<PathBuf> {
     let mut entries = std::fs::read_dir(beefcake::utils::DATA_INPUT_DIR)
         .context(format!(
@@ -392,6 +263,80 @@ fn get_default_input_file() -> Result<PathBuf> {
             beefcake::utils::DATA_INPUT_DIR
         )
     })
+}
+
+/// Resolve cleaning configuration from config path or auto-cleaning flag.
+fn resolve_cleaning_config(
+    config_path: Option<PathBuf>,
+    auto_clean: bool,
+    lf: LazyFrame,
+) -> Result<HashMap<String, ColumnCleanConfig>> {
+    if let Some(path) = config_path {
+        println!("Loading config from {}...", path.display());
+        load_config(&path)
+    } else if auto_clean {
+        println!("Auto-cleaning (sampling 500k rows for analysis)...");
+        flows::generate_auto_clean_configs(lf)
+    } else {
+        Ok(HashMap::new())
+    }
+}
+
+/// Generate default output path in the processed directory.
+fn get_default_output_path(input_path: &PathBuf, prefix: &str, extension: &str) -> PathBuf {
+    let stem = input_path.file_stem().unwrap_or_default().to_string_lossy();
+    PathBuf::from(format!(
+        "{}/{prefix}_{stem}.{extension}",
+        beefcake::utils::DATA_PROCESSED_DIR
+    ))
+}
+
+/// Sink a LazyFrame to a file with appropriate format handling.
+fn sink_to_file(lf: LazyFrame, output_path: &PathBuf) -> Result<()> {
+    let ext = output_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "parquet" => {
+            let options = get_parquet_write_options(&lf)?;
+            if let Some(rgs) = options.row_group_size {
+                println!(
+                    "Streaming to parquet: {} (adaptive row group size: {})...",
+                    output_path.display(),
+                    rgs
+                );
+            } else {
+                println!("Streaming to parquet: {}...", output_path.display());
+            }
+
+            lf.with_streaming(true)
+                .sink_parquet(output_path, options, None)
+                .context("Failed to sink to parquet")?;
+        }
+        "csv" => {
+            println!("Streaming to csv: {}...", output_path.display());
+            lf.with_streaming(true)
+                .sink_csv(output_path, Default::default(), None)
+                .context("Failed to sink to csv")?;
+        }
+        _ => {
+            println!("Collecting and saving to {}...", output_path.display());
+            let mut df = lf.collect().context("Failed to collect data for saving")?;
+            save_df(&mut df, output_path).context("Failed to save file")?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Archive the input file and print the result.
+fn archive_and_log(input_path: &PathBuf, message: &str) -> Result<()> {
+    let archived = beefcake::utils::archive_processed_file(input_path)?;
+    println!("{message}: {}", archived.display());
+    Ok(())
 }
 
 #[cfg(test)]
