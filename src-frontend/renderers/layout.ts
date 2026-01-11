@@ -13,6 +13,9 @@ export function renderLayout(): string {
           <button class="nav-item" data-view="Analyser">
             <i class="ph ph-chart-bar"></i> Analyser
           </button>
+          <button class="nav-item" data-view="Lifecycle">
+            <i class="ph ph-git-branch"></i> Lifecycle
+          </button>
           <button class="nav-item" data-view="PowerShell">
             <i class="ph ph-terminal"></i> PowerShell
           </button>

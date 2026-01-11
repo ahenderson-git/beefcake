@@ -9,7 +9,8 @@ export class DashboardComponent extends Component {
   }
 
   render(state: AppState): void {
-    this.container.innerHTML = renderers.renderDashboardView(state);
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderDashboardView(state);
     this.bindEvents(state);
   }
 

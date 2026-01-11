@@ -8,7 +8,8 @@ export class ReferenceComponent extends Component {
   }
 
   render(state: AppState): void {
-    this.container.innerHTML = renderers.renderReferenceView();
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderReferenceView();
     this.bindEvents(state);
   }
 

@@ -12,6 +12,8 @@ impl DbClient {
         let pool = PgPoolOptions::new()
             .max_connections(5)
             .acquire_timeout(std::time::Duration::from_secs(10))
+            .idle_timeout(Some(std::time::Duration::from_secs(300))) // Close idle connections after 5 minutes
+            .max_lifetime(Some(std::time::Duration::from_secs(1800))) // Recycle connections after 30 minutes
             .connect_with(options)
             .await
             .context("Failed to connect to PostgreSQL (timeout after 10s)")?;

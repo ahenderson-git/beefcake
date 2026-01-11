@@ -10,7 +10,8 @@ export class SettingsComponent extends Component {
 
   render(state: AppState): void {
     if (!state.config) return;
-    this.container.innerHTML = renderers.renderSettingsView(state.config, state.isAddingConnection);
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderSettingsView(state.config, state.isAddingConnection);
     this.bindEvents(state);
   }
 

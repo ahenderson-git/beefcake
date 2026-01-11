@@ -8,17 +8,22 @@ export interface ComponentActions {
 }
 
 export abstract class Component {
-  protected container: HTMLElement;
+  protected container: HTMLElement | null;
   protected actions: ComponentActions;
 
   constructor(containerId: string, actions: ComponentActions) {
-    const el = document.getElementById(containerId);
-    if (!el) throw new Error(`Container with id "${containerId}" not found`);
-    this.container = el;
+    this.container = document.getElementById(containerId);
     this.actions = actions;
   }
 
   abstract render(state: AppState): void;
+
+  protected getContainer(): HTMLElement {
+    if (!this.container) {
+      throw new Error(`Container not found for component`);
+    }
+    return this.container;
+  }
 
   // Optional method for components that need to bind their own events after rendering
   // By default it does nothing.

@@ -89,3 +89,55 @@ export async function saveFileDialog(filters?: { name: string, extensions: strin
     }]
   });
 }
+
+// ============================================================================
+// Dataset Lifecycle API
+// ============================================================================
+
+export async function createDataset(name: string, path: string): Promise<string> {
+  return await invoke("lifecycle_create_dataset", {
+    request: { name, path }
+  });
+}
+
+export async function applyTransforms(
+  datasetId: string,
+  pipelineJson: string,
+  stage: string
+): Promise<string> {
+  return await invoke("lifecycle_apply_transforms", {
+    request: { dataset_id: datasetId, pipeline_json: pipelineJson, stage }
+  });
+}
+
+export async function setActiveVersion(datasetId: string, versionId: string): Promise<void> {
+  await invoke("lifecycle_set_active_version", {
+    request: { dataset_id: datasetId, version_id: versionId }
+  });
+}
+
+export async function publishVersion(
+  datasetId: string,
+  versionId: string,
+  mode: 'view' | 'snapshot'
+): Promise<string> {
+  return await invoke("lifecycle_publish_version", {
+    request: { dataset_id: datasetId, version_id: versionId, mode }
+  });
+}
+
+export async function getVersionDiff(
+  datasetId: string,
+  version1Id: string,
+  version2Id: string
+): Promise<any> {
+  return await invoke("lifecycle_get_version_diff", {
+    request: { dataset_id: datasetId, version1_id: version1Id, version2_id: version2Id }
+  });
+}
+
+export async function listVersions(datasetId: string): Promise<string> {
+  return await invoke("lifecycle_list_versions", {
+    request: { dataset_id: datasetId }
+  });
+}

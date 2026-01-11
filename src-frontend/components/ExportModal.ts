@@ -23,7 +23,8 @@ export class ExportModal extends Component {
     const activeExportId = state.config?.active_export_id;
     const connections = state.config?.connections || [];
     
-    this.container.innerHTML = renderers.renderExportModal(
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderExportModal(
       this.source, 
       connections, 
       activeExportId, 
@@ -31,7 +32,7 @@ export class ExportModal extends Component {
       this.isExporting,
       this.isAborting
     );
-    this.container.classList.add('active');
+    container.classList.add('active');
     this.bindEvents(state);
   }
 
@@ -136,8 +137,9 @@ export class ExportModal extends Component {
   }
 
   private close(success: boolean) {
-    this.container.classList.remove('active');
-    this.container.innerHTML = '';
+    const container = this.getContainer();
+    container.classList.remove('active');
+    container.innerHTML = '';
     if (this.resolve) this.resolve(success);
   }
 

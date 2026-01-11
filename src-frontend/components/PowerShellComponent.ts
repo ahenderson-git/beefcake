@@ -12,7 +12,8 @@ export class PowerShellComponent extends Component {
   }
 
   render(state: AppState): void {
-    this.container.innerHTML = renderers.renderPowerShellView(state.config?.powershell_font_size || 14);
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderPowerShellView(state.config?.powershell_font_size || 14);
     this.initMonaco(state);
     this.bindEvents(state);
   }

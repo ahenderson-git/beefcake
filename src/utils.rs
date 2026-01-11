@@ -4,6 +4,7 @@ use secrecy::SecretString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 pub const DATA_INPUT_DIR: &str = "data/input";
 pub const DATA_PROCESSED_DIR: &str = "data/processed";
@@ -11,6 +12,11 @@ pub const KEYRING_SERVICE: &str = "com.beefcake.app";
 pub const KEYRING_PLACEHOLDER: &str = "__KEYRING__";
 
 pub static ABORT_SIGNAL: AtomicBool = AtomicBool::new(false);
+
+// Pending audit log entries that will be flushed periodically
+lazy_static::lazy_static! {
+    static ref PENDING_AUDIT_ENTRIES: Arc<Mutex<Vec<AuditEntry>>> = Arc::new(Mutex::new(Vec::new()));
+}
 
 pub fn is_aborted() -> bool {
     ABORT_SIGNAL.load(Ordering::SeqCst)
@@ -201,10 +207,45 @@ pub fn push_audit_log(config: &mut AppConfig, action: &str, details: &str) {
 }
 
 /// Loads config, adds an audit entry, and saves it.
+/// Uses debouncing to reduce I/O overhead - entries are queued and flushed periodically.
 pub fn log_event(action: &str, details: &str) {
+    // Add to pending queue instead of immediate write
+    if let Ok(mut pending) = PENDING_AUDIT_ENTRIES.lock() {
+        pending.push(AuditEntry {
+            timestamp: Local::now(),
+            action: action.to_owned(),
+            details: details.to_owned(),
+        });
+
+        // If we have accumulated 10+ entries, flush them
+        if pending.len() >= 10 {
+            flush_pending_audit_entries_internal(&mut pending);
+        }
+    }
+}
+
+/// Flush any pending audit entries to disk.
+/// This should be called periodically or before app shutdown.
+pub fn flush_pending_audit_entries() {
+    if let Ok(mut pending) = PENDING_AUDIT_ENTRIES.lock()
+        && !pending.is_empty() {
+        flush_pending_audit_entries_internal(&mut pending);
+    }
+}
+
+fn flush_pending_audit_entries_internal(pending: &mut Vec<AuditEntry>) {
+    if pending.is_empty() {
+        return;
+    }
+
     let mut config = load_app_config();
-    push_audit_log(&mut config, action, details);
-    let _ = save_app_config(&config);
+    for entry in pending.drain(..) {
+        let mut log = config.audit_log();
+        log.entries.push(entry);
+        config.set_audit_log(log);
+    }
+    // Intentionally ignore errors during shutdown - logging is best-effort
+    drop(save_app_config(&config));
 }
 
 pub fn get_config_path() -> PathBuf {

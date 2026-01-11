@@ -6,6 +6,7 @@ import "@fontsource/fira-code/500.css";
 import {
   View,
   AppState,
+  AppConfig,
   getDefaultColumnCleanConfig
 } from './types';
 
@@ -22,6 +23,8 @@ import { SettingsComponent } from './components/SettingsComponent';
 import { CliHelpComponent } from './components/CliHelpComponent';
 import { ActivityLogComponent } from './components/ActivityLogComponent';
 import { ReferenceComponent } from './components/ReferenceComponent';
+import { LifecycleComponent } from './components/LifecycleComponent';
+import { LifecycleRailComponent } from './components/LifecycleRailComponent';
 
 class BeefcakeApp {
   private state: AppState = {
@@ -39,10 +42,12 @@ class BeefcakeApp {
     pythonScript: null,
     sqlScript: null,
     pythonSkipCleaning: true,
-    sqlSkipCleaning: true
+    sqlSkipCleaning: true,
+    currentDataset: null
   };
 
   private components: Partial<Record<View, Component>> = {};
+  private lifecycleRail: LifecycleRailComponent | null = null;
 
   constructor() {
     this.init().catch(err => {
@@ -51,27 +56,52 @@ class BeefcakeApp {
   }
 
   async init() {
+    console.log('BeefcakeApp: Initializing...');
     this.renderInitialLayout();
 
     try {
-      [this.state.config, this.state.version] = await Promise.all([
-        api.loadAppConfig(),
-        api.getAppVersion()
-      ]);
+      console.log('BeefcakeApp: Loading initial data...');
+      // Set a timeout for the initial data load to prevent permanent hang
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Initialization timeout')), 5000)
+      );
+
+      const dataPromise = (async () => {
+        const config = await api.loadAppConfig();
+        console.log('BeefcakeApp: Config loaded');
+        const version = await api.getAppVersion();
+        console.log('BeefcakeApp: Version loaded');
+        return [config, version];
+      })();
+
+      const [config, version] = await Promise.race([dataPromise, timeoutPromise]) as [AppConfig, string];
+
+      this.state.config = config;
+      this.state.version = version;
+      console.log('BeefcakeApp: Data loaded successfully');
     } catch (err) {
-      console.error('Failed to load initial app data:', err);
+      console.error('BeefcakeApp: Failed to load initial app data:', err);
       // We still proceed so the UI renders, but we show a toast
       setTimeout(() => {
-        this.showToast('Initialization warning: Failed to load app config. Some features may be limited.', 'error');
+        this.showToast('Initialization error: ' + err, 'error');
       }, 1000);
     }
 
-    this.initComponents();
-    this.setupNavigation();
-    this.render();
-
-    // Hide loading screen after app is ready
-    this.hideLoadingScreen();
+    try {
+      console.log('BeefcakeApp: Initializing components...');
+      this.initComponents();
+      console.log('BeefcakeApp: Setting up navigation...');
+      this.setupNavigation();
+      console.log('BeefcakeApp: Rendering...');
+      this.render();
+      console.log('BeefcakeApp: Initialization complete');
+    } catch (err) {
+      console.error('BeefcakeApp: Error during component initialization:', err);
+    } finally {
+      // Hide loading screen after app is ready, even if there was an error
+      console.log('BeefcakeApp: Hiding loading screen');
+      this.hideLoadingScreen();
+    }
   }
 
   private hideLoadingScreen() {
@@ -109,8 +139,12 @@ class BeefcakeApp {
       'Settings': new SettingsComponent('view-container', actions),
       'CLI': new CliHelpComponent('view-container', actions),
       'ActivityLog': new ActivityLogComponent('view-container', actions),
-      'Reference': new ReferenceComponent('view-container', actions)
+      'Reference': new ReferenceComponent('view-container', actions),
+      'Lifecycle': new LifecycleComponent('view-container', actions)
     };
+
+    // Initialize lifecycle rail component
+    this.lifecycleRail = new LifecycleRailComponent('lifecycle-rail-container', actions);
   }
 
   private setupNavigation() {
@@ -137,6 +171,7 @@ class BeefcakeApp {
       else if (view === 'Python') title.innerText = 'Python IDE';
       else if (view === 'SQL') title.innerText = 'SQL IDE';
       else if (view === 'Reference') title.innerText = 'Reference Material';
+      else if (view === 'Lifecycle') title.innerText = 'Dataset Lifecycle';
       else title.innerText = view;
     }
 
@@ -144,9 +179,19 @@ class BeefcakeApp {
   }
 
   private render() {
-    const component = this.components[this.state.currentView];
-    if (component) {
-      component.render(this.state);
+    try {
+      const component = this.components[this.state.currentView];
+      if (component) {
+        component.render(this.state);
+      }
+
+      // Always render lifecycle rail if dataset is loaded and we're in analyser view
+      if (this.lifecycleRail && this.state.currentView === 'Analyser') {
+        console.log('Rendering lifecycle rail. currentDataset:', this.state.currentDataset);
+        this.lifecycleRail.render(this.state);
+      }
+    } catch (err) {
+      console.error('BeefcakeApp: Error during render:', err);
     }
   }
 
@@ -166,7 +211,34 @@ class BeefcakeApp {
       response.summary.forEach(col => {
         this.state.cleaningConfigs[col.name] = getDefaultColumnCleanConfig(col);
       });
-      
+
+      // Create lifecycle dataset from analysis
+      try {
+        console.log('Creating lifecycle dataset for:', response.file_name);
+        const datasetId = await api.createDataset(response.file_name, path);
+        console.log('Dataset created with ID:', datasetId);
+
+        const versionsJson = await api.listVersions(datasetId);
+        console.log('Versions JSON:', versionsJson);
+
+        const versions = JSON.parse(versionsJson);
+        console.log('Parsed versions:', versions);
+
+        this.state.currentDataset = {
+          id: datasetId,
+          name: response.file_name,
+          versions: versions,
+          activeVersionId: versions[0].id, // Raw version
+          rawVersionId: versions[0].id
+        };
+
+        console.log('Lifecycle dataset created successfully:', this.state.currentDataset);
+      } catch (lifecycleErr) {
+        console.error('Failed to create lifecycle dataset:', lifecycleErr);
+        this.showToast(`Lifecycle creation failed: ${lifecycleErr}`, 'error');
+        // Analysis still succeeds, just no lifecycle tracking
+      }
+
       this.state.isLoading = false;
       this.render();
       this.showToast('Analysis complete', 'success');

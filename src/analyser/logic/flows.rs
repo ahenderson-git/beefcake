@@ -27,6 +27,9 @@ pub async fn push_to_db_flow(
     let temp_dir = std::env::temp_dir();
     let temp_path = temp_dir.join(format!("beefcake_db_push_{}.csv", Uuid::new_v4()));
 
+    // Use RAII guard for automatic cleanup
+    let _temp_guard = crate::utils::TempFileGuard::new(temp_path.clone());
+
     crate::utils::log_event(
         "Database",
         "Sinking to temp CSV for database push (streaming)...",
@@ -42,7 +45,7 @@ pub async fn push_to_db_flow(
         .push_from_csv_file(&temp_path, &schema, Some(&schema_name), Some(&table_name))
         .await?;
 
-    let _ = std::fs::remove_file(&temp_path);
+    // _temp_guard will automatically clean up the temp file when dropped
     Ok(())
 }
 

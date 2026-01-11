@@ -1,4 +1,4 @@
-﻿export * from './renderers/common';
+export * from './renderers/common';
 export * from './renderers/dashboard';
 export * from './renderers/analyser';
 export * from './renderers/ide';
@@ -8,3 +8,4 @@ export * from './renderers/export';
 export * from './renderers/reference';
 export * from './renderers/layout';
 export * from './renderers/cli';
+export * from './renderers/lifecycle';

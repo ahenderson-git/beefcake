@@ -374,26 +374,40 @@ use uuid::Uuid;
 
 // Global registry instance
 lazy_static::lazy_static! {
-    static ref LIFECYCLE_REGISTRY: Arc<RwLock<Option<DatasetRegistry>>> = Arc::new(RwLock::new(None));
+    static ref LIFECYCLE_REGISTRY: Arc<RwLock<Option<Arc<DatasetRegistry>>>> = Arc::new(RwLock::new(None));
 }
 
-fn get_or_create_registry() -> Result<DatasetRegistry, String> {
+fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
+    // First try to get existing registry with a read lock (non-blocking for concurrent access)
+    {
+        let reg_guard = LIFECYCLE_REGISTRY.read()
+            .map_err(|e| format!("Lock poisoned: {e}"))?;
+
+        if let Some(registry) = reg_guard.as_ref() {
+            return Ok(Arc::clone(registry));
+        }
+    }
+
+    // If not initialized, acquire write lock to initialize
     let mut reg_guard = LIFECYCLE_REGISTRY.write()
         .map_err(|e| format!("Lock poisoned: {e}"))?;
 
-    if reg_guard.is_none() {
-        let data_dir = dirs::data_local_dir()
-            .ok_or_else(|| "Could not find data directory".to_string())?
-            .join("beefcake")
-            .join("datasets");
-
-        let registry = DatasetRegistry::new(data_dir)
-            .map_err(|e| format!("Failed to create registry: {e}"))?;
-
-        *reg_guard = Some(registry);
+    // Double-check in case another thread initialized while we waited
+    if let Some(registry) = reg_guard.as_ref() {
+        return Ok(Arc::clone(registry));
     }
 
-    Ok(reg_guard.clone().unwrap())
+    let data_dir = dirs::data_local_dir()
+        .ok_or_else(|| "Could not find data directory".to_string())?
+        .join("beefcake")
+        .join("datasets");
+
+    let registry = Arc::new(DatasetRegistry::new(data_dir)
+        .map_err(|e| format!("Failed to create registry: {e}"))?);
+
+    *reg_guard = Some(Arc::clone(&registry));
+
+    Ok(registry)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -562,6 +576,16 @@ pub fn run() {
             lifecycle_get_version_diff,
             lifecycle_list_versions
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .setup(|_app| {
+            // Setup cleanup handlers
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Flush any pending audit log entries before exit
+                beefcake::utils::flush_pending_audit_entries();
+            }
+        });
 }

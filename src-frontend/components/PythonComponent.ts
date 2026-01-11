@@ -55,7 +55,8 @@ export class PythonComponent extends Component {
   }
 
   render(state: AppState): void {
-    this.container.innerHTML = renderers.renderPythonView(state);
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderPythonView(state);
     // Use setTimeout to ensure DOM is fully ready before initializing Monaco
     setTimeout(() => {
       this.initMonaco(state);

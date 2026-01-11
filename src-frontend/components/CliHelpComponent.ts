@@ -8,6 +8,7 @@ export class CliHelpComponent extends Component {
   }
 
   render(_state: AppState): void {
-    this.container.innerHTML = renderers.renderCliHelpView();
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderCliHelpView();
   }
 }

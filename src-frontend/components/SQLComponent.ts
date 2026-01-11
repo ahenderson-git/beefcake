@@ -13,7 +13,8 @@ export class SQLComponent extends Component {
   }
 
   render(state: AppState): void {
-    this.container.innerHTML = renderers.renderSQLView(state);
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderSQLView(state);
     this.initMonaco(state);
     this.bindEvents(state);
     this.bindSidebarEvents();

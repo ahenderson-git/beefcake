@@ -10,7 +10,8 @@ export class ActivityLogComponent extends Component {
 
   render(state: AppState): void {
     if (!state.config) return;
-    this.container.innerHTML = renderers.renderActivityLogView(state.config);
+    const container = this.getContainer();
+    container.innerHTML = renderers.renderActivityLogView(state.config);
     this.bindEvents(state);
   }
 

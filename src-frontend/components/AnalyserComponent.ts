@@ -13,8 +13,9 @@ export class AnalyserComponent extends Component {
   }
 
   render(state: AppState): void {
+    const container = this.getContainer();
     if (state.isLoading) {
-      this.container.innerHTML = renderers.renderLoading(state.loadingMessage, state.isAborting);
+      container.innerHTML = renderers.renderLoading(state.loadingMessage, state.isAborting);
       document.getElementById('btn-abort-op')?.addEventListener('click', async () => {
          state.isAborting = true;
          this.render(state);
@@ -24,12 +25,12 @@ export class AnalyserComponent extends Component {
     }
 
     if (!state.analysisResponse) {
-      this.container.innerHTML = renderers.renderEmptyAnalyser();
+      container.innerHTML = renderers.renderEmptyAnalyser();
       this.bindEmptyAnalyserEvents(state);
       return;
     }
 
-    this.container.innerHTML = renderers.renderAnalyser(
+    container.innerHTML = renderers.renderAnalyser(
       state.analysisResponse,
       state.expandedRows,
       state.cleaningConfigs

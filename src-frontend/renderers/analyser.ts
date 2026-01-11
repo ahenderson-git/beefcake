@@ -4,11 +4,12 @@ import { CASE_OPTIONS, IMPUTE_OPTIONS, NORM_OPTIONS, renderSelect, ROUND_OPTIONS
 
 export function renderAnalyserHeader(response: AnalysisResponse, trimPct: number): string {
   const isSampled = response.total_row_count > response.row_count;
-  const rowDisplay = isSampled 
+  const rowDisplay = isSampled
     ? `${response.total_row_count.toLocaleString()} rows <small>(Sampled ${response.row_count.toLocaleString()} for analysis)</small>`
     : `${response.row_count.toLocaleString()} rows`;
 
   return `
+    <div id="lifecycle-rail-container"></div>
     <div class="analyser-header">
       <div class="header-main">
         <h2>${escapeHtml(response.file_name)} <small>(${fmtBytes(response.file_size)})</small></h2>
