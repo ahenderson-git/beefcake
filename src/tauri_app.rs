@@ -361,6 +361,177 @@ pub async fn check_python_environment() -> Result<String, String> {
     crate::system::check_python_environment().map_err(|e| e.to_string())
 }
 
+// ============================================================================
+// Dataset Lifecycle Commands
+// ============================================================================
+
+use beefcake::analyser::lifecycle::{
+    DatasetRegistry, DiffSummary, LifecycleStage, PublishMode, TransformPipeline,
+};
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, RwLock};
+use uuid::Uuid;
+
+// Global registry instance
+lazy_static::lazy_static! {
+    static ref LIFECYCLE_REGISTRY: Arc<RwLock<Option<DatasetRegistry>>> = Arc::new(RwLock::new(None));
+}
+
+fn get_or_create_registry() -> Result<DatasetRegistry, String> {
+    let mut reg_guard = LIFECYCLE_REGISTRY.write()
+        .map_err(|e| format!("Lock poisoned: {e}"))?;
+
+    if reg_guard.is_none() {
+        let data_dir = dirs::data_local_dir()
+            .ok_or_else(|| "Could not find data directory".to_string())?
+            .join("beefcake")
+            .join("datasets");
+
+        let registry = DatasetRegistry::new(data_dir)
+            .map_err(|e| format!("Failed to create registry: {e}"))?;
+
+        *reg_guard = Some(registry);
+    }
+
+    Ok(reg_guard.clone().unwrap())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateDatasetRequest {
+    pub name: String,
+    pub path: String,
+}
+
+#[tauri::command]
+pub async fn lifecycle_create_dataset(request: CreateDatasetRequest) -> Result<String, String> {
+    beefcake::utils::log_event("Lifecycle", &format!("Creating dataset: {}", request.name));
+
+    let registry = get_or_create_registry()?;
+    let path_buf = PathBuf::from(&request.path);
+
+    let dataset_id = registry.create_dataset(request.name, path_buf)
+        .map_err(|e| format!("Failed to create dataset: {e}"))?;
+
+    Ok(dataset_id.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApplyTransformsRequest {
+    pub dataset_id: String,
+    pub pipeline_json: String,
+    pub stage: String,
+}
+
+#[tauri::command]
+pub async fn lifecycle_apply_transforms(request: ApplyTransformsRequest) -> Result<String, String> {
+    beefcake::utils::log_event("Lifecycle", "Applying transforms");
+
+    let registry = get_or_create_registry()?;
+    let dataset_id = Uuid::parse_str(&request.dataset_id)
+        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
+
+    let pipeline = TransformPipeline::from_json(&request.pipeline_json)
+        .map_err(|e| format!("Failed to parse pipeline: {e}"))?;
+
+    let stage = LifecycleStage::from_str(&request.stage)
+        .ok_or_else(|| format!("Invalid stage: {}", request.stage))?;
+
+    let version_id = registry.apply_transforms(&dataset_id, pipeline, stage)
+        .map_err(|e| format!("Failed to apply transforms: {e}"))?;
+
+    Ok(version_id.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetActiveVersionRequest {
+    pub dataset_id: String,
+    pub version_id: String,
+}
+
+#[tauri::command]
+pub async fn lifecycle_set_active_version(request: SetActiveVersionRequest) -> Result<(), String> {
+    beefcake::utils::log_event("Lifecycle", "Setting active version");
+
+    let registry = get_or_create_registry()?;
+    let dataset_id = Uuid::parse_str(&request.dataset_id)
+        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let version_id = Uuid::parse_str(&request.version_id)
+        .map_err(|e| format!("Invalid version ID: {e}"))?;
+
+    registry.set_active_version(&dataset_id, &version_id)
+        .map_err(|e| format!("Failed to set active version: {e}"))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PublishVersionRequest {
+    pub dataset_id: String,
+    pub version_id: String,
+    pub mode: String, // "view" or "snapshot"
+}
+
+#[tauri::command]
+pub async fn lifecycle_publish_version(request: PublishVersionRequest) -> Result<String, String> {
+    beefcake::utils::log_event("Lifecycle", &format!("Publishing version as {}", request.mode));
+
+    let registry = get_or_create_registry()?;
+    let dataset_id = Uuid::parse_str(&request.dataset_id)
+        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let version_id = Uuid::parse_str(&request.version_id)
+        .map_err(|e| format!("Invalid version ID: {e}"))?;
+
+    let mode = match request.mode.to_lowercase().as_str() {
+        "view" => PublishMode::View,
+        "snapshot" => PublishMode::Snapshot,
+        _ => return Err(format!("Invalid publish mode: {}", request.mode)),
+    };
+
+    let published_id = registry.publish_version(&dataset_id, &version_id, mode)
+        .map_err(|e| format!("Failed to publish version: {e}"))?;
+
+    Ok(published_id.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetVersionDiffRequest {
+    pub dataset_id: String,
+    pub version1_id: String,
+    pub version2_id: String,
+}
+
+#[tauri::command]
+pub async fn lifecycle_get_version_diff(request: GetVersionDiffRequest) -> Result<DiffSummary, String> {
+    beefcake::utils::log_event("Lifecycle", "Computing version diff");
+
+    let registry = get_or_create_registry()?;
+    let dataset_id = Uuid::parse_str(&request.dataset_id)
+        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let version1_id = Uuid::parse_str(&request.version1_id)
+        .map_err(|e| format!("Invalid version1 ID: {e}"))?;
+    let version2_id = Uuid::parse_str(&request.version2_id)
+        .map_err(|e| format!("Invalid version2 ID: {e}"))?;
+
+    registry.compute_diff(&dataset_id, &version1_id, &version2_id)
+        .map_err(|e| format!("Failed to compute diff: {e}"))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListVersionsRequest {
+    pub dataset_id: String,
+}
+
+#[tauri::command]
+pub async fn lifecycle_list_versions(request: ListVersionsRequest) -> Result<String, String> {
+    let registry = get_or_create_registry()?;
+    let dataset_id = Uuid::parse_str(&request.dataset_id)
+        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
+
+    let versions = registry.list_versions(&dataset_id)
+        .map_err(|e| format!("Failed to list versions: {e}"))?;
+
+    serde_json::to_string_pretty(&versions)
+        .map_err(|e| format!("Failed to serialize versions: {e}"))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -383,7 +554,13 @@ pub fn run() {
             check_python_environment,
             run_sql,
             sanitize_headers,
-            export_data
+            export_data,
+            lifecycle_create_dataset,
+            lifecycle_apply_transforms,
+            lifecycle_set_active_version,
+            lifecycle_publish_version,
+            lifecycle_get_version_diff,
+            lifecycle_list_versions
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

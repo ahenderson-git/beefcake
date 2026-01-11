@@ -29,7 +29,11 @@ secrecy = { version = "0.10", features = ["serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 dirs = "6.0"
 keyring = "3.0"
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+lazy_static = "1.5"
+
+[dev-dependencies]
+tempfile = "3.10"
 
 [build-dependencies]
 tauri-build = { version = "2.0.3", features = [] }

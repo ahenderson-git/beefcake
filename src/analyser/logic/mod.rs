@@ -10,7 +10,8 @@ pub mod profiling;
 pub mod types;
 
 pub use analysis::{
-    analyse_df, calculate_correlation_matrix, run_full_analysis, run_full_analysis_streaming,
+    analyse_df, analyse_df_lazy, calculate_correlation_matrix, run_full_analysis,
+    run_full_analysis_streaming,
 };
 pub use cleaning::{auto_clean_df, clean_df, clean_df_lazy};
 pub use health::calculate_file_health;
