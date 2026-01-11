@@ -200,16 +200,14 @@ export class PythonComponent extends Component {
       const configs = state.pythonSkipCleaning ? undefined : state.cleaningConfigs;
       const result = await api.runPython(script, dataPath, configs);
       // Convert ANSI escape codes to HTML for colored output
-      const htmlOutput = this.ansiConverter.ansi_to_html(result);
-      output.innerHTML = htmlOutput;
+      output.innerHTML = this.ansiConverter.ansi_to_html(result);
     } catch (err) {
       let errorMsg = String(err);
       if (errorMsg.includes("ModuleNotFoundError: No module named 'polars'")) {
         errorMsg += "\n\nTip: Click the 'Install Polars' button in the toolbar to install the required library.";
       }
       // Also convert errors to HTML (they might have ANSI codes too)
-      const htmlError = this.ansiConverter.ansi_to_html(errorMsg);
-      output.innerHTML = htmlError;
+      output.innerHTML = this.ansiConverter.ansi_to_html(errorMsg);
     }
   }
 

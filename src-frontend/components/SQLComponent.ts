@@ -126,9 +126,7 @@ export class SQLComponent extends Component {
     output.textContent = 'Executing query...';
     try {
       const configs = state.sqlSkipCleaning ? undefined : state.cleaningConfigs;
-      const result = await api.runSql(query, dataPath, configs);
-      // Display result as plain text with horizontal scrolling
-      output.textContent = result;
+      output.textContent = await api.runSql(query, dataPath, configs);
     } catch (err) {
       let errorMsg = String(err);
       if (errorMsg.includes("ModuleNotFoundError: No module named 'polars'")) {
@@ -144,8 +142,7 @@ export class SQLComponent extends Component {
 
     output.textContent = 'Installing polars package...\n';
     try {
-      const result = await api.installPythonPackage('polars');
-      output.textContent = result;
+      output.textContent = await api.installPythonPackage('polars');
       this.actions.showToast('Polars installed successfully', 'success');
     } catch (err) {
       output.textContent = `Installation failed:\n${err}`;
