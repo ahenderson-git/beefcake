@@ -338,7 +338,6 @@ dependencies = [
  "dirs",
  "env_logger",
  "keyring",
- "lazy_static",
  "linfa",
  "linfa-linear",
  "linfa-logistic",

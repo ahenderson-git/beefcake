@@ -353,13 +353,13 @@ fn sink_to_file(lf: LazyFrame, output_path: &Path) -> Result<()> {
         "csv" => {
             println!("Streaming to csv: {}...", output_path.display());
             lf.with_streaming(true)
-                .sink_csv(&output_path, Default::default(), None)
+                .sink_csv(output_path, Default::default(), None)
                 .context("Failed to sink to csv")?;
         }
         _ => {
             println!("Collecting and saving to {}...", output_path.display());
             let mut df = lf.collect().context("Failed to collect data for saving")?;
-            save_df(&mut df, &output_path).context("Failed to save file")?;
+            save_df(&mut df, output_path).context("Failed to save file")?;
         }
     }
 

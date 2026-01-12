@@ -269,10 +269,9 @@ export class AnalyserComponent extends Component {
 
       // Refresh versions
       const versionsJson = await api.listVersions(state.currentDataset.id);
-      const versions = JSON.parse(versionsJson);
 
       // Update state
-      state.currentDataset.versions = versions;
+      state.currentDataset.versions = JSON.parse(versionsJson);
       state.currentDataset.activeVersionId = newVersionId;
 
       // Re-render to show cleaning controls and update lifecycle rail

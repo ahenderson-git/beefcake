@@ -143,6 +143,7 @@ pub async fn export_data(options: export::ExportOptions) -> Result<(), String> {
 
     // Memory safeguard logic
     let mut high_mem_ops = 0;
+    #[expect(clippy::iter_over_hash_type)]
     for config in options.configs.values() {
         if config.active && config.ml_preprocessing {
             if config.impute_mode == ImputeMode::Median || config.impute_mode == ImputeMode::Mode {
