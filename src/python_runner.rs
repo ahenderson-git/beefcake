@@ -1,7 +1,7 @@
-use crate::error::{BeefcakeError, Result, ResultExt};
+use crate::error::{BeefcakeError, Result, ResultExt as _};
 use beefcake::analyser::logic::ColumnCleanConfig;
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use uuid::Uuid;
@@ -15,22 +15,19 @@ import sys
 pl.Config.set_tbl_cols(-1)  # Show all columns
 pl.Config.set_tbl_rows(100)  # Show up to 100 rows
 pl.Config.set_tbl_width_chars(10000)  # Allow wide tables
-"#
-    .to_string()
+"#.to_owned()
 }
 
 pub fn python_load_snippet(data_path: &str, lf_var: &str) -> String {
     format!(
         r#"
 if {data_path}.endswith(".parquet"):
-    {lf} = pl.scan_parquet({data_path})
+    {lf_var} = pl.scan_parquet({data_path})
 elif {data_path}.endswith(".json"):
-    {lf} = pl.read_json({data_path}).lazy()
+    {lf_var} = pl.read_json({data_path}).lazy()
 else:
-    {lf} = pl.scan_csv({data_path}, try_parse_dates=True)
-"#,
-        data_path = data_path,
-        lf = lf_var
+    {lf_var} = pl.scan_csv({data_path}, try_parse_dates=True)
+"#
     )
 }
 
@@ -88,25 +85,23 @@ pub async fn execute_python_with_env(
     cmd.env("COLORTERM", "truecolor");
     cmd.env("NO_COLOR", ""); // Set but empty to allow FORCE_COLOR to work
 
-    if let Some(path) = &data_path {
-        if !path.is_empty() {
+    if let Some(path) = &data_path
+        && !path.is_empty() {
             beefcake::utils::log_event(
                 log_tag,
-                &format!("Setting BEEFCAKE_DATA_PATH to: {}", path),
+                &format!("Setting BEEFCAKE_DATA_PATH to: {path}"),
             );
             cmd.env("BEEFCAKE_DATA_PATH", path);
         }
-    }
 
-    if let Some(query) = &sql_query {
-        if !query.is_empty() {
+    if let Some(query) = &sql_query
+        && !query.is_empty() {
             beefcake::utils::log_event(
                 log_tag,
                 "Setting BEEFCAKE_SQL_QUERY environment variable",
             );
             cmd.env("BEEFCAKE_SQL_QUERY", query);
         }
-    }
 
     beefcake::utils::log_event(log_tag, "Spawning Python process...");
 
@@ -118,7 +113,7 @@ pub async fn execute_python_with_env(
         .with_context(|| format!("Failed to spawn python for {log_tag}"))?;
 
     let mut stdin = child.stdin.take()
-        .ok_or_else(|| BeefcakeError::Python("Failed to open stdin".to_string()))?;
+        .ok_or_else(|| BeefcakeError::Python("Failed to open stdin".to_owned()))?;
     stdin
         .write_all(script.as_bytes())
         .context("Failed to write script to stdin")?;
@@ -143,7 +138,7 @@ pub async fn execute_python_with_env(
 }
 
 /// Prepares data for Python execution, optionally applying cleaning configurations.
-/// Returns a tuple of (path_to_use, optional_temp_guard).
+/// Returns a tuple of (`path_to_use`, `optional_temp_guard`).
 /// If cleaning was applied, a temp file guard is returned to ensure cleanup.
 pub async fn prepare_data(
     data_path: Option<String>,
@@ -198,7 +193,7 @@ pub async fn prepare_data(
     if let Some(rgs) = options.row_group_size {
         beefcake::utils::log_event(
             log_tag,
-            &format!("Streaming to Parquet (adaptive). Row group size: {}", rgs),
+            &format!("Streaming to Parquet (adaptive). Row group size: {rgs}"),
         );
     }
 

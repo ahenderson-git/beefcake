@@ -160,8 +160,7 @@ fn check_special_characters_streaming(col_lf: LazyFrame, name: &str) -> bool {
     if let Ok(df) = col_lf
         .select([col(name).str().contains(lit(r"\r"), false).any(false)])
         .collect()
-    {
-        if let Ok(col) = df.column(name) {
+        && let Ok(col) = df.column(name) {
             return col
                 .as_materialized_series()
                 .bool()
@@ -169,7 +168,6 @@ fn check_special_characters_streaming(col_lf: LazyFrame, name: &str) -> bool {
                 .and_then(|ca| ca.get(0))
                 .unwrap_or(false);
         }
-    }
     false
 }
 
@@ -195,7 +193,7 @@ fn compute_numeric_stats_streaming(
         .unwrap_or(0) as usize;
 
     let mut summary = ColumnSummary {
-        name: name.to_string(),
+        name: name.to_owned(),
         standardized_name: String::new(),
         kind,
         count: total_rows,
@@ -255,7 +253,7 @@ fn compute_categorical_stats_bounded(
     };
 
     let mut summary = ColumnSummary {
-        name: name.to_string(),
+        name: name.to_owned(),
         standardized_name: String::new(),
         kind,
         count: total_rows,
@@ -293,7 +291,7 @@ fn compute_boolean_stats_streaming(
         .unwrap_or(0) as usize;
 
     let mut summary = ColumnSummary {
-        name: name.to_string(),
+        name: name.to_owned(),
         standardized_name: String::new(),
         kind,
         count: total_rows,
@@ -331,7 +329,7 @@ fn compute_temporal_stats_streaming(
         .unwrap_or(0) as usize;
 
     let mut summary = ColumnSummary {
-        name: name.to_string(),
+        name: name.to_owned(),
         standardized_name: String::new(),
         kind,
         count: total_rows,
@@ -369,7 +367,7 @@ fn compute_text_stats_streaming(
         .unwrap_or(0) as usize;
 
     let mut summary = ColumnSummary {
-        name: name.to_string(),
+        name: name.to_owned(),
         standardized_name: String::new(),
         kind,
         count: total_rows,
@@ -426,16 +424,16 @@ pub fn compute_numeric_stats(
         .context("Failed to compute numeric stats via LazyFrame")?;
 
     let get_f64 = |c: &str| -> Option<f64> {
-        stats_df.column(c).ok().and_then(|col| {
-            let s = col.as_materialized_series();
-            if let Ok(ca) = s.f64() {
-                ca.get(0)
-            } else if let Ok(casted) = s.cast(&DataType::Float64) {
-                casted.f64().ok().and_then(|ca| ca.get(0))
-            } else {
-                None
-            }
-        })
+        let col = stats_df.column(c).ok()?;
+        let s = col.as_materialized_series();
+        if let Ok(ca) = s.f64() {
+            ca.get(0)
+        } else if let Ok(casted) = s.cast(&DataType::Float64) {
+            let ca = casted.f64().ok()?;
+            ca.get(0)
+        } else {
+            None
+        }
     };
 
     let get_usize = |c: &str| -> usize {
@@ -444,9 +442,10 @@ pub fn compute_numeric_stats(
             .ok()
             .and_then(|col| {
                 let s = col.as_materialized_series();
-                s.cast(&DataType::UInt64)
-                    .ok()
-                    .and_then(|sc| sc.u64().ok().and_then(|ca| ca.get(0)))
+                let sc = s.cast(&DataType::UInt64)
+                    .ok()?;
+                let ca = sc.u64().ok()?;
+                ca.get(0)
             })
             .unwrap_or(0) as usize
     };
@@ -457,7 +456,8 @@ pub fn compute_numeric_stats(
             .ok()
             .and_then(|col| {
                 let s = col.as_materialized_series();
-                s.bool().ok().and_then(|ca| ca.get(0))
+                let ca = s.bool().ok()?;
+                ca.get(0)
             })
             .unwrap_or(false)
     };
@@ -522,24 +522,24 @@ pub fn compute_numeric_stats(
         ColumnKind::Numeric,
         ColumnStats::Numeric(NumericStats {
             min,
-            max,
-            mean,
-            median,
-            std_dev,
-            skew,
-            trimmed_mean,
-            histogram,
-            bin_width,
             distinct_count,
             p05,
-            p95,
             q1,
+            median,
+            mean,
+            trimmed_mean,
             q3,
+            p95,
+            max,
+            std_dev,
+            skew,
             zero_count,
             negative_count,
             is_integer,
             is_sorted,
             is_sorted_rev,
+            bin_width,
+            histogram,
         }),
     ))
 }
@@ -597,12 +597,12 @@ pub fn compute_categorical_stats(
 
     for (val, count) in ca_val.into_iter().zip(ca_count.into_iter()) {
         if let (Some(v), Some(c)) = (val, count) {
-            freq.insert(v.to_string(), c as usize);
+            freq.insert(v.to_owned(), c as usize);
         }
     }
 
     if sample_uniques > MAX_UNIQUE_TRACKED {
-        freq.insert("__TRUNCATED__".to_string(), 1);
+        freq.insert("__TRUNCATED__".to_owned(), 1);
     }
 
     Ok((ColumnKind::Categorical, ColumnStats::Categorical(freq)))
@@ -624,9 +624,10 @@ pub fn compute_boolean_stats(lf: LazyFrame, name: &str) -> Result<(ColumnKind, C
             .ok()
             .and_then(|col| {
                 let s = col.as_materialized_series();
-                s.cast(&DataType::UInt64)
-                    .ok()
-                    .and_then(|sc| sc.u64().ok().and_then(|ca| ca.get(0)))
+                let sc = s.cast(&DataType::UInt64)
+                    .ok()?;
+                let ca = sc.u64().ok()?;
+                ca.get(0)
             })
             .unwrap_or(0) as usize
     };
@@ -649,6 +650,7 @@ pub fn calculate_correlation_matrix(df: &DataFrame) -> Result<Option<Correlation
     calculate_correlation_matrix_lazy(df.clone().lazy())
 }
 
+#[expect(clippy::needless_range_loop, clippy::indexing_slicing)]
 pub fn calculate_correlation_matrix_lazy(mut lf: LazyFrame) -> Result<Option<CorrelationMatrix>> {
     let schema = lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
     let mut numeric_cols: Vec<String> = schema
@@ -704,7 +706,7 @@ pub fn calculate_correlation_matrix_lazy(mut lf: LazyFrame) -> Result<Option<Cor
             let name_j = &numeric_cols[j];
             exprs.push(
                 polars::prelude::pearson_corr(col(name_i), col(name_j))
-                    .alias(&format!("{}_{}", i, j)),
+                    .alias(format!("{i}_{j}")),
             );
         }
     }
@@ -718,7 +720,7 @@ pub fn calculate_correlation_matrix_lazy(mut lf: LazyFrame) -> Result<Option<Cor
 
     for i in 0..numeric_cols.len() {
         for j in i + 1..numeric_cols.len() {
-            let col_name = format!("{}_{}", i, j);
+            let col_name = format!("{i}_{j}");
             let val = results
                 .column(&col_name)?
                 .as_materialized_series()

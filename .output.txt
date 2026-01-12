@@ -1,353 +1,1120 @@
-    Checking cfg-if v1.0.4
-    Checking windows-link v0.2.1
-    Checking serde_core v1.0.228
-    Checking memchr v2.7.6
-    Checking crossbeam-utils v0.8.21
-    Checking libm v0.2.15
-    Checking zerocopy v0.8.31
-    Checking itoa v1.0.17
-    Checking once_cell v1.21.3
-    Checking thiserror v2.0.17
-    Checking bytes v1.11.0
-    Checking scopeguard v1.2.0
-    Checking windows_x86_64_msvc v0.52.6
-    Checking regex-syntax v0.8.8
-    Checking libc v0.2.179
-    Checking pin-project-lite v0.2.16
-    Checking getrandom v0.3.4
-    Checking windows-sys v0.61.2
-    Checking windows-targets v0.52.6
-    Checking lock_api v0.4.14
-    Checking getrandom v0.2.16
-    Checking siphasher v1.0.1
-    Checking allocator-api2 v0.2.21
-    Checking zerofrom v0.1.6
-    Checking equivalent v1.0.2
-    Checking stable_deref_trait v1.2.1
-    Checking windows-sys v0.59.0
-    Checking rand_core v0.6.4
-    Checking zmij v1.0.11
-    Checking hashbrown v0.16.1
-    Checking yoke v0.8.1
-    Checking windows_x86_64_msvc v0.53.1
-    Checking winapi v0.3.9
-    Checking crossbeam-epoch v0.9.18
-    Checking aho-corasick v1.1.4
-    Checking rawpointer v0.2.1
-    Checking foldhash v0.1.5
-    Checking windows-targets v0.53.5
-    Checking percent-encoding v2.3.2
-    Checking zerovec v0.11.5
-    Checking windows-result v0.1.2
-    Checking windows-sys v0.60.2
-    Checking matrixmultiply v0.3.10
-    Checking futures-core v0.3.31
-    Checking alloc-no-stdlib v2.0.4
-    Checking crossbeam-deque v0.8.6
-    Checking ryu v1.0.22
-    Checking array-init-cursor v0.2.1
-    Checking alloc-stdlib v0.2.2
-    Checking windows-core v0.57.0
-    Checking rayon-core v1.13.0
-    Checking planus v0.3.1
-    Checking num-traits v0.2.19
-    Checking psm v0.1.28
-    Checking unicode-segmentation v1.12.0
-    Checking tinystr v0.8.2
-    Checking litemap v0.8.1
-    Checking writeable v0.6.2
-    Checking simdutf8 v0.1.5
-    Checking potential_utf v0.1.4
-    Checking castaway v0.2.4
-    Checking zerotrie v0.2.3
-    Checking windows-link v0.1.3
-    Checking static_assertions v1.1.0
-    Checking bytemuck v1.24.0
-    Checking icu_locale_core v2.1.1
-    Checking ppv-lite86 v0.2.21
-    Checking ahash v0.8.12
-    Checking icu_collections v2.1.1
-    Checking zstd-sys v2.0.16+zstd.1.5.7
-    Checking windows v0.57.0
-    Checking num-complex v0.4.6
-    Checking num-integer v0.1.46
-    Checking approx v0.5.1
-    Checking regex-automata v0.4.13
-    Checking phf_shared v0.12.1
-    Checking memmap2 v0.9.9
-    Checking futures-sink v0.3.31
-    Checking log v0.4.29
-    Checking rand_chacha v0.3.1
-    Checking serde v1.0.228
-    Checking bitflags v2.10.0
-    Checking serde_json v1.0.148
-    Checking indexmap v2.12.1
-    Checking phf v0.12.1
-    Checking icu_properties_data v2.1.2
-    Checking icu_normalizer_data v2.1.1
-    Checking target-features v0.1.6
-    Checking raw-cpuid v11.6.0
-    Checking rand v0.8.5
-    Checking zstd-safe v7.2.4
-    Checking lz4-sys v1.11.1+lz4-1.10.0
-    Checking futures-channel v0.3.31
-    Checking multiversion v0.7.4
-    Checking icu_provider v2.1.1
-    Checking lz4 v1.28.1
-    Checking zstd v0.13.3
-    Checking smallvec v1.15.1
-    Checking either v1.15.0
-    Checking chrono v0.4.42
-    Checking polars-arrow-format v0.1.0
-    Checking compact_str v0.8.1
-    Checking windows-strings v0.4.2
-    Checking parking_lot_core v0.9.12
-    Checking icu_normalizer v2.1.1
-    Checking icu_properties v2.1.2
-    Checking stacker v0.1.22
-    Checking windows-result v0.3.4
-    Checking rayon v1.11.0
-    Checking dyn-clone v1.0.20
-    Checking ntapi v0.4.2
-    Checking ethnum v1.5.2
-    Checking parking_lot v0.12.5
-    Checking streaming-iterator v0.1.9
-    Checking pin-utils v0.1.0
-    Checking strength_reduce v0.2.4
-    Checking futures-io v0.3.31
-    Checking debug_unsafe v0.1.3
-    Checking slab v0.4.11
-    Checking futures-task v0.3.31
-    Checking atoi_simd v0.16.1
-    Checking windows-core v0.61.2
-    Checking glob v0.3.3
-    Checking utf8_iter v1.0.4
-    Checking futures-util v0.3.31
-    Checking fast-float2 v0.2.3
-    Checking itoap v1.0.1
-    Checking form_urlencoded v1.2.2
-    Checking chrono-tz v0.10.4
-    Checking crossterm_winapi v0.9.1
-    Checking rand_distr v0.4.3
-    Checking uuid v1.19.0
-    Checking windows-threading v0.1.0
-    Checking typenum v1.19.0
-    Checking anyhow v1.0.100
-    Checking idna_adapter v1.2.1
-    Checking regex v1.12.2
-    Checking windows-future v0.2.1
-    Checking crossterm v0.29.0
-    Checking idna v1.1.0
-    Checking windows-collections v0.2.0
-    Checking windows-numerics v0.2.0
-    Checking base64 v0.22.1
-    Checking raw-window-handle v0.6.2
-    Checking byteorder v1.5.0
-    Checking unicode-width v0.2.2
-    Checking thiserror v1.0.69
-    Checking mio v1.1.1
-    Checking home v0.5.12
-    Checking windows v0.61.3
-    Checking url v2.5.8
-    Checking polars-error v0.45.1
-    Checking float-cmp v0.10.0
-    Checking atoi v2.0.0
-    Checking crossbeam-channel v0.5.15
-    Checking tracing-core v0.1.36
-    Checking powerfmt v0.2.0
-    Checking fallible-streaming-iterator v0.1.9
-    Checking generic-array v0.14.7
-    Checking unic-common v0.9.0
-    Checking comfy-table v7.2.1
-    Checking xxhash-rust v0.8.15
-    Checking adler2 v2.0.1
-    Checking unic-char-range v0.9.0
-    Checking simd-adler32 v0.3.8
-    Checking unic-ucd-version v0.9.0
-    Checking deranged v0.5.5
-    Checking ref-cast v1.0.25
-    Checking unic-char-property v0.9.0
-    Checking tracing v0.1.44
-    Checking hashbrown v0.15.5
-    Checking ndarray v0.16.1
-    Checking hashbrown v0.14.5
-    Checking miniz_oxide v0.8.9
-    Checking typeid v1.0.3
-    Checking crc32fast v1.5.0
-    Checking winapi-util v0.1.11
-   Compiling tauri v2.9.5
-    Checking dpi v0.1.2
-    Checking socket2 v0.6.1
-    Checking argminmax v0.6.3
-    Checking brotli-decompressor v4.0.3
-    Checking fnv v1.0.7
-    Checking num-conv v0.1.0
-    Checking dunce v1.0.5
-    Checking time-core v0.1.6
-    Checking winnow v0.7.14
-    Checking cfb v0.7.3
-    Checking tokio v1.49.0
-    Checking flate2 v1.1.5
-    Checking same-file v1.0.6
-    Checking async-stream v0.3.6
-    Checking halfbrown v0.2.5
-    Checking erased-serde v0.4.9
-    Checking crypto-common v0.1.7
-    Checking block-buffer v0.10.4
-    Checking unic-ucd-ident v0.9.0
-    Checking value-trait v0.10.1
-    Checking snap v1.1.1
-    Checking streaming-decompression v0.1.2
-    Checking now v0.1.3
-    Checking futures-executor v0.3.31
-    Checking jsonptr v0.6.3
-    Checking time v0.3.44
-    Checking brotli v7.0.0
-    Checking toml_datetime v0.7.5+spec-1.1.0
-    Checking serde_spanned v1.0.4
-    Checking brotli-decompressor v5.0.0
-    Checking futures v0.3.31
-    Checking http v1.4.0
-    Checking simd-json v0.14.3
-    Checking phf_shared v0.11.3
-    Checking windows-version v0.1.7
-    Checking polars-parquet-format v0.1.0
-    Checking toml_writer v1.0.6+spec-1.1.0
-    Checking subtle v2.6.1
-    Checking json-patch v3.0.1
-    Checking phf v0.11.3
-    Checking serde-untagged v0.1.9
-    Checking toml_parser v1.0.6+spec-1.1.0
-    Checking digest v0.10.7
-    Checking urlpattern v0.3.0
-    Checking infer v0.19.0
-    Checking walkdir v2.5.0
-    Checking serde_with v3.16.1
-    Checking rand_core v0.9.3
-    Checking brotli v8.0.2
-    Checking toml v0.9.10+spec-1.1.0
-    Checking semver v1.0.27
-    Checking recursive v0.1.1
-    Checking crossbeam-queue v0.3.12
-    Checking option-ext v0.2.0
-    Checking cookie v0.18.1
-    Checking lazy_static v1.5.0
-    Checking dirs-sys v0.5.0
-    Checking windows_x86_64_msvc v0.48.5
-    Checking rand_chacha v0.9.0
-    Checking softbuffer v0.4.8
-    Checking keyboard-types v0.7.0
-    Checking once_cell_polyfill v1.70.2
-    Checking anstyle v1.0.13
-    Checking utf8parse v0.2.2
-    Checking tinyvec_macros v0.1.1
-    Checking rand v0.9.2
-    Checking dirs v6.0.0
-    Checking anstyle-wincon v3.0.11
-    Checking serialize-to-javascript v0.1.2
-    Checking anstyle-parse v0.2.7
-    Checking tinyvec v1.10.0
-    Checking windows-targets v0.48.5
-   Compiling tauri-plugin-fs v2.4.4
-   Compiling tauri-macros v2.5.2
-    Checking sprs v0.11.2
-    Checking window-vibrancy v0.6.0
-    Checking anstyle-query v1.1.5
-    Checking concurrent-queue v2.5.0
-    Checking is_terminal_polyfill v1.70.2
-    Checking parking v2.2.1
-    Checking mime v0.3.17
-    Checking colorchoice v1.0.4
-    Checking cpufeatures v0.2.17
-    Checking heck v0.5.0
-    Checking crc-catalog v2.4.0
-    Checking anstream v0.6.21
-    Checking muda v0.17.1
-    Checking event-listener v5.4.1
-    Checking sha2 v0.10.9
-    Checking crc v3.4.0
-    Checking unicode-normalization v0.1.25
-    Checking argmin-math v0.5.1
-    Checking windows-sys v0.48.0
-    Checking rand_xoshiro v0.7.0
-    Checking hmac v0.12.1
-    Checking hashlink v0.10.0
-    Checking futures-intrusive v0.5.0
-    Checking web-time v1.1.0
-    Checking unicode-bidi v0.3.18
-    Checking tokio-util v0.7.18
-    Checking tokio-stream v0.1.18
-    Checking unicode-properties v0.1.4
-   Compiling tauri-plugin-shell v2.3.3
-   Compiling tauri-plugin-dialog v2.4.2
-    Checking hkdf v0.12.4
-    Checking linfa v0.8.1
-    Checking md-5 v0.10.6
-    Checking stringprep v0.1.5
-    Checking itertools v0.13.0
-    Checking sqlx-core v0.8.6
-    Checking noisy_float v0.2.0
-    Checking dotenvy v0.15.7
-    Checking clap_lex v0.7.6
-    Checking etcetera v0.8.0
-    Checking tauri-utils v2.8.1
-    Checking argmin v0.11.0
-    Checking whoami v1.6.1
-    Checking hex v0.4.3
-    Checking strsim v0.11.1
-    Checking zeroize v1.8.2
-    Checking rfd v0.15.4
-    Checking linfa-linalg v0.2.1
-    Checking ndarray-rand v0.15.0
-    Checking open v5.3.3
-    Checking shared_child v1.1.1
-    Checking os_pipe v1.2.3
-    Checking clap_builder v4.5.54
-    Checking env_filter v0.1.4
-    Checking encoding_rs v0.8.35
-    Checking jiff v0.2.18
-   Compiling beefcake v0.2.0 (C:\Users\antho\OneDrive\beefcake\beefcake)
-    Checking keyring v3.6.3
-    Checking secrecy v0.10.3
-    Checking linfa-trees v0.8.1
-    Checking linfa-linear v0.8.1
-    Checking ndarray-stats v0.6.0
-    Checking linfa-logistic v0.8.1
-    Checking clap v4.5.54
-    Checking sqlx-postgres v0.8.6
-    Checking sysinfo v0.32.1
-    Checking polars-utils v0.45.1
-    Checking env_logger v0.11.8
-    Checking polars-schema v0.45.1
-    Checking polars-arrow v0.45.1
-    Checking sqlx v0.8.6
-    Checking polars-compute v0.45.1
-    Checking polars-row v0.45.1
-    Checking polars-json v0.45.1
-    Checking polars-parquet v0.45.1
-    Checking polars-core v0.45.1
-    Checking webview2-com-sys v0.38.0
-    Checking tao v0.34.5
-    Checking webview2-com v0.38.0
-    Checking wry v0.53.5
-    Checking tauri-runtime v2.9.2
-    Checking tauri-runtime-wry v2.9.3
-    Checking polars-ops v0.45.1
-    Checking polars-time v0.45.1
-    Checking polars-io v0.45.1
-    Checking polars-plan v0.45.1
-    Checking polars-expr v0.45.1
-    Checking polars-pipe v0.45.1
-    Checking polars-mem-engine v0.45.1
-    Checking polars-lazy v0.45.1
-    Checking polars v0.45.1
-warning: trivial numeric cast: `usize` as `usize`
-   --> src\analyser\logic\analysis.rs:602:8
+warning: used `unwrap()` on an `Option` value
+  --> src\analyser\lifecycle\query.rs:97:23
+   |
+97 |             return Ok(sorted.last().unwrap().clone());
+   |                       ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: if this value is `None`, it will panic
+   = help: consider using `expect()` to provide a better panic message
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+   = note: requested on the command line with `-W clippy::unwrap-used`
+warning: used `unwrap()` on an `Option` value
+   --> src\analyser\lifecycle\query.rs:108:23
     |
-602 |     if sample_uniques as usize > MAX_UNIQUE_TRACKED {
-    |        ^^^^^^^^^^^^^^^^^^^^^^^
+108 |             return Ok(sorted.last().unwrap().clone());
+    |                       ^^^^^^^^^^^^^^^^^^^^^^
     |
-    = help: cast can be replaced by coercion; this might require a temporary variable
-    = note: requested on the command line with `-W trivial-numeric-casts`
-warning: `beefcake` (lib) generated 1 warning
-    Finished `release` profile [optimized] target(s) in 47.50s
+    = note: if this value is `None`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: iteration over unordered hash-based type
+  --> src\analyser\lifecycle\stages\advanced.rs:70:5
+   |
+70 | /     for config in configs.values_mut() {
+71 | |         config.ml_preprocessing = true;
+72 | |
+73 | |         if enable_imputation && config.impute_mode == crate::analyser...
+...  |
+84 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
+   = note: requested on the command line with `-W clippy::iter-over-hash-type`
+warning: field assignment outside of initializer for an instance created with Default::default()
+  --> src\analyser\lifecycle\stages\profile.rs:56:9
+   |
+56 |         config.new_name = summary.standardized_name.clone();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { new_name: summary.standardized_name.clone(), active: true, ..Default::default() }` and removing relevant reassignments
+  --> src\analyser\lifecycle\stages\profile.rs:55:9
+   |
+55 |         let mut config = ColumnCleanConfig::default();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+note: the lint level is defined here
+  --> src\lib.rs:1:9
+   |
+ 1 | #![warn(clippy::all, rust_2018_idioms)]
+   |         ^^^^^^^^^^^
+   = note: `#[warn(clippy::field_reassign_with_default)]` implied by `#[warn(clippy::all)]`
+warning: this function has too many lines (124/100)
+  --> src\analyser\lifecycle\stages\validate.rs:66:5
+   |
+66 |     fn validate_rule(rule: &ValidationRule, lf: &mut LazyFrame) -> Result<ValidationResult> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+   = note: requested on the command line with `-W clippy::too-many-lines`
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+  --> src\analyser\lifecycle\stages\mod.rs:44:5
+   |
+44 | /     pub fn from_str(s: &str) -> Option<Self> {
+45 | |         match s.to_lowercase().as_str() {
+46 | |             "raw" => Some(Self::Raw),
+47 | |             "profiled" => Some(Self::Profiled),
+...  |
+54 | |     }
+   | |_____^
+   |
+   = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+   = note: `#[warn(clippy::should_implement_trait)]` implied by `#[warn(clippy::all)]`
+warning: these match arms have identical bodies
+  --> src\analyser\lifecycle\stages\mod.rs:72:13
+   |
+72 | / ...   (Self::Raw, Self::Profiled)
+73 | | ...   | (Self::Profiled, Self::Cleaned)
+74 | | ...   | (Self::Cleaned, Self::Advanced)
+75 | | ...   | (Self::Advanced, Self::Validated)
+76 | | ...   | (Self::Validated, Self::Published) => true,
+   | |__________________________________________________^
+77 |   ...   // Can skip stages going forward
+78 | / ...   (Self::Raw, Self::Cleaned | Self::Advanced | Self::Validated | ...
+79 | | ...   | (Self::Profiled, Self::Advanced | Self::Validated | Self::Pub...
+80 | | ...   | (Self::Cleaned, Self::Validated | Self::Published)
+81 | | ...   | (Self::Advanced, Self::Published) => true,
+   | |_________________________________________________^
+   |
+   = help: if this is unintentional make the arms return different values
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#match_same_arms
+   = note: requested on the command line with `-W clippy::match-same-arms`
+help: otherwise merge the patterns into a single arm
+   |
+72 ~             // Can skip stages going forward
+73 ~             (Self::Raw, Self::Profiled)
+74 +             | (Self::Profiled, Self::Cleaned)
+75 +             | (Self::Cleaned, Self::Advanced)
+76 +             | (Self::Advanced, Self::Validated)
+77 ~             | (Self::Validated, Self::Published) | (Self::Raw, Self::Cleaned | Self::Advanced | Self::Validated | Self::Published)
+   |
+warning: writing `&PathBuf` instead of `&Path` involves a new object where a slice will do
+  --> src\analyser\lifecycle\storage.rs:52:66
+   |
+52 | ...taset_id: &Uuid, source_path: &PathBuf) -> Result<DataLocation> {
+   |                                  ^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#ptr_arg
+   = note: `#[warn(clippy::ptr_arg)]` implied by `#[warn(clippy::all)]`
+help: change this to
+   |
+52 ~     pub fn store_raw_data(&self, dataset_id: &Uuid, source_path: &Path) -> Result<DataLocation> {
+53 |         let dataset_dir = self.dataset_dir(dataset_id);
+...
+64 |
+65 ~         Ok(DataLocation::OriginalFile(source_path.to_path_buf()))
+   |
+warning: this argument is passed by value, but not consumed in the function body
+   --> src\analyser\lifecycle\version.rs:191:45
+    |
+191 |     pub fn new(name: String, raw_data_path: PathBuf, store: Arc<Versio...
+    |                                             ^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+    = note: requested on the command line with `-W clippy::needless-pass-by-value`
+help: consider taking a reference instead
+    |
+191 |     pub fn new(name: String, raw_data_path: &PathBuf, store: Arc<VersionStore>) -> Result<Self> {
+    |                                             +
+warning: this function has too many lines (139/100)
+   --> src\analyser\logic\analysis.rs:388:1
+    |
+388 | / pub fn compute_numeric_stats(
+389 | |     lf: LazyFrame,
+390 | |     name: &str,
+391 | |     trim_pct: f64,
+392 | |     adaptive_sample_size: usize,
+393 | | ) -> Result<(ColumnKind, ColumnStats)> {
+    | |______________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:704:27
+    |
+704 |             let name_i = &numeric_cols[i];
+    |                           ^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+    = note: requested on the command line with `-W clippy::indexing-slicing`
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:705:27
+    |
+705 |             let name_j = &numeric_cols[j];
+    |                           ^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: the loop variable `i` is used to index `matrix`
+   --> src\analyser\logic\analysis.rs:716:14
+    |
+716 |     for i in 0..numeric_cols.len() {
+    |              ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
+    = note: `#[warn(clippy::needless_range_loop)]` implied by `#[warn(clippy::all)]`
+help: consider using an iterator and enumerate()
+    |
+716 -     for i in 0..numeric_cols.len() {
+716 +     for (i, <item>) in matrix.iter_mut().enumerate().take(numeric_cols.len()) {
+    |
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:717:9
+    |
+717 |         matrix[i][i] = 1.0;
+    |         ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:717:9
+    |
+717 |         matrix[i][i] = 1.0;
+    |         ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: the loop variable `i` is used to index `matrix`
+   --> src\analyser\logic\analysis.rs:720:14
+    |
+720 |     for i in 0..numeric_cols.len() {
+    |              ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
+help: consider using an iterator and enumerate()
+    |
+720 -     for i in 0..numeric_cols.len() {
+720 +     for (i, <item>) in matrix.iter_mut().enumerate().take(numeric_cols.len()) {
+    |
+warning: the loop variable `j` is used to index `matrix`
+   --> src\analyser\logic\analysis.rs:721:18
+    |
+721 |         for j in i + 1..numeric_cols.len() {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
+help: consider using an iterator and enumerate()
+    |
+721 -         for j in i + 1..numeric_cols.len() {
+721 +         for (j, <item>) in matrix.iter_mut().enumerate().take(numeric_cols.len()).skip(i + 1) {
+    |
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:729:13
+    |
+729 |             matrix[i][j] = val;
+    |             ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:729:13
+    |
+729 |             matrix[i][j] = val;
+    |             ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:730:13
+    |
+730 |             matrix[j][i] = val;
+    |             ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:730:13
+    |
+730 |             matrix[j][i] = val;
+    |             ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: field assignment outside of initializer for an instance created with Default::default()
+   --> src\analyser\logic\cleaning.rs:112:9
+    |
+112 |         config.active = true;
+    |         ^^^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { active: true, trim_whitespace: true, ..Default::default() }` and removing relevant reassignments
+   --> src\analyser\logic\cleaning.rs:111:9
+    |
+111 |         let mut config = ColumnCleanConfig::default();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+warning: these match arms have identical bodies
+   --> src\analyser\logic\cleaning.rs:130:13
+    |
+130 |             TextCase::TitleCase => {}
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^
+131 |             TextCase::None => {}
+    |             ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: if this is unintentional make the arms return different values
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#match_same_arms
+help: otherwise merge the patterns into a single arm
+    |
+130 ~             TextCase::TitleCase | TextCase::None => {}
+131 ~             }
+    |
+warning: field assignment outside of initializer for an instance created with Default::default()
+  --> src\analyser\logic\flows.rs:59:9
+   |
+59 |         config.new_name = summary.standardized_name.clone();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { new_name: summary.standardized_name.clone(), ..Default::default() }` and removing relevant reassignments
+  --> src\analyser\logic\flows.rs:58:9
+   |
+58 |         let mut config = ColumnCleanConfig::default();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:442:26
+    |
+442 |                 .map(|w| w[1].0 - w[0].0)
+    |                          ^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:442:35
+    |
+442 |                 .map(|w| w[1].0 - w[0].0)
+    |                                   ^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: slicing may panic
+   --> src\analyser\logic\interpretation.rs:662:9
+    |
+662 | ...   histogram[1..histogram.len()-1].iter().any(|&(_, count)| count =...
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:671:16
+    |
+671 | ...   if histogram[i].1 > histogram[i-1].1 && histogram[i].1 > histogr...
+    |          ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:671:33
+    |
+671 | ...   if histogram[i].1 > histogram[i-1].1 && histogram[i].1 > histogr...
+    |                           ^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:671:53
+    |
+671 | ...   if histogram[i].1 > histogram[i-1].1 && histogram[i].1 > histogr...
+    |                                               ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:671:70
+    |
+671 | ...-1].1 && histogram[i].1 > histogram[i+1].1 {
+    |                              ^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:673:28
+    |
+673 | ...   let avg = (histogram[i-1].1 + histogram[i].1 + histogram[i+1].1)...
+    |                  ^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:673:47
+    |
+673 | ...   let avg = (histogram[i-1].1 + histogram[i].1 + histogram[i+1].1)...
+    |                                     ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:673:64
+    |
+673 | ...   let avg = (histogram[i-1].1 + histogram[i].1 + histogram[i+1].1)...
+    |                                                      ^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\interpretation.rs:674:20
+    |
+674 |                 if histogram[i].1 as f64 > avg * 1.2 {
+    |                    ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: non-binding `let` on an expression with `#[must_use]` type
+  --> src\analyser\logic\io.rs:46:21
+   |
+46 |                     let _ = df.replace(name, casted);
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider explicitly using expression value
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+   = note: requested on the command line with `-W clippy::let-underscore-must-use`
+warning: non-binding `let` without a type annotation
+  --> src\analyser\logic\io.rs:46:21
+   |
+46 |                     let _ = df.replace(name, casted);
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: consider adding a type annotation
+  --> src\analyser\logic\io.rs:46:26
+   |
+46 |                     let _ = df.replace(name, casted);
+   |                          ^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+   = note: requested on the command line with `-W clippy::let-underscore-untyped`
+warning: `if _ { .. } else { .. }` is an expression
+  --> src\analyser\logic\io.rs:85:5
+   |
+85 | /     let mut row_group_size = if col_count >= 100 { 16_384 } else { 32...
+86 | |
+87 | |     // Allow environment variable override for emergency debugging
+88 | |     if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SI...
+89 | |         && let Ok(parsed) = env_val.parse::<usize>() {
+90 | |             row_group_size = parsed;
+91 | |         }
+   | |_________^
+   |
+   = note: you might not need `mut` at all
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#useless_let_if_seq
+   = note: requested on the command line with `-W clippy::useless-let-if-seq`
+help: it is more idiomatic to write
+   |
+85 ~     let <mut> row_group_size = if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE")
+86 +         && let Ok(parsed) = env_val.parse::<usize>() { parsed } else { if col_count >= 100 { 16_384 } else { 32_768 } };
+   |
+warning: used `unwrap()` on an `Option` value
+  --> src\analyser\logic\naming.rs:29:30
+   |
+29 |     if !result.is_empty() && result.chars().next().unwrap().is_ascii_di...
+   |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: if this value is `None`, it will panic
+   = help: consider using `expect()` to provide a better panic message
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: indexing may panic
+   --> src\analyser\logic\profiling.rs:196:13
+    |
+196 |             bins[10] = ca.len() - ca.null_count();
+    |             ^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\profiling.rs:223:21
+    |
+223 |                     bins[bin_idx] += 1;
+    |                     ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\profiling.rs:225:21
+    |
+225 |                     bins[num_bins - 1] += 1;
+    |                     ^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: this function has too many arguments (8/7)
+   --> src\analyser\logic\profiling.rs:237:1
+    |
+237 | / pub fn build_histogram_streaming(
+238 | |     lf: LazyFrame,
+239 | |     name: &str,
+240 | |     min: Option<f64>,
+...   |
+245 | |     null_count: usize,
+246 | | ) -> Result<(f64, Vec<(f64, usize)>)> {
+    | |_____________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+    = note: `#[warn(clippy::too_many_arguments)]` implied by `#[warn(clippy::all)]`
+warning: this argument is passed by value, but not consumed in the function body
+   --> src\analyser\logic\profiling.rs:238:9
+    |
+238 |     lf: LazyFrame,
+    |         ^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+    |
+238 |     lf: &LazyFrame,
+    |         +
+warning: indexing may panic
+   --> src\analyser\logic\profiling.rs:252:13
+    |
+252 |             bins[10] = total_count.saturating_sub(null_count);
+    |             ^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\profiling.rs:298:21
+    |
+298 |                     bins[bin_idx] += 1;
+    |                     ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: indexing may panic
+   --> src\analyser\logic\profiling.rs:300:21
+    |
+300 |                     bins[num_bins - 1] += 1;
+    |                     ^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\logic\profiling.rs:379:21
+    |
+379 | ...   let names = vc.column(series.name()).unwrap().as_materialized_se...
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\logic\profiling.rs:380:22
+    |
+380 | ...   let counts = vc.column("counts").unwrap().as_materialized_series();
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\logic\profiling.rs:382:23
+    |
+382 |             let val = names.get(0).unwrap().to_string();
+    |                       ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\logic\profiling.rs:383:25
+    |
+383 | ...   let count = counts.get(0).unwrap().try_extract::<u32>().unwrap_o...
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\logic\profiling.rs:402:25
+    |
+402 | ...   let names = vc.column(series.name()).unwrap().as_materialized_se...
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\logic\profiling.rs:403:26
+    |
+403 | ...   let counts = vc.column("counts").unwrap().as_materialized_series();
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\logic\profiling.rs:405:30
+    |
+405 |                 let val_av = names.get(i).unwrap();
+    |                              ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\logic\profiling.rs:411:29
+    |
+411 | ...   let count = counts.get(i).unwrap().try_extract::<u32>().unwrap_o...
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: indexing may panic
+   --> src\analyser\logic\profiling.rs:468:21
+    |
+468 |             .column(vc.get_column_names()[0])?
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: this function has too many lines (197/100)
+   --> src\pipeline\executor.rs:152:1
+    |
+152 | fn apply_step(step: &Step, mut lf: LazyFrame) -> Result<LazyFrame> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+warning: this function's return value is unnecessarily wrapped by `Result`
+   --> src\pipeline\executor.rs:440:1
+    |
+440 | fn expand_path_template(template: &str) -> Result<PathBuf> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_wraps
+    = note: requested on the command line with `-W clippy::unnecessary-wraps`
+help: remove `Result` from the return type...
+    |
+440 - fn expand_path_template(template: &str) -> Result<PathBuf> {
+440 + fn expand_path_template(template: &str) -> std::path::PathBuf {
+    |
+help: ...and then remove the surrounding `Ok()` from returning expressions
+    |
+443 -     Ok(PathBuf::from(expanded))
+443 +     PathBuf::from(expanded)
+    |
+warning: this function has too many lines (147/100)
+  --> src\pipeline\powershell.rs:10:1
+   |
+10 | pub fn generate_powershell_script(spec: &PipelineSpec, spec_path: &Path) -> String {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+warning: iteration over unordered hash-based type
+   --> src\pipeline\spec.rs:87:9
+    |
+ 87 | /         for (col_name, config) in configs {
+ 88 | |             if !config.active {
+ 89 | |                 continue;
+...   |
+145 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
+warning: wildcard matches only a single variant and will also match any future added variants
+   --> src\pipeline\spec.rs:130:21
+    |
+130 |                     _ => continue,
+    |                     ^ help: try: `crate::analyser::logic::types::ImputeMode::None`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#match_wildcard_for_single_variants
+    = note: requested on the command line with `-W clippy::match-wildcard-for-single-variants`
+warning: this function has too many lines (129/100)
+   --> src\pipeline\validation.rs:108:1
+    |
+108 | / fn validate_step(
+109 | |     step: &Step,
+110 | |     idx: usize,
+111 | |     columns: &mut HashSet<String>,
+112 | |     errors: &mut Vec<ValidationError>,
+113 | | ) {
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+warning: iteration over unordered hash-based type
+   --> src\pipeline\validation.rs:129:13
+    |
+129 | /             for (from, to) in mapping {
+130 | |                 if !columns.contains(from) {
+131 | |                     errors.push(ValidationError::step(
+132 | |                         idx,
+...   |
+146 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
+warning: iteration over unordered hash-based type
+   --> src\pipeline\validation.rs:163:13
+    |
+163 | /             for (col, type_str) in cast_cols {
+164 | |                 if !is_valid_type_string(type_str) {
+165 | |                     errors.push(ValidationError::step(
+166 | |                         idx,
+...   |
+170 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
+warning: indexing may panic
+   --> src\utils.rs:385:32
+    |
+385 |     format!("{:.2} {}", value, units[i])
+    |                                ^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: non-binding `let` on an expression with `#[must_use]` type
+   --> src\utils.rs:428:17
+    |
+428 |                 let _ = fs::remove_file(path);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+warning: non-binding `let` without a type annotation
+   --> src\utils.rs:428:17
+    |
+428 |                 let _ = fs::remove_file(path);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\utils.rs:428:22
+    |
+428 |                 let _ = fs::remove_file(path);
+    |                      ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+warning: this lint expectation is unfulfilled
+   --> src\utils.rs:183:14
+    |
+183 |     #[expect(dead_code)]
+    |              ^^^^^^^^^
+    |
+    = note: `#[warn(unfulfilled_lint_expectations)]` on by default
+warning: this lint expectation is unfulfilled
+   --> src\utils.rs:188:14
+    |
+188 |     #[expect(dead_code)]
+    |              ^^^^^^^^^
+warning: `beefcake` (lib) generated 69 warnings
+warning: indexing may panic
+   --> src\analyser\lifecycle\diff.rs:326:20
+    |
+326 |         assert_eq!(changes.type_changes[0].column, "col1");
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+    = note: requested on the command line with `-W clippy::indexing-slicing`
+warning: field assignment outside of initializer for an instance created with Default::default()
+   --> src\analyser\lifecycle\stages\advanced.rs:102:9
+    |
+102 |         config.active = true;
+    |         ^^^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { active: true, ..Default::default() }` and removing relevant reassignments
+   --> src\analyser\lifecycle\stages\advanced.rs:101:9
+    |
+101 |         let mut config = ColumnCleanConfig::default();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+note: the lint level is defined here
+   --> src\lib.rs:1:9
+    |
+  1 | #![warn(clippy::all, rust_2018_idioms)]
+    |         ^^^^^^^^^^^
+    = note: `#[warn(clippy::field_reassign_with_default)]` implied by `#[warn(clippy::all)]`
+warning: indexing may panic
+   --> src\analyser\lifecycle\stages\advanced.rs:107:23
+    |
+107 |         let config = &configs["col1"];
+    |                       ^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: field assignment outside of initializer for an instance created with Default::default()
+  --> src\analyser\lifecycle\stages\profile.rs:56:9
+   |
+56 |         config.new_name = summary.standardized_name.clone();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { new_name: summary.standardized_name.clone(), active: true, ..Default::default() }` and removing relevant reassignments
+  --> src\analyser\lifecycle\stages\profile.rs:55:9
+   |
+55 |         let mut config = ColumnCleanConfig::default();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+warning: used `unwrap()` on a `Result` value
+   --> src\analyser\lifecycle\mod.rs:154:17
+    |
+154 |         assert!(registry.datasets.read().unwrap().is_empty());
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: indexing may panic
+   --> src\analyser\logic\analysis.rs:704:27
+    |
+704 |             let name_i = &numeric_cols[i];
+    |                           ^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1037:5
+     |
+1037 |     let _ = std::fs::remove_file(csv_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+warning: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1037:5
+     |
+1037 |     let _ = std::fs::remove_file(csv_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1037:10
+     |
+1037 |     let _ = std::fs::remove_file(csv_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+warning: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1043:5
+     |
+1043 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+warning: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1043:5
+     |
+1043 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1043:10
+     |
+1043 |     let _ = std::fs::remove_file(parquet_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+warning: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1049:5
+     |
+1049 |     let _ = std::fs::remove_file(json_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+warning: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1049:5
+     |
+1049 |     let _ = std::fs::remove_file(json_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1049:10
+     |
+1049 |     let _ = std::fs::remove_file(json_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+warning: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1084:5
+     |
+1084 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+warning: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1084:5
+     |
+1084 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1084:10
+     |
+1084 |     let _ = std::fs::remove_file(parquet_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+warning: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1128:5
+     |
+1128 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+warning: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1128:5
+     |
+1128 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1128:10
+     |
+1128 |     let _ = std::fs::remove_file(parquet_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+warning: used `unwrap_err()` on a `Result` value
+   --> src\error.rs:150:17
+    |
+150 | ...   assert!(result.unwrap_err().to_string().contains("Failed to read...
+    |               ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Ok`, it will panic
+    = help: consider using `expect_err()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: field assignment outside of initializer for an instance created with Default::default()
+   --> src\pipeline\spec.rs:405:9
+    |
+405 |         config.active = true;
+    |         ^^^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { active: true, new_name: "customer_id".to_owned(), trim_whitespace: true, advanced_cleaning: true, ..Default::default() }` and removing relevant reassignments
+   --> src\pipeline\spec.rs:404:9
+    |
+404 |         let mut config = ColumnCleanConfig::default();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+warning: used `unwrap()` on a `Result` value
+   --> src\pipeline\validation.rs:320:22
+    |
+320 |         let errors = validate_pipeline(&spec, &schema).unwrap();
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: indexing may panic
+   --> src\pipeline\validation.rs:323:17
+    |
+323 |         assert!(errors[0].message.contains("nonexistent"));
+    |                 ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: used `unwrap()` on a `Result` value
+   --> src\pipeline\validation.rs:341:22
+    |
+341 |         let errors = validate_pipeline(&spec, &schema).unwrap();
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: indexing may panic
+   --> src\pipeline\validation.rs:344:17
+    |
+344 |         assert!(errors[0].message.contains("target already exists"));
+    |                 ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+warning: used `unwrap()` on a `Result` value
+   --> src\pipeline\validation.rs:362:22
+    |
+362 |         let errors = validate_pipeline(&spec, &schema).unwrap();
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\pipeline\validation.rs:389:22
+    |
+389 |         let errors = validate_pipeline(&spec, &schema).unwrap();
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\utils.rs:471:9
+    |
+471 |         std::fs::write(&test_file, "test content").unwrap();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\utils.rs:490:9
+    |
+490 |         std::fs::write(&test_file, "test content").unwrap();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: non-binding `let` without a type annotation
+   --> src\utils.rs:496:13
+    |
+496 |             let _ = guard.keep();
+    |             ^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\utils.rs:496:18
+    |
+496 |             let _ = guard.keep();
+    |                  ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+warning: used `unwrap()` on a `Result` value
+   --> src\utils.rs:503:9
+    |
+503 |         std::fs::remove_file(&test_file).unwrap();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\utils.rs:513:9
+    |
+513 |         std::fs::write(&test_file1, "test1").unwrap();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: used `unwrap()` on a `Result` value
+   --> src\utils.rs:514:9
+    |
+514 |         std::fs::write(&test_file2, "test2").unwrap();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+warning: writing `&PathBuf` instead of `&Path` involves a new object where a slice will do
+   --> src\cli.rs:320:40
+    |
+320 | ...h(input_path: &PathBuf, prefix: &str, extension: &str) -> PathBuf {
+    |                  ^^^^^^^^ help: change this to: `&Path`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#ptr_arg
+note: the lint level is defined here
+   --> src\main.rs:1:9
+    |
+  1 | #![warn(clippy::all, rust_2018_idioms)]
+    |         ^^^^^^^^^^^
+    = note: `#[warn(clippy::ptr_arg)]` implied by `#[warn(clippy::all)]`
+warning: usage of `process::exit`
+   --> src\cli.rs:453:9
+    |
+453 |         std::process::exit(3);
+    |         ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#exit
+    = note: requested on the command line with `-W clippy::exit`
+warning: name `SQL` contains a capitalized acronym
+  --> src\export.rs:18:5
+   |
+18 |     SQL,
+   |     ^^^ help: consider making the acronym lowercase, except the initial letter: `Sql`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#upper_case_acronyms
+   = note: `#[warn(clippy::upper_case_acronyms)]` implied by `#[warn(clippy::all)]`
+warning: this function has too many lines (107/100)
+  --> src\export.rs:50:1
+   |
+50 | / pub async fn prepare_export_source(
+51 | |     source: &ExportSource,
+52 | |     temp_files: &mut beefcake::utils::TempFileCollection,
+53 | | ) -> Result<LazyFrame> {
+   | |______________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+   = note: requested on the command line with `-W clippy::too-many-lines`
+warning: unnecessary `Debug` formatting in `format!` args
+   --> src\export.rs:197:60
+    |
+197 | ...   &format!("Sinking data to temporary file: {temp_path:?}"),
+    |                                                  ^^^^^^^^^
+    |
+    = help: use `Display` formatting and change this to `temp_path.display()`
+    = note: switching to `Display` formatting will change how the value is shown; escaped characters will no longer be escaped and surrounding quotes will be removed
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_debug_formatting
+    = note: requested on the command line with `-W clippy::unnecessary-debug-formatting`
+warning: non-binding `let` on an expression with `#[must_use]` type
+   --> src\export.rs:227:17
+    |
+227 |                 let _ = std::fs::remove_file(&temp_path);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+    = note: requested on the command line with `-W clippy::let-underscore-must-use`
+warning: non-binding `let` without a type annotation
+   --> src\export.rs:227:17
+    |
+227 |                 let _ = std::fs::remove_file(&temp_path);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\export.rs:227:22
+    |
+227 |                 let _ = std::fs::remove_file(&temp_path);
+    |                      ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+    = note: requested on the command line with `-W clippy::let-underscore-untyped`
+warning: unnecessary `Debug` formatting in `format!` args
+   --> src\export.rs:232:53
+    |
+232 |                 &format!("Successfully exported to {final_path:?}"),
+    |                                                     ^^^^^^^^^^
+    |
+    = help: use `Display` formatting and change this to `final_path.display()`
+    = note: switching to `Display` formatting will change how the value is shown; escaped characters will no longer be escaped and surrounding quotes will be removed
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_debug_formatting
+warning: `map_err(|_|...` wildcard pattern discards the original error
+  --> src\tauri_app.rs:50:22
+   |
+50 | ...   .map_err(|_| format!("{name_for_join} thread joined with error (p...
+   |                ^^^
+   |
+   = help: consider storing the original error as a source in the new error, or silence this warning using an ignored identifier (`.map_err(|_foo| ...`)
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#map_err_ignore
+   = note: requested on the command line with `-W clippy::map-err-ignore`
+warning: `to_string()` called on a `&str`
+  --> src\tauri_app.rs:93:8
+   |
+93 |     Ok(env!("CARGO_PKG_VERSION").to_string())
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `env!("CARGO_PKG_VERSION").to_owned()`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#str_to_string
+   = note: requested on the command line with `-W clippy::str-to-string`
+warning: iteration over unordered hash-based type
+   --> src\tauri_app.rs:146:5
+    |
+146 | /     for config in options.configs.values() {
+147 | |         if config.active && config.ml_preprocessing {
+148 | |             if config.impute_mode == ImputeMode::Median || config.im...
+149 | |                 high_mem_ops += 1;
+...   |
+155 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
+    = note: requested on the command line with `-W clippy::iter-over-hash-type`
+warning: used `unwrap_err()` on a `Result` value
+   --> src\error.rs:150:17
+    |
+150 | ...   assert!(result.unwrap_err().to_string().contains("Failed to read...
+    |               ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Ok`, it will panic
+    = help: consider using `expect_err()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+    = note: requested on the command line with `-W clippy::unwrap-used`
+warning: `beefcake` (lib test) generated 97 warnings (67 duplicates)
+warning: `beefcake` (bin "beefcake") generated 11 warnings
+warning: `beefcake` (bin "beefcake" test) generated 12 warnings (11 duplicates)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.65s

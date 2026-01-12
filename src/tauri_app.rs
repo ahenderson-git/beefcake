@@ -10,7 +10,7 @@ use beefcake::analyser::logic::{AnalysisResponse, ColumnCleanConfig};
 use beefcake::utils::{AppConfig, DbSettings, load_app_config, push_audit_log, save_app_config};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::str::FromStr;
+use std::str::FromStr as _;
 
 use crate::export;
 use crate::python_runner;
@@ -21,7 +21,7 @@ where
     Fut: std::future::Future<Output = Result<R, String>> + Send + 'static,
     R: Send + 'static,
 {
-    let name = name_str.to_string();
+    let name = name_str.to_owned();
     let name_outer = name.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let name_for_thread = name.clone();
@@ -47,7 +47,7 @@ where
 
         handle
             .join()
-            .map_err(|_| format!("{name_for_join} thread joined with error (panic)"))?
+            .map_err(|e| format!("{name_for_join} thread joined with error (panic): {e:?}"))?
     })
     .await
     .map_err(|e| format!("{name_outer} task execution failed: {e}"))?
@@ -90,7 +90,7 @@ pub async fn write_text_file(path: String, contents: String) -> Result<(), Strin
 
 #[tauri::command]
 pub async fn get_app_version() -> Result<String, String> {
-    Ok(env!("CARGO_PKG_VERSION").to_string())
+    Ok(env!("CARGO_PKG_VERSION").to_owned())
 }
 
 #[tauri::command]
@@ -155,7 +155,7 @@ pub async fn export_data(options: export::ExportOptions) -> Result<(), String> {
     }
 
     if high_mem_ops > 0 {
-        if let export::ExportSourceType::Analyser = options.source.source_type {
+        if matches!(options.source.source_type, export::ExportSourceType::Analyser) {
             if let Some(path) = &options.source.path {
                 if let Ok(meta) = std::fs::metadata(path) {
                     if meta.len() > 50 * 1024 * 1024 {
@@ -197,10 +197,10 @@ pub async fn run_python(
 
     let (actual_data_path, _temp_guard) =
         python_runner::prepare_data(data_path, configs, "Python").await.map_err(String::from)?;
-    let res = python_runner::execute_python(&script, actual_data_path, "Python").await.map_err(String::from);
+    
 
     // _temp_guard will automatically clean up the temp file when dropped
-    res
+    python_runner::execute_python(&script, actual_data_path, "Python").await.map_err(String::from)
 }
 
 #[tauri::command]
@@ -209,15 +209,15 @@ pub async fn run_sql(
     data_path: Option<String>,
     configs: Option<HashMap<String, ColumnCleanConfig>>,
 ) -> Result<String, String> {
-    beefcake::utils::log_event("SQL", "Executing SQL query.");
+    beefcake::utils::log_event("Sql", "Executing Sql query.");
 
-    let (actual_data_path, _temp_guard) = python_runner::prepare_data(data_path, configs, "SQL").await.map_err(String::from)?;
+    let (actual_data_path, _temp_guard) = python_runner::prepare_data(data_path, configs, "Sql").await.map_err(String::from)?;
 
     // Generate the load snippet and indent it properly for the try block
     let load_snippet = python_runner::python_load_snippet("data_path", "df");
     let indented_load = load_snippet
         .lines()
-        .map(|line| if line.is_empty() { line.to_string() } else { format!("    {}", line) })
+        .map(|line| if line.is_empty() { line.to_owned() } else { format!("    {line}") })
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -230,12 +230,12 @@ if not data_path:
 
 query_str = os.environ.get("BEEFCAKE_SQL_QUERY")
 if not query_str:
-    print("Error: No SQL query provided in environment variable BEEFCAKE_SQL_QUERY")
+    print("Error: No Sql query provided in environment variable BEEFCAKE_SQL_QUERY")
     sys.exit(1)
 
 try:
 {}
-    # Execute SQL query
+    # Execute Sql query
     ctx = pl.SQLContext()
     ctx.register("data", df)
 
@@ -246,17 +246,17 @@ try:
     # Print the result - Polars will format it nicely
     print(result_df)
 except Exception as e:
-    print(f"SQL Error: {{e}}")
+    print(f"Sql Error: {{e}}")
     sys.exit(1)
 "#,
         python_runner::python_preamble(),
         indented_load
     );
 
-    let res = python_runner::execute_python_with_env(&python_script, actual_data_path, Some(query), "SQL").await.map_err(String::from);
+    
 
     // _temp_guard will automatically clean up the temp file when dropped
-    res
+    python_runner::execute_python_with_env(&python_script, actual_data_path, Some(query), "Sql").await.map_err(String::from)
 }
 
 #[tauri::command]
@@ -369,13 +369,12 @@ use beefcake::analyser::lifecycle::{
     DatasetRegistry, DiffSummary, LifecycleStage, PublishMode, TransformPipeline,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, LazyLock, RwLock};
 use uuid::Uuid;
 
 // Global registry instance
-lazy_static::lazy_static! {
-    static ref LIFECYCLE_REGISTRY: Arc<RwLock<Option<Arc<DatasetRegistry>>>> = Arc::new(RwLock::new(None));
-}
+static LIFECYCLE_REGISTRY: LazyLock<Arc<RwLock<Option<Arc<DatasetRegistry>>>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(None)));
 
 fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
     // First try to get existing registry with a read lock (non-blocking for concurrent access)
@@ -398,7 +397,7 @@ fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
     }
 
     let data_dir = dirs::data_local_dir()
-        .ok_or_else(|| "Could not find data directory".to_string())?
+        .ok_or_else(|| "Could not find data directory".to_owned())?
         .join("beefcake")
         .join("datasets");
 
@@ -711,7 +710,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app_handle, event| {
-            if let tauri::RunEvent::Exit = event {
+            if matches!(event, tauri::RunEvent::Exit) {
                 // Flush any pending audit log entries before exit
                 beefcake::utils::flush_pending_audit_entries();
             }

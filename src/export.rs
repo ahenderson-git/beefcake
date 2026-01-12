@@ -1,4 +1,4 @@
-use crate::error::{BeefcakeError, Result, ResultExt};
+use crate::error::{BeefcakeError, Result, ResultExt as _};
 use crate::python_runner::{
     execute_python, python_adaptive_sink_snippet, python_load_snippet, python_preamble,
 };
@@ -15,7 +15,7 @@ use uuid::Uuid;
 pub enum ExportSourceType {
     Analyser,
     Python,
-    SQL,
+    Sql,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -56,19 +56,19 @@ pub async fn prepare_export_source(
             let path = source
                 .path
                 .as_ref()
-                .ok_or_else(|| BeefcakeError::InvalidPath("No path provided for Analyser source".to_string()))?;
+                .ok_or_else(|| BeefcakeError::InvalidPath("No path provided for Analyser source".to_owned()))?;
             beefcake::analyser::logic::load_df_lazy(&PathBuf::from(path))
                 .context("Failed to load data")
         }
-        ExportSourceType::SQL => {
+        ExportSourceType::Sql => {
             let query = source
                 .content
                 .as_ref()
-                .ok_or_else(|| BeefcakeError::Config("No query provided for SQL source".to_string()))?;
+                .ok_or_else(|| BeefcakeError::Config("No query provided for Sql source".to_owned()))?;
             let path = source
                 .path
                 .as_ref()
-                .ok_or_else(|| BeefcakeError::InvalidPath("No data path provided for SQL source".to_string()))?;
+                .ok_or_else(|| BeefcakeError::InvalidPath("No data path provided for Sql source".to_owned()))?;
 
             let temp_dir = std::env::temp_dir();
             let temp_output =
@@ -89,25 +89,25 @@ try:
     
 {}
 except Exception as e:
-    print(f"SQL Export Error: {{e}}")
+    print(f"Sql Export Error: {{e}}")
     sys.exit(1)
 "#,
                 python_preamble(),
                 path,
                 python_load_snippet("data_path", "lf"),
-                query.replace(r#"""#, r#"\"""#),
+                query.replace('"', r#"\"""#),
                 python_adaptive_sink_snippet("result", &temp_output)
             );
 
-            execute_python(&python_script, None, "Export (SQL)").await?;
+            execute_python(&python_script, None, "Export (Sql)").await?;
             LazyFrame::scan_parquet(temp_output, Default::default())
-                .context("Failed to scan SQL result")
+                .context("Failed to scan Sql result")
         }
         ExportSourceType::Python => {
             let script = source
                 .content
                 .as_ref()
-                .ok_or_else(|| BeefcakeError::Config("No script provided for Python source".to_string()))?;
+                .ok_or_else(|| BeefcakeError::Config("No script provided for Python source".to_owned()))?;
             let path = source.path.as_ref();
 
             let temp_dir = std::env::temp_dir();
@@ -122,7 +122,7 @@ except Exception as e:
                     python_load_snippet("data_path", "df")
                 )
             } else {
-                "".to_string()
+                String::new()
             };
 
             let wrapped_script = format!(
@@ -194,7 +194,7 @@ pub async fn execute_export_destination(
 
             beefcake::utils::log_event(
                 "Export",
-                &format!("Sinking data to temporary file: {:?}", temp_path),
+                &format!("Sinking data to temporary file: {}", temp_path.display()),
             );
 
             match ext.as_str() {
@@ -229,7 +229,7 @@ pub async fn execute_export_destination(
 
             beefcake::utils::log_event(
                 "Export",
-                &format!("Successfully exported to {:?}", final_path),
+                &format!("Successfully exported to {}", final_path.display()),
             );
             Ok(())
         }
@@ -251,7 +251,7 @@ pub async fn execute_export_destination(
                 .settings.connections
                 .iter()
                 .find(|c| c.id == connection_id)
-                .ok_or_else(|| BeefcakeError::Database("Connection not found".to_string()))?;
+                .ok_or_else(|| BeefcakeError::Database("Connection not found".to_owned()))?;
 
             let url = conn.settings.connection_string(&connection_id);
             let opts = sqlx::postgres::PgConnectOptions::from_str(&url)

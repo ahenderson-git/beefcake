@@ -114,10 +114,10 @@ pub fn check_python_environment() -> Result<String> {
             if out.status.success() {
                 String::from_utf8_lossy(&out.stdout).to_string()
             } else {
-                "❌ Polars not installed. Run: pip install polars".to_string()
+                "❌ Polars not installed. Run: pip install polars".to_owned()
             }
         }
-        Err(_) => "❌ Unable to check for Polars".to_string(),
+        Err(_) => "❌ Unable to check for Polars".to_owned(),
     };
 
     Ok(format!(

@@ -1,11 +1,11 @@
 use anyhow::{Context as _, Result};
 use beefcake::analyser::logic::types::ColumnCleanConfig;
-use beefcake::analyser::logic::*;
+use beefcake::analyser::logic::{load_df_lazy, flows, clean_df_lazy, get_parquet_write_options, save_df};
 use clap::{Parser, Subcommand};
 use polars::prelude::*;
 use sqlx::postgres::PgConnectOptions;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr as _;
 
 #[derive(Parser)]
@@ -124,7 +124,7 @@ pub enum Commands {
         #[arg(long, required = true)]
         input: PathBuf,
 
-        /// Path for the output file (overrides spec output.path_template)
+        /// Path for the output file (overrides spec `output.path_template`)
         #[arg(long)]
         output: Option<PathBuf>,
 
@@ -317,7 +317,7 @@ fn resolve_cleaning_config(
 }
 
 /// Generate default output path in the processed directory.
-fn get_default_output_path(input_path: &PathBuf, prefix: &str, extension: &str) -> PathBuf {
+fn get_default_output_path(input_path: &Path, prefix: &str, extension: &str) -> PathBuf {
     let stem = input_path.file_stem().unwrap_or_default().to_string_lossy();
     PathBuf::from(format!(
         "{}/{prefix}_{stem}.{extension}",
@@ -325,8 +325,8 @@ fn get_default_output_path(input_path: &PathBuf, prefix: &str, extension: &str) 
     ))
 }
 
-/// Sink a LazyFrame to a file with appropriate format handling.
-fn sink_to_file(lf: LazyFrame, output_path: &PathBuf) -> Result<()> {
+/// Sink a `LazyFrame` to a file with appropriate format handling.
+fn sink_to_file(lf: LazyFrame, output_path: &Path) -> Result<()> {
     let ext = output_path
         .extension()
         .and_then(|s| s.to_str())
@@ -347,19 +347,19 @@ fn sink_to_file(lf: LazyFrame, output_path: &PathBuf) -> Result<()> {
             }
 
             lf.with_streaming(true)
-                .sink_parquet(output_path, options, None)
+                .sink_parquet(&output_path, options, None)
                 .context("Failed to sink to parquet")?;
         }
         "csv" => {
             println!("Streaming to csv: {}...", output_path.display());
             lf.with_streaming(true)
-                .sink_csv(output_path, Default::default(), None)
+                .sink_csv(&output_path, Default::default(), None)
                 .context("Failed to sink to csv")?;
         }
         _ => {
             println!("Collecting and saving to {}...", output_path.display());
             let mut df = lf.collect().context("Failed to collect data for saving")?;
-            save_df(&mut df, output_path).context("Failed to save file")?;
+            save_df(&mut df, &output_path).context("Failed to save file")?;
         }
     }
 
@@ -367,7 +367,7 @@ fn sink_to_file(lf: LazyFrame, output_path: &PathBuf) -> Result<()> {
 }
 
 /// Archive the input file and print the result.
-fn archive_and_log(input_path: &PathBuf, message: &str) -> Result<()> {
+fn archive_and_log(input_path: &Path, message: &str) -> Result<()> {
     let archived = beefcake::utils::archive_processed_file(input_path)?;
     println!("{message}: {}", archived.display());
     Ok(())
@@ -428,7 +428,7 @@ async fn handle_run(
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
             report.summary(),
             if report.warnings.is_empty() {
-                "None".to_string()
+                "None".to_owned()
             } else {
                 report.warnings.join("\n")
             }
@@ -462,7 +462,7 @@ async fn handle_run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::CommandFactory;
+    use clap::CommandFactory as _;
 
     #[test]
     fn verify_cli() {

@@ -23,15 +23,15 @@ pub fn sanitize_column_name(name: &str) -> String {
     }
 
     // Trim underscores from ends
-    let mut result = result.trim_matches('_').to_string();
+    let mut result = result.trim_matches('_').to_owned();
 
     // Ensure it doesn't start with a number
-    if !result.is_empty() && result.chars().next().unwrap().is_ascii_digit() {
-        result = format!("col_{}", result);
+    if result.starts_with(|c: char| c.is_ascii_digit()) {
+        result = format!("col_{result}");
     }
 
     if result.is_empty() {
-        "col".to_string()
+        "col".to_owned()
     } else {
         result
     }
@@ -48,7 +48,7 @@ pub fn sanitize_column_names(names: &[String]) -> Vec<String> {
 
         while seen.contains_key(&clean) {
             count += 1;
-            clean = format!("{}_{}", clean_base, count);
+            clean = format!("{clean_base}_{count}");
         }
 
         seen.insert(clean.clone(), true);

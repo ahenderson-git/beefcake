@@ -101,7 +101,7 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
         };
         crate::utils::log_event(
             "Analyser",
-            &format!("Large dataset detected, using random sampling ({} rows) for representative analysis...", sample_rows),
+            &format!("Large dataset detected, using random sampling ({sample_rows} rows) for representative analysis..."),
         );
         // Use random sampling for better representativeness
         // Note: We need to collect, sample, and convert back to lazy for random sampling
@@ -134,13 +134,12 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
         start,
     )?;
 
-    if is_sampled {
-        if let Some(first_col) = response.summary.get_mut(0) {
+    if is_sampled
+        && let Some(first_col) = response.summary.get_mut(0) {
             first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of {} rows due to large dataset size ({})",
                 crate::utils::fmt_count(sampled_rows_count as usize),
                 crate::utils::fmt_bytes(file_size)));
         }
-    }
 
     Ok(response)
 }

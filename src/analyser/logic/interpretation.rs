@@ -120,7 +120,7 @@ impl ColumnSummary {
 
         if self.name != sanitize_column_name(&self.name) {
             advice.push(
-                "Consider standardizing column name for better database and SQL compatibility."
+                "Consider standardizing column name for better database and Sql compatibility."
                     .to_owned(),
             );
         }
@@ -181,7 +181,7 @@ impl ColumnSummary {
         if self.nulls > 0 {
             if null_pct > MISSING_DATA_CRITICAL {
                 advice.push(
-                    format!("Very high missing data (>{}%). Consider excluding this column from ML routines.", MISSING_DATA_CRITICAL),
+                    format!("Very high missing data (>{MISSING_DATA_CRITICAL}%). Consider excluding this column from ML routines."),
                 );
             } else {
                 match self.kind {
@@ -200,11 +200,10 @@ impl ColumnSummary {
 
         if self.kind == ColumnKind::Numeric && !is_likely_id {
             advice.push("Recommend Z-Score or Min-Max Normalization if other numeric features have different scales.".to_owned());
-            if let ColumnStats::Numeric(s) = &self.stats {
-                if s.zero_count as f64 / self.count as f64 > 0.3 {
+            if let ColumnStats::Numeric(s) = &self.stats
+                && s.zero_count as f64 / self.count as f64 > 0.3 {
                     advice.push("High proportion of zeros detected. Consider if 'Zero-Inflated' model techniques are needed.".to_owned());
                 }
-            }
         }
     }
 

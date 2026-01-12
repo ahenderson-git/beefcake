@@ -12,7 +12,7 @@
 //! - Frequency analysis for categorical and text data
 //! - Temporal pattern detection (min/max dates, resolution)
 //!
-//! The profiling algorithms are designed to work with Polars LazyFrame for
+//! The profiling algorithms are designed to work with Polars `LazyFrame` for
 //! memory-efficient processing of datasets that exceed available RAM.
 
 use super::types::{BooleanStats, ColumnKind, ColumnStats, NumericStats, TemporalStats, TextStats};
@@ -58,7 +58,7 @@ pub fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, Colum
     let min = ca.min();
     let max = ca.max();
 
-    if let Some(res) = check_effective_boolean(&series, ca, min, max)? {
+    if let Some(res) = check_effective_boolean(series, ca, min, max)? {
         return Ok(res);
     }
 
@@ -92,24 +92,24 @@ pub fn analyse_numeric(col: &Column, trim_pct: f64) -> Result<(ColumnKind, Colum
         ColumnKind::Numeric,
         ColumnStats::Numeric(NumericStats {
             min,
-            max,
-            mean,
-            median,
-            std_dev,
-            skew,
-            trimmed_mean,
-            histogram,
-            bin_width,
             distinct_count,
             p05,
-            p95,
             q1,
+            median,
+            mean,
+            trimmed_mean,
             q3,
+            p95,
+            max,
+            std_dev,
+            skew,
             zero_count,
             negative_count,
             is_integer,
             is_sorted,
             is_sorted_rev,
+            bin_width,
+            histogram,
         }),
     ))
 }
@@ -144,19 +144,18 @@ pub fn calculate_skew(
     q3: Option<f64>,
     std_dev: Option<f64>,
 ) -> Option<f64> {
-    if let (Some(m), Some(med), Some(s)) = (mean, median, std_dev) {
-        if s > 0.0 {
+    if let (Some(m), Some(med), Some(s)) = (mean, median, std_dev)
+        && s > 0.0 {
             let pearson_skew = 3.0 * (m - med) / s;
             if let (Some(v1), Some(v3)) = (q1, q3) {
                 let iqr = v3 - v1;
                 if iqr > 0.0 {
                     let bowley_skew = (v3 + v1 - 2.0 * med) / iqr;
-                    return Some((pearson_skew + bowley_skew) / 2.0);
+                    return Some(f64::midpoint(pearson_skew, bowley_skew));
                 }
             }
             return Some(pearson_skew);
         }
-    }
     None
 }
 
@@ -194,7 +193,9 @@ pub fn calculate_histogram(
             let num_bins = 20;
             bin_width = 1.0;
             let mut bins = vec![0; num_bins];
-            bins[10] = ca.len() - ca.null_count();
+            if let Some(bin) = bins.get_mut(10) {
+                *bin = ca.len() - ca.null_count();
+            }
 
             // The value should be at min_v. If we want it in bin 10,
             // then bin 10 starts at min_v and ends at min_v + bin_width.
@@ -208,7 +209,7 @@ pub fn calculate_histogram(
             let iqr = q3.unwrap_or(max_v) - q1.unwrap_or(min_v);
 
             let h = if iqr > 0.0 {
-                2.0 * iqr / (n as f64).powf(1.0 / 3.0)
+                2.0 * iqr / (n as f64).cbrt()
             } else {
                 (max_v - min_v) / (n as f64).sqrt()
             };
@@ -250,7 +251,9 @@ pub fn build_histogram_streaming(
             let num_bins = 20;
             let bin_width = 1.0;
             let mut bins = vec![0; num_bins];
-            bins[10] = total_count.saturating_sub(null_count);
+            if let Some(bin) = bins.get_mut(10) {
+                *bin = total_count.saturating_sub(null_count);
+            }
             let start = min_v - 10.0 * bin_width;
             let mut histogram = Vec::new();
             for (i, count) in bins.into_iter().enumerate() {
@@ -262,7 +265,7 @@ pub fn build_histogram_streaming(
         let n = total_count.saturating_sub(null_count);
         let iqr = q3.unwrap_or(max_v) - q1.unwrap_or(min_v);
         let h = if iqr > 0.0 {
-            2.0 * iqr / (n as f64).powf(1.0 / 3.0)
+            2.0 * iqr / (n as f64).cbrt()
         } else {
             (max_v - min_v) / (n as f64).sqrt()
         };
@@ -277,7 +280,7 @@ pub fn build_histogram_streaming(
         let max_rows = get_adaptive_sample_size(total_count);
         let effective_rows = total_count.min(max_rows);
         let chunk_size = 50_000;
-        let total_chunks = (effective_rows + chunk_size - 1) / chunk_size;
+        let total_chunks = effective_rows.div_ceil(chunk_size);
 
         for i in 0..total_chunks {
             let offset = (i * chunk_size) as i64;
@@ -324,8 +327,8 @@ pub fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
     let max = ca.max().map(|v| v.to_string());
 
     let mut timeline = Vec::new();
-    if let (Some(min_v), Some(max_v)) = (ca.min(), ca.max()) {
-        if min_v < max_v {
+    if let (Some(min_v), Some(max_v)) = (ca.min(), ca.max())
+        && min_v < max_v {
             let range = max_v - min_v;
             let interval = range / 20;
             if interval > 0 {
@@ -341,7 +344,6 @@ pub fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
                 }
             }
         }
-    }
 
     Ok((
         ColumnKind::Temporal,
@@ -370,7 +372,7 @@ pub fn analyse_text_or_fallback(
 ) -> Result<(ColumnKind, ColumnStats, bool)> {
     let series = col.as_materialized_series();
     let dtype = series.dtype();
-    let (min_length, max_length, avg_length) = get_text_lengths(&series, dtype)?;
+    let (min_length, max_length, avg_length) = get_text_lengths(series, dtype)?;
 
     let value_counts_df = series
         .value_counts(true, false, "counts".into(), false)
@@ -378,11 +380,11 @@ pub fn analyse_text_or_fallback(
     let has_special = check_special_characters(name, dtype, &value_counts_df)?;
 
     let top_value = if let Some(vc) = value_counts_df.as_ref() {
-        let names = vc.column(series.name()).unwrap().as_materialized_series();
-        let counts = vc.column("counts").unwrap().as_materialized_series();
+        let names = vc.column(series.name()).expect("Column should exist").as_materialized_series();
+        let counts = vc.column("counts").expect("Counts column should exist").as_materialized_series();
         if vc.height() > 0 {
-            let val = names.get(0).unwrap().to_string();
-            let count = counts.get(0).unwrap().try_extract::<u32>().unwrap_or(0) as usize;
+            let val = names.get(0).expect("Non-empty").to_string();
+            let count = counts.get(0).expect("Non-empty").try_extract::<u32>().unwrap_or(0) as usize;
             Some((val, count))
         } else {
             None
@@ -401,16 +403,16 @@ pub fn analyse_text_or_fallback(
     if is_categorical {
         let mut freq = std::collections::HashMap::new();
         if let Some(vc) = value_counts_df.as_ref() {
-            let names = vc.column(series.name()).unwrap().as_materialized_series();
-            let counts = vc.column("counts").unwrap().as_materialized_series();
+            let names = vc.column(series.name()).expect("Column should exist").as_materialized_series();
+            let counts = vc.column("counts").expect("Counts column should exist").as_materialized_series();
             for i in 0..vc.height() {
-                let val_av = names.get(i).unwrap();
+                let val_av = names.get(i).expect("Index in range");
                 let val = if let Some(s) = val_av.get_str() {
-                    s.to_string()
+                    s.to_owned()
                 } else {
                     val_av.to_string()
                 };
-                let count = counts.get(i).unwrap().try_extract::<u32>().unwrap_or(0) as usize;
+                let count = counts.get(i).expect("Index in range").try_extract::<u32>().unwrap_or(0) as usize;
                 freq.insert(val, count);
             }
         }

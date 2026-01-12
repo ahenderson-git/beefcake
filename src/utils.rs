@@ -4,7 +4,7 @@ use secrecy::SecretString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, LazyLock};
 
 pub const DATA_INPUT_DIR: &str = "data/input";
 pub const DATA_PROCESSED_DIR: &str = "data/processed";
@@ -14,9 +14,8 @@ pub const KEYRING_PLACEHOLDER: &str = "__KEYRING__";
 pub static ABORT_SIGNAL: AtomicBool = AtomicBool::new(false);
 
 // Pending audit log entries that will be flushed periodically
-lazy_static::lazy_static! {
-    static ref PENDING_AUDIT_ENTRIES: Arc<Mutex<Vec<AuditEntry>>> = Arc::new(Mutex::new(Vec::new()));
-}
+static PENDING_AUDIT_ENTRIES: LazyLock<Arc<Mutex<Vec<AuditEntry>>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(Vec::new())));
 
 pub fn is_aborted() -> bool {
     ABORT_SIGNAL.load(Ordering::SeqCst)
@@ -114,7 +113,7 @@ pub struct AppSettings {
     pub powershell_font_size: u32,
     pub python_font_size: u32,
     pub sql_font_size: u32,
-    /// Maximum number of rows to display in SQL/Python previews (default: 100)
+    /// Maximum number of rows to display in Sql/Python previews (default: 100)
     pub preview_row_limit: u32,
     /// Whether to show security warning on first Python/PowerShell execution
     pub security_warning_acknowledged: bool,
@@ -142,6 +141,7 @@ impl Default for AppSettings {
 /// Maintains backward compatibility with existing JSON config files.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 #[serde(default)]
+#[derive(Default)]
 pub struct AppConfig {
     #[serde(flatten)]
     pub settings: AppSettings,
@@ -180,28 +180,18 @@ impl AppConfig {
     }
 
     // Maintain backward compatibility with direct field access
-    #[allow(dead_code)]
     pub fn connections(&self) -> &[DbConnection] {
         &self.settings.connections
     }
 
-    #[allow(dead_code)]
     pub fn connections_mut(&mut self) -> &mut Vec<DbConnection> {
         &mut self.settings.connections
     }
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            settings: AppSettings::default(),
-            audit_log_entries: Vec::new(),
-        }
-    }
-}
 
 /// Helper to push a new entry to an audit log.
-/// This is a convenience function that uses the new AppConfig::log_event method.
+/// This is a convenience function that uses the new `AppConfig::log_event` method.
 pub fn push_audit_log(config: &mut AppConfig, action: &str, details: &str) {
     config.log_event(action, details);
 }
@@ -266,13 +256,11 @@ pub fn load_app_config() -> AppConfig {
         serde_json::from_str(&content).unwrap_or_default()
     } else {
         // Try fallback to old path if it exists
-        if let Some(old_path) = dirs::home_dir().map(|p| p.join(".beefcake_config.json")) {
-            if old_path.exists() && old_path != path {
-                if let Ok(content) = fs::read_to_string(old_path) {
+        if let Some(old_path) = dirs::home_dir().map(|p| p.join(".beefcake_config.json"))
+            && old_path.exists() && old_path != path
+                && let Ok(content) = fs::read_to_string(old_path) {
                     return serde_json::from_str(&content).unwrap_or_default();
                 }
-            }
-        }
         AppConfig::default()
     }
 }
@@ -387,12 +375,13 @@ pub fn archive_processed_file(file_path: impl AsRef<Path>) -> anyhow::Result<Pat
 pub fn fmt_bytes(bytes: u64) -> String {
     let units = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
     if bytes == 0 {
-        return "0 B".to_string();
+        return "0 B".to_owned();
     }
     let i = (bytes as f64).log(1024.0).floor() as usize;
     let i = std::cmp::min(i, units.len() - 1);
     let value = bytes as f64 / 1024.0f64.powi(i as i32);
-    format!("{:.2} {}", value, units[i])
+    let unit = units.get(i).unwrap_or(&"EB");
+    format!("{value:.2} {unit}")
 }
 
 pub fn fmt_count(count: usize) -> String {
@@ -433,11 +422,10 @@ impl TempFileGuard {
 
 impl Drop for TempFileGuard {
     fn drop(&mut self) {
-        if let Some(path) = &self.path {
-            if path.exists() {
+        if let Some(path) = &self.path
+            && path.exists() {
                 let _ = fs::remove_file(path);
             }
-        }
     }
 }
 
@@ -479,7 +467,7 @@ mod tests {
         let test_file = temp_dir.join("beefcake_test_temp_file.txt");
 
         // Create a test file
-        std::fs::write(&test_file, "test content").unwrap();
+        std::fs::write(&test_file, "test content").expect("Write failed");
         assert!(test_file.exists());
 
         // Create guard and drop it
@@ -498,7 +486,7 @@ mod tests {
         let test_file = temp_dir.join("beefcake_test_keep_file.txt");
 
         // Create a test file
-        std::fs::write(&test_file, "test content").unwrap();
+        std::fs::write(&test_file, "test content").expect("Write failed");
         assert!(test_file.exists());
 
         // Create guard, keep it, then drop
@@ -511,7 +499,7 @@ mod tests {
         assert!(test_file.exists());
 
         // Clean up
-        std::fs::remove_file(&test_file).unwrap();
+        std::fs::remove_file(&test_file).expect("Remove failed");
     }
 
     #[test]
@@ -521,8 +509,8 @@ mod tests {
         let test_file2 = temp_dir.join("beefcake_test_collection_2.txt");
 
         // Create test files
-        std::fs::write(&test_file1, "test1").unwrap();
-        std::fs::write(&test_file2, "test2").unwrap();
+        std::fs::write(&test_file1, "test1").expect("Write failed");
+        std::fs::write(&test_file2, "test2").expect("Write failed");
         assert!(test_file1.exists());
         assert!(test_file2.exists());
 

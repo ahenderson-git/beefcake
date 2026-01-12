@@ -118,8 +118,7 @@ fn test_interpretation_generation() -> Result<()> {
         .join(" ");
     assert!(
         interpretation_text.to_lowercase().contains("unique identifier"),
-        "Should detect unique identifier. Got: {}",
-        interpretation_text
+        "Should detect unique identifier. Got: {interpretation_text}"
     );
 
     let s2 = Series::new("age".into(), vec![Some(25.0), Some(30.0), None]);
@@ -941,7 +940,7 @@ fn test_restricted_cleaning() -> Result<()> {
 
     // Config for "text" column - should apply all included functions
     configs.insert(
-        "text".to_string(),
+        "text".to_owned(),
         ColumnCleanConfig {
             advanced_cleaning: true,
             trim_whitespace: true,
@@ -951,15 +950,15 @@ fn test_restricted_cleaning() -> Result<()> {
             extract_numbers: true,
             // These should be skipped in restricted mode
             text_case: TextCase::Lowercase,
-            regex_find: "hello".to_string(),
-            regex_replace: "hi".to_string(),
+            regex_find: "hello".to_owned(),
+            regex_replace: "hi".to_owned(),
             ..Default::default()
         },
     );
 
     // Config for "to_cast" column - should cast to boolean
     configs.insert(
-        "to_cast".to_string(),
+        "to_cast".to_owned(),
         ColumnCleanConfig {
             target_dtype: Some(ColumnKind::Boolean),
             ..Default::default()
@@ -968,9 +967,9 @@ fn test_restricted_cleaning() -> Result<()> {
 
     // Config for "to_skip" column - should skip all these
     configs.insert(
-        "to_skip".to_string(),
+        "to_skip".to_owned(),
         ColumnCleanConfig {
-            new_name: "renamed".to_string(),            // Should be skipped
+            new_name: "renamed".to_owned(),            // Should be skipped
             impute_mode: ImputeMode::Zero,              // Should be skipped
             rounding: Some(0),                          // Should be skipped
             normalization: NormalizationMethod::MinMax, // Should be skipped
@@ -1010,10 +1009,10 @@ fn test_restricted_cleaning() -> Result<()> {
 #[test]
 fn test_bulk_column_sanitization_collisions() {
     let names = vec![
-        "Duplicate Name".to_string(),
-        "Duplicate Name".to_string(),
-        "duplicate_name".to_string(),
-        "Other".to_string(),
+        "Duplicate Name".to_owned(),
+        "Duplicate Name".to_owned(),
+        "duplicate_name".to_owned(),
+        "Other".to_owned(),
     ];
     let sanitized = sanitize_column_names(&names);
     assert_eq!(sanitized[0], "duplicate_name");
@@ -1096,7 +1095,7 @@ fn test_export_massive_columns() -> Result<()> {
     for i in 0..num_cols {
         let s = Series::new(
             format!("col_{i}").into(),
-            vec![Some(format!(" {} ", i)); num_rows],
+            vec![Some(format!(" {i} ")); num_rows],
         );
         columns.push(Column::from(s));
     }
@@ -1140,7 +1139,7 @@ fn test_export_super_massive_columns() -> Result<()> {
     for i in 0..num_cols {
         let s = Series::new(
             format!("col_{i}").into(),
-            vec![Some(format!(" {} ", i)); num_rows],
+            vec![Some(format!(" {i} ")); num_rows],
         );
         columns.push(Column::from(s));
     }
@@ -1180,7 +1179,7 @@ fn test_lazy_cleaning_pipeline() -> Result<()> {
     )?;
     let mut configs = HashMap::new();
     configs.insert(
-        "b".to_string(),
+        "b".to_owned(),
         ColumnCleanConfig {
             advanced_cleaning: true,
             trim_whitespace: true,
@@ -1207,7 +1206,7 @@ fn test_lazy_one_hot_encoding() -> Result<()> {
     )?;
     let mut configs = HashMap::new();
     configs.insert(
-        "cat".to_string(),
+        "cat".to_owned(),
         ColumnCleanConfig {
             active: true,
             ml_preprocessing: true,

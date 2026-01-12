@@ -23,7 +23,7 @@ pub fn load_df(path: &std::path::Path, _progress: &Arc<AtomicU64>) -> Result<Dat
         "json" => JsonReader::new(std::fs::File::open(path)?)
             .finish()
             .context("Failed to read JSON")?,
-        _ => return Err(anyhow::anyhow!("Unsupported file extension: {}", ext)),
+        _ => return Err(anyhow::anyhow!("Unsupported file extension: {ext}")),
     };
 
     try_parse_temporal_columns(df)
@@ -41,11 +41,10 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
         // Try parsing string columns as datetime
         if let Ok(s) = df.column(name) {
             let s = s.as_materialized_series();
-            if let Ok(casted) = s.cast(&DataType::Datetime(TimeUnit::Milliseconds, None)) {
-                if casted.null_count() < s.len() / 2 {
+            if let Ok(casted) = s.cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
+                && casted.null_count() < s.len() / 2 {
                     let _ = df.replace(name, casted);
                 }
-            }
         }
     }
     Ok(df)
@@ -58,20 +57,17 @@ pub fn save_df(df: &mut DataFrame, path: &std::path::Path) -> Result<()> {
         .unwrap_or("")
         .to_lowercase();
 
-    match ext.as_str() {
-        "parquet" => {
-            let file = std::fs::File::create(path).context("Failed to create Parquet file")?;
-            ParquetWriter::new(file)
-                .finish(df)
-                .context("Failed to write Parquet file")?;
-        }
-        _ => {
-            let file = std::fs::File::create(path).context("Failed to create CSV file")?;
-            CsvWriter::new(file)
-                .include_header(true)
-                .finish(df)
-                .context("Failed to write CSV file")?;
-        }
+    if ext.as_str() == "parquet" {
+        let file = std::fs::File::create(path).context("Failed to create Parquet file")?;
+        ParquetWriter::new(file)
+            .finish(df)
+            .context("Failed to write Parquet file")?;
+    } else {
+        let file = std::fs::File::create(path).context("Failed to create CSV file")?;
+        CsvWriter::new(file)
+            .include_header(true)
+            .finish(df)
+            .context("Failed to write CSV file")?;
     }
 
     Ok(())
@@ -89,11 +85,10 @@ pub fn get_parquet_write_options(lf: &LazyFrame) -> Result<ParquetWriteOptions> 
     let mut row_group_size = if col_count >= 100 { 16_384 } else { 32_768 };
 
     // Allow environment variable override for emergency debugging
-    if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE") {
-        if let Ok(parsed) = env_val.parse::<usize>() {
+    if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE")
+        && let Ok(parsed) = env_val.parse::<usize>() {
             row_group_size = parsed;
         }
-    }
 
     Ok(ParquetWriteOptions {
         maintain_order: false,
@@ -127,6 +122,6 @@ pub fn load_df_lazy(path: &std::path::Path) -> Result<LazyFrame> {
                 .context("Failed to read JSON")?;
             Ok(df.lazy())
         }
-        _ => Err(anyhow::anyhow!("Unsupported file extension: {}", ext)),
+        _ => Err(anyhow::anyhow!("Unsupported file extension: {ext}")),
     }
 }
