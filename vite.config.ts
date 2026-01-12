@@ -60,5 +60,8 @@ export default defineConfig(async () => ({
     // Monaco Editor is legitimately 5.6 MB (it's a full code editor like VS Code)
     // This is acceptable for a desktop app, suppress the warning
     chunkSizeWarningLimit: 6000,
+    // Disable default emptyOutDir to avoid EPERM on Windows/OneDrive
+    // We handle cleanup in scripts/clean.js
+    emptyOutDir: false,
   },
 }));

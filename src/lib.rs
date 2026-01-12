@@ -2,4 +2,5 @@
 
 pub mod analyser;
 pub mod error;
+pub mod pipeline;
 pub mod utils;

@@ -37,13 +37,13 @@ class BeefcakeApp {
     isLoading: false,
     isAborting: false,
     loadingMessage: '',
-    trimPct: 0.1,
     config: null,
     pythonScript: null,
     sqlScript: null,
     pythonSkipCleaning: true,
     sqlSkipCleaning: true,
-    currentDataset: null
+    currentDataset: null,
+    selectedColumns: new Set()
   };
 
   private components: Partial<Record<View, Component>> = {};
@@ -201,51 +201,87 @@ class BeefcakeApp {
       this.state.isAborting = false;
       this.state.loadingMessage = `Analyzing ${path}...`;
       this.switchView('Analyser');
-      
+
       this.showToast(`Analyzing ${path}...`, 'info');
-      const response = await api.analyseFile(path, this.state.trimPct);
+      const response = await api.analyseFile(path);
       this.state.analysisResponse = response;
-      
+
       // Initialize cleaning configs
       this.state.cleaningConfigs = {};
       response.summary.forEach(col => {
         this.state.cleaningConfigs[col.name] = getDefaultColumnCleanConfig(col);
       });
 
-      // Create lifecycle dataset from analysis
-      try {
-        console.log('Creating lifecycle dataset for:', response.file_name);
-        const datasetId = await api.createDataset(response.file_name, path);
-        console.log('Dataset created with ID:', datasetId);
-
-        const versionsJson = await api.listVersions(datasetId);
-        console.log('Versions JSON:', versionsJson);
-
-        const versions = JSON.parse(versionsJson);
-        console.log('Parsed versions:', versions);
-
-        this.state.currentDataset = {
-          id: datasetId,
-          name: response.file_name,
-          versions: versions,
-          activeVersionId: versions[0].id, // Raw version
-          rawVersionId: versions[0].id
-        };
-
-        console.log('Lifecycle dataset created successfully:', this.state.currentDataset);
-      } catch (lifecycleErr) {
-        console.error('Failed to create lifecycle dataset:', lifecycleErr);
-        this.showToast(`Lifecycle creation failed: ${lifecycleErr}`, 'error');
-        // Analysis still succeeds, just no lifecycle tracking
-      }
-
+      // Immediately show analysis results without waiting for lifecycle
       this.state.isLoading = false;
       this.render();
       this.showToast('Analysis complete', 'success');
+
+      // Create lifecycle dataset asynchronously in background
+      // This avoids blocking the UI for large file operations
+      this.createLifecycleDatasetAsync(response.file_name, path);
     } catch (err) {
       this.state.isLoading = false;
       this.render();
       this.showToast(`Analysis failed: ${err}`, 'error');
+    }
+  }
+
+  private async createLifecycleDatasetAsync(fileName: string, path: string) {
+    try {
+      console.log('Creating lifecycle dataset for:', fileName);
+      const datasetId = await api.createDataset(fileName, path);
+      console.log('Dataset created with ID:', datasetId);
+
+      let versionsJson = await api.listVersions(datasetId);
+      console.log('Versions JSON:', versionsJson);
+
+      let versions = JSON.parse(versionsJson);
+      console.log('Parsed versions:', versions);
+
+      this.state.currentDataset = {
+        id: datasetId,
+        name: fileName,
+        versions: versions,
+        activeVersionId: versions[0].id, // Raw version
+        rawVersionId: versions[0].id
+      };
+
+      console.log('Lifecycle dataset created successfully:', this.state.currentDataset);
+
+      // Re-render to show lifecycle rail with Raw stage
+      this.render();
+
+      // Automatically create Profiled version since we already ran analysis
+      // Profiled stage just captures analysis metadata without transforming data
+      try {
+        console.log('Creating Profiled version...');
+        const emptyPipeline = { transforms: [] };
+        const profiledVersionId = await api.applyTransforms(
+          datasetId,
+          JSON.stringify(emptyPipeline),
+          'Profiled'
+        );
+        console.log('Profiled version created:', profiledVersionId);
+
+        // Refresh versions list
+        versionsJson = await api.listVersions(datasetId);
+        versions = JSON.parse(versionsJson);
+
+        // Update state with new versions
+        this.state.currentDataset.versions = versions;
+        this.state.currentDataset.activeVersionId = profiledVersionId;
+
+        // Re-render to show Profiled stage completed
+        this.render();
+      } catch (profileErr) {
+        console.error('Failed to create Profiled version:', profileErr);
+        // Not critical - user can still use Raw version
+      }
+    } catch (lifecycleErr) {
+      console.error('Failed to create lifecycle dataset:', lifecycleErr);
+      this.showToast(`Lifecycle creation failed: ${lifecycleErr}`, 'error');
+      // Analysis still succeeds, just no lifecycle tracking
     }
   }
 

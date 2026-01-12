@@ -1,7 +1,7 @@
 {
   "productName": "beefcake",
   "version": "0.2.0",
-  "identifier": "com.beefcake.app",
+  "identifier": "au.com.ahenderson.beefcake",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:14206",
@@ -33,6 +33,14 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "upgradeCode": "6dd52fb7-441f-46fe-bdb6-f949f5016261"
+      }
+    }
   }
 }

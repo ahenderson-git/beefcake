@@ -36,6 +36,50 @@ export class ExportModal extends Component {
     this.bindEvents(state);
   }
 
+  private updateConfigSection(state: AppState): void {
+    const activeExportId = state.config?.active_export_id;
+    const connections = state.config?.connections || [];
+
+    const configContainer = document.getElementById('export-config-container');
+    if (configContainer) {
+      configContainer.innerHTML = renderers.renderExportConfig(
+        this.currentDestType,
+        connections,
+        activeExportId
+      );
+    }
+
+    // Update toggle button active states
+    document.querySelectorAll('.toggle-btn').forEach(btn => {
+      const btnElement = btn as HTMLElement;
+      if (btnElement.dataset.dest === this.currentDestType) {
+        btnElement.classList.add('active');
+      } else {
+        btnElement.classList.remove('active');
+      }
+    });
+
+    // Re-bind events for the new config section
+    this.bindConfigEvents();
+    this.bindExportButton(state);
+  }
+
+  private bindConfigEvents(): void {
+    document.getElementById('btn-browse-export')?.addEventListener('click', async () => {
+      const path = await api.saveFileDialog();
+      if (path) {
+        const input = document.getElementById('export-file-path') as HTMLInputElement;
+        if (input) input.value = path;
+      }
+    });
+  }
+
+  private bindExportButton(state: AppState): void {
+    document.getElementById('btn-start-export')?.addEventListener('click', () => {
+      if (!this.isExporting) this.handleExport(state);
+    });
+  }
+
   override bindEvents(state: AppState): void {
     const modal = document.getElementById('export-modal');
     if (!modal) return;
@@ -50,21 +94,19 @@ export class ExportModal extends Component {
         if (!this.isExporting) this.close(false);
       });
     });
-    
+
     // Toggle destination type
     document.querySelectorAll('.toggle-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         if (!this.isExporting) {
           const target = e.currentTarget as HTMLElement;
           this.currentDestType = target.dataset.dest as 'File' | 'Database';
-          this.render(state);
+          this.updateConfigSection(state);
         }
       });
     });
 
-    document.getElementById('btn-start-export')?.addEventListener('click', () => {
-      if (!this.isExporting) this.handleExport(state);
-    });
+    this.bindExportButton(state);
 
     document.getElementById('btn-abort-export')?.addEventListener('click', async () => {
       this.isAborting = true;
@@ -72,13 +114,7 @@ export class ExportModal extends Component {
       await api.abortProcessing();
     });
 
-    document.getElementById('btn-browse-export')?.addEventListener('click', async () => {
-      const path = await api.saveFileDialog();
-      if (path) {
-        const input = document.getElementById('export-file-path') as HTMLInputElement;
-        if (input) input.value = path;
-      }
-    });
+    this.bindConfigEvents();
   }
 
   private async handleExport(state: AppState) {

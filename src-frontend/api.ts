@@ -2,8 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { AnalysisResponse, AppConfig, ColumnCleanConfig, ExportOptions } from "./types";
 
-export async function analyseFile(path: string, trimPct: number): Promise<AnalysisResponse> {
-  return await invoke("analyze_file", { path, trimPct });
+export async function analyseFile(path: string): Promise<AnalysisResponse> {
+  return await invoke("analyze_file", { path });
 }
 
 export async function getAppVersion(): Promise<string> {
@@ -140,4 +140,33 @@ export async function listVersions(datasetId: string): Promise<string> {
   return await invoke("lifecycle_list_versions", {
     request: { dataset_id: datasetId }
   });
+}
+
+// ============================================================================
+// Pipeline Automation API
+// ============================================================================
+
+export async function savePipelineSpec(specJson: string, path: string): Promise<void> {
+  await invoke("save_pipeline_spec", { specJson, path });
+}
+
+export async function loadPipelineSpec(path: string): Promise<string> {
+  return await invoke("load_pipeline_spec", { path });
+}
+
+export async function validatePipelineSpec(specJson: string, inputPath: string): Promise<string[]> {
+  return await invoke("validate_pipeline_spec", { specJson, inputPath });
+}
+
+export async function generatePowerShell(specJson: string, outputPath: string): Promise<string> {
+  return await invoke("generate_powershell", { specJson, outputPath });
+}
+
+export async function pipelineFromConfigs(
+  name: string,
+  configsJson: string,
+  inputFormat: string,
+  outputPath: string
+): Promise<string> {
+  return await invoke("pipeline_from_configs", { name, configsJson, inputFormat, outputPath });
 }

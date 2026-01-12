@@ -134,6 +134,7 @@ export interface VersionMetadata {
 
 export interface DataLocation {
   ParquetFile?: string;
+  OriginalFile?: string;
 }
 
 export interface TransformSpec {
@@ -263,12 +264,12 @@ export interface AppState {
   isLoading: boolean;
   isAborting: boolean;
   loadingMessage: string;
-  trimPct: number;
   pythonScript: string | null;
   sqlScript: string | null;
   pythonSkipCleaning: boolean;
   sqlSkipCleaning: boolean;
   currentDataset: CurrentDataset | null;
+  selectedColumns: Set<string>;
 }
 
 export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConfig {

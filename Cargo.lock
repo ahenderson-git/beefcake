@@ -345,6 +345,7 @@ dependencies = [
  "linfa-trees",
  "ndarray",
  "polars",
+ "regex",
  "secrecy",
  "serde",
  "serde_json",

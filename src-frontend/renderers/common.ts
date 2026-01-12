@@ -48,7 +48,9 @@ export function renderLoading(message: string, isAborting: boolean): string {
     <div class="loading-overlay">
       <div class="loading-spinner"></div>
       <p>${escapeHtml(message)}</p>
-      ${isAborting ? '<p class="aborting-text">Aborting...</p>' : '<button id="btn-abort-op" class="btn-danger btn-small" style="margin-top: 10px;">Abort</button>'}
+      <div class="loading-actions">
+        ${isAborting ? '<p class="aborting-text">Aborting...</p>' : '<button id="btn-abort-op" class="btn-danger btn-small">Abort</button>'}
+      </div>
     </div>
   `;
 }

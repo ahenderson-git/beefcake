@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 pub const DATA_INPUT_DIR: &str = "data/input";
 pub const DATA_PROCESSED_DIR: &str = "data/processed";
-pub const KEYRING_SERVICE: &str = "com.beefcake.app";
+pub const KEYRING_SERVICE: &str = "au.com.ahenderson.beefcake";
 pub const KEYRING_PLACEHOLDER: &str = "__KEYRING__";
 
 pub static ABORT_SIGNAL: AtomicBool = AtomicBool::new(false);
@@ -249,22 +249,39 @@ fn flush_pending_audit_entries_internal(pending: &mut Vec<AuditEntry>) {
 }
 
 pub fn get_config_path() -> PathBuf {
-    dirs::home_dir()
-        .map(|p| p.join(".beefcake_config.json"))
-        .unwrap_or_else(|| PathBuf::from("beefcake_config.json"))
+    if let Some(mut path) = dirs::config_dir() {
+        path.push("beefcake");
+        path.push("config.json");
+        path
+    } else {
+        dirs::home_dir()
+            .map(|p| p.join(".beefcake_config.json"))
+            .unwrap_or_else(|| PathBuf::from("beefcake_config.json"))
+    }
 }
 
 pub fn load_app_config() -> AppConfig {
     let path = get_config_path();
-    if let Ok(content) = fs::read_to_string(path) {
+    if let Ok(content) = fs::read_to_string(&path) {
         serde_json::from_str(&content).unwrap_or_default()
     } else {
+        // Try fallback to old path if it exists
+        if let Some(old_path) = dirs::home_dir().map(|p| p.join(".beefcake_config.json")) {
+            if old_path.exists() && old_path != path {
+                if let Ok(content) = fs::read_to_string(old_path) {
+                    return serde_json::from_str(&content).unwrap_or_default();
+                }
+            }
+        }
         AppConfig::default()
     }
 }
 
 pub fn save_app_config(config: &AppConfig) -> anyhow::Result<()> {
     let path = get_config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let content = serde_json::to_string_pretty(config)?;
     fs::write(path, content)?;
     Ok(())

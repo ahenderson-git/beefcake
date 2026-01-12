@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "prebuild": "node scripts/clean.js",
+    "build": "tsc && vite build --emptyOutDir false",
     "preview": "vite preview",
     "tauri": "tauri",
+    "fix-locks": "node scripts/clean.js",
     "reset": "node -e \"require('fs').rmSync('node_modules', {recursive:true, force:true}); require('fs').rmSync('package-lock.json', {force:true})\" && npm install"
   },
   "dependencies": {

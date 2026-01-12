@@ -114,6 +114,32 @@ pub enum Commands {
         #[arg(long)]
         config: Option<PathBuf>,
     },
+    /// Run a pipeline specification
+    Run {
+        /// Path to the pipeline spec JSON file
+        #[arg(long, required = true)]
+        spec: PathBuf,
+
+        /// Path to the input data file
+        #[arg(long, required = true)]
+        input: PathBuf,
+
+        /// Path for the output file (overrides spec output.path_template)
+        #[arg(long)]
+        output: Option<PathBuf>,
+
+        /// Date string for path template substitution (format: YYYY-MM-DD, default: today)
+        #[arg(long)]
+        date: Option<String>,
+
+        /// Path to write execution log
+        #[arg(long)]
+        log: Option<PathBuf>,
+
+        /// Fail with error if warnings are generated
+        #[arg(long)]
+        fail_on_warnings: bool,
+    },
 }
 
 pub async fn run_command(command: Commands) -> Result<()> {
@@ -139,6 +165,14 @@ pub async fn run_command(command: Commands) -> Result<()> {
             output,
             config,
         } => handle_clean(file, output, config).await,
+        Commands::Run {
+            spec,
+            input,
+            output,
+            date: _,
+            log,
+            fail_on_warnings,
+        } => handle_run(spec, input, output, log, fail_on_warnings).await,
     }
 }
 
@@ -336,6 +370,92 @@ fn sink_to_file(lf: LazyFrame, output_path: &PathBuf) -> Result<()> {
 fn archive_and_log(input_path: &PathBuf, message: &str) -> Result<()> {
     let archived = beefcake::utils::archive_processed_file(input_path)?;
     println!("{message}: {}", archived.display());
+    Ok(())
+}
+
+async fn handle_run(
+    spec_path: PathBuf,
+    input_path: PathBuf,
+    output_path: Option<PathBuf>,
+    log_path: Option<PathBuf>,
+    fail_on_warnings: bool,
+) -> Result<()> {
+    use beefcake::pipeline::{run_pipeline, PipelineSpec};
+
+    println!("Loading pipeline spec from {}...", spec_path.display());
+
+    // Load pipeline spec
+    let spec = PipelineSpec::from_file(&spec_path)
+        .context(format!("Failed to load pipeline spec: {}", spec_path.display()))?;
+
+    println!("Pipeline: {}", spec.name);
+    println!("Version: {}", spec.version);
+    println!("Steps: {}", spec.steps.len());
+    println!();
+
+    // Validate input file exists
+    if !input_path.exists() {
+        anyhow::bail!("Input file not found: {}", input_path.display());
+    }
+
+    println!("Input: {}", input_path.display());
+
+    // Execute pipeline
+    println!("Running pipeline...");
+    let report = run_pipeline(&spec, &input_path, output_path.as_ref())
+        .context("Pipeline execution failed")?;
+
+    // Print report
+    println!();
+    println!("=== Pipeline Execution Report ===");
+    println!("{}", report.summary());
+
+    if !report.warnings.is_empty() {
+        println!();
+        println!("Warnings:");
+        for warning in &report.warnings {
+            println!("  - {warning}");
+        }
+    }
+
+    // Write log if requested
+    if let Some(log_path) = log_path {
+        let log_content = format!(
+            "Pipeline: {}\nSpec Version: {}\nInput: {}\nTimestamp: {}\n\n{}\n\nWarnings:\n{}\n",
+            spec.name,
+            spec.version,
+            input_path.display(),
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+            report.summary(),
+            if report.warnings.is_empty() {
+                "None".to_string()
+            } else {
+                report.warnings.join("\n")
+            }
+        );
+
+        // Ensure log directory exists
+        if let Some(parent) = log_path.parent() {
+            std::fs::create_dir_all(parent)
+                .context(format!("Failed to create log directory: {}", parent.display()))?;
+        }
+
+        std::fs::write(&log_path, log_content)
+            .context(format!("Failed to write log file: {}", log_path.display()))?;
+
+        println!("Log written to: {}", log_path.display());
+    }
+
+    // Check fail on warnings
+    if fail_on_warnings && !report.warnings.is_empty() {
+        println!();
+        println!("Pipeline completed with warnings and --fail-on-warnings is set.");
+        std::process::exit(3);
+    }
+
+    println!();
+    println!("Pipeline completed successfully!");
+
     Ok(())
 }
 

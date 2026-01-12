@@ -63,7 +63,7 @@ pub fn generate_auto_clean_configs(lf: LazyFrame) -> Result<HashMap<String, Colu
     Ok(configs)
 }
 
-pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<AnalysisResponse> {
+pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
     let start = std::time::Instant::now();
     let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     let path_str = path.to_string_lossy().to_string();
@@ -109,7 +109,8 @@ pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<A
         // statistically better results. Consider using .limit() for datasets > 10M rows.
         let df = lf.clone().limit(sample_rows * 2).collect()?; // Collect 2x for sampling pool
         let n_series = Series::new("n".into(), &[sample_rows as i64]);
-        let sampled_df = df.sample_n(&n_series, false, false, None)?;
+        // Use a fixed seed (42) to ensure deterministic sampling for consistent health scores
+        let sampled_df = df.sample_n(&n_series, false, false, Some(42))?;
         (sampled_df.lazy(), true, sample_rows)
     } else {
         (lf.clone(), false, 0)
@@ -122,19 +123,20 @@ pub async fn analyze_file_flow(path: PathBuf, trim_pct: Option<f64>) -> Result<A
         true_total_rows
     };
 
+    // Use fixed 5% trim for trimmed_mean calculation
     let mut response = crate::analyser::logic::analysis::run_full_analysis_streaming(
         lf_for_analysis,
         path_str,
         file_size,
         true_total_rows,
         sampled_rows,
-        trim_pct.unwrap_or(0.05),
+        0.05,
         start,
     )?;
 
     if is_sampled {
         if let Some(first_col) = response.summary.get_mut(0) {
-            first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of {} rows due to large dataset size ({})", 
+            first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of {} rows due to large dataset size ({})",
                 crate::utils::fmt_count(sampled_rows_count as usize),
                 crate::utils::fmt_bytes(file_size)));
         }

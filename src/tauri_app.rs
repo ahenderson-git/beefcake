@@ -54,7 +54,7 @@ where
 }
 
 #[tauri::command]
-pub async fn analyze_file(path: String, trim_pct: Option<f64>) -> Result<AnalysisResponse, String> {
+pub async fn analyze_file(path: String) -> Result<AnalysisResponse, String> {
     if path.is_empty() {
         return Err("File path is empty".to_owned());
     }
@@ -71,7 +71,7 @@ pub async fn analyze_file(path: String, trim_pct: Option<f64>) -> Result<Analysi
 
     beefcake::utils::reset_abort_signal();
 
-    analyze_file_flow(path_buf, trim_pct)
+    analyze_file_flow(path_buf)
         .await
         .map_err(|e| e.to_string())
 }
@@ -546,6 +546,129 @@ pub async fn lifecycle_list_versions(request: ListVersionsRequest) -> Result<Str
         .map_err(|e| format!("Failed to serialize versions: {e}"))
 }
 
+// ============================================================================
+// Pipeline Automation Commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn save_pipeline_spec(spec_json: String, path: String) -> Result<(), String> {
+    use beefcake::pipeline::PipelineSpec;
+
+    beefcake::utils::log_event("Pipeline", &format!("Saving spec to: {path}"));
+
+    // Parse spec to validate
+    let spec = PipelineSpec::from_json(&spec_json)
+        .map_err(|e| format!("Invalid pipeline spec: {e}"))?;
+
+    // Ensure directory exists
+    let path_buf = std::path::PathBuf::from(&path);
+    if let Some(parent) = path_buf.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {e}"))?;
+    }
+
+    // Write to file
+    spec.to_file(&path_buf)
+        .map_err(|e| format!("Failed to save pipeline spec: {e}"))
+}
+
+#[tauri::command]
+pub async fn load_pipeline_spec(path: String) -> Result<String, String> {
+    use beefcake::pipeline::PipelineSpec;
+
+    beefcake::utils::log_event("Pipeline", &format!("Loading spec from: {path}"));
+
+    let spec = PipelineSpec::from_file(&path)
+        .map_err(|e| format!("Failed to load pipeline spec: {e}"))?;
+
+    spec.to_json()
+        .map_err(|e| format!("Failed to serialize pipeline spec: {e}"))
+}
+
+#[tauri::command]
+pub async fn validate_pipeline_spec(spec_json: String, input_path: String) -> Result<Vec<String>, String> {
+    use beefcake::pipeline::{PipelineSpec, validate_pipeline};
+    use beefcake::analyser::logic::load_df_lazy;
+
+    beefcake::utils::log_event("Pipeline", "Validating pipeline spec");
+
+    // Parse spec
+    let spec = PipelineSpec::from_json(&spec_json)
+        .map_err(|e| format!("Invalid pipeline spec JSON: {e}"))?;
+
+    // Load input file to get schema
+    let mut lf = load_df_lazy(std::path::Path::new(&input_path))
+        .map_err(|e| format!("Failed to load input file: {e}"))?;
+
+    let schema = lf.collect_schema()
+        .map_err(|e| format!("Failed to collect schema: {e}"))?;
+
+    // Validate
+    let errors = validate_pipeline(&spec, &schema)
+        .map_err(|e| format!("Validation error: {e}"))?;
+
+    Ok(errors.iter().map(|e| e.to_string()).collect())
+}
+
+#[tauri::command]
+pub async fn generate_powershell(spec_json: String, output_path: String) -> Result<String, String> {
+    use beefcake::pipeline::{PipelineSpec, generate_powershell_script};
+
+    beefcake::utils::log_event("Pipeline", &format!("Generating PowerShell to: {output_path}"));
+
+    // Parse spec
+    let spec = PipelineSpec::from_json(&spec_json)
+        .map_err(|e| format!("Invalid pipeline spec: {e}"))?;
+
+    // Determine spec path (adjacent to ps1 file)
+    let ps1_path = std::path::PathBuf::from(&output_path);
+    let spec_path = ps1_path.with_extension("json");
+
+    // Generate PowerShell script
+    let script = generate_powershell_script(&spec, &spec_path);
+
+    // Ensure directory exists
+    if let Some(parent) = ps1_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {e}"))?;
+    }
+
+    // Write script file
+    std::fs::write(&ps1_path, &script)
+        .map_err(|e| format!("Failed to write PowerShell script: {e}"))?;
+
+    // Also write spec file alongside
+    spec.to_file(&spec_path)
+        .map_err(|e| format!("Failed to write spec file: {e}"))?;
+
+    Ok(format!("Generated:\n  - {}\n  - {}", ps1_path.display(), spec_path.display()))
+}
+
+#[tauri::command]
+pub async fn pipeline_from_configs(
+    name: String,
+    configs_json: String,
+    input_format: String,
+    output_path: String,
+) -> Result<String, String> {
+    use beefcake::pipeline::PipelineSpec;
+    use beefcake::analyser::logic::types::ColumnCleanConfig;
+    use std::collections::HashMap;
+
+    beefcake::utils::log_event("Pipeline", &format!("Creating pipeline from configs: {name}"));
+
+    // Parse configs
+    let configs: HashMap<String, ColumnCleanConfig> = serde_json::from_str(&configs_json)
+        .map_err(|e| format!("Failed to parse configs: {e}"))?;
+
+    // Generate pipeline spec
+    let spec = PipelineSpec::from_clean_configs(name, &configs, &input_format, &output_path);
+
+    // Serialize to JSON
+    spec.to_json()
+        .map_err(|e| format!("Failed to serialize pipeline: {e}"))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -574,7 +697,12 @@ pub fn run() {
             lifecycle_set_active_version,
             lifecycle_publish_version,
             lifecycle_get_version_diff,
-            lifecycle_list_versions
+            lifecycle_list_versions,
+            save_pipeline_spec,
+            load_pipeline_spec,
+            validate_pipeline_spec,
+            generate_powershell,
+            pipeline_from_configs
         ])
         .setup(|_app| {
             // Setup cleanup handlers

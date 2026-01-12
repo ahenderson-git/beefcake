@@ -1,5 +1,5 @@
 import { Component, ComponentActions } from "./Component";
-import { AppState, ColumnCleanConfig } from "../types";
+import { AppState, ColumnCleanConfig, LifecycleStage } from "../types";
 import * as renderers from "../renderers";
 import * as api from "../api";
 import Chart from 'chart.js/auto';
@@ -7,6 +7,20 @@ import { ExportModal } from "./ExportModal";
 
 export class AnalyserComponent extends Component {
   private charts: Map<string, Chart> = new Map();
+
+  private getCurrentStage(state: AppState): LifecycleStage | null {
+    if (!state.currentDataset || !state.currentDataset.activeVersionId) {
+      return null;
+    }
+    const activeVersion = state.currentDataset.versions.find(
+      v => v.id === state.currentDataset!.activeVersionId
+    );
+    return activeVersion?.stage || null;
+  }
+
+  private isReadOnlyStage(stage: LifecycleStage | null): boolean {
+    return stage === 'Profiled' || stage === 'Raw';
+  }
 
   constructor(containerId: string, actions: ComponentActions) {
     super(containerId, actions);
@@ -30,15 +44,32 @@ export class AnalyserComponent extends Component {
       return;
     }
 
+    const currentStage = this.getCurrentStage(state);
+    const isReadOnly = this.isReadOnlyStage(currentStage);
+
+    // Initialize selectedColumns if empty (default to all selected)
+    if (state.selectedColumns.size === 0 && state.analysisResponse.summary.length > 0) {
+      state.analysisResponse.summary.forEach(col => {
+        state.selectedColumns.add(col.name);
+      });
+    }
+
     container.innerHTML = renderers.renderAnalyser(
       state.analysisResponse,
       state.expandedRows,
-      state.cleaningConfigs
+      state.cleaningConfigs,
+      currentStage,
+      isReadOnly,
+      state.selectedColumns
     );
 
     const header = document.getElementById('analyser-header-container');
     if (header) {
-      header.innerHTML = renderers.renderAnalyserHeader(state.analysisResponse, state.trimPct);
+      header.innerHTML = renderers.renderAnalyserHeader(
+        state.analysisResponse,
+        currentStage,
+        isReadOnly
+      );
     }
 
     this.bindEvents(state);
@@ -61,6 +92,7 @@ export class AnalyserComponent extends Component {
     document.querySelectorAll('.analyser-row').forEach(row => {
       row.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('.row-action')) return;
+        if ((e.target as HTMLElement).closest('.col-select-checkbox')) return;
         const colName = (e.currentTarget as HTMLElement).dataset.col!;
         if (state.expandedRows.has(colName)) {
           state.expandedRows.delete(colName);
@@ -68,6 +100,21 @@ export class AnalyserComponent extends Component {
           state.expandedRows.add(colName);
         }
         this.render(state);
+      });
+    });
+
+    // Column selection checkboxes
+    document.querySelectorAll('.col-select-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const colName = (e.target as HTMLInputElement).dataset.col!;
+        const isChecked = (e.target as HTMLInputElement).checked;
+
+        if (isChecked) {
+          state.selectedColumns.add(colName);
+        } else {
+          state.selectedColumns.delete(colName);
+        }
+        // No need to re-render, just track the state
       });
     });
 
@@ -166,31 +213,74 @@ export class AnalyserComponent extends Component {
       this.handleExport(state);
     });
 
-    // Trim control
-    document.getElementById('trim-range')?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      state.trimPct = val;
-      // Update the span next to it
-      const span = (e.target as HTMLElement).nextElementSibling;
-      if (span) span.textContent = `${Math.round(val * 100)}%`;
-    });
-
-    document.getElementById('trim-range')?.addEventListener('change', () => {
-      this.actions.runAnalysis(state.analysisResponse!.path);
+    document.getElementById('btn-begin-cleaning')?.addEventListener('click', async () => {
+      await this.handleBeginCleaning(state);
     });
   }
 
   private async handleExport(state: AppState) {
     if (!state.analysisResponse) return;
-    
+
     const modal = new ExportModal('modal-container', this.actions, {
       type: 'Analyser',
       path: state.analysisResponse.path
     });
-    
+
     document.getElementById('modal-container')?.classList.add('active');
     await modal.show(state);
     document.getElementById('modal-container')?.classList.remove('active');
+  }
+
+  private async handleBeginCleaning(state: AppState) {
+    if (!state.currentDataset) {
+      this.actions.showToast('No dataset loaded', 'error');
+      return;
+    }
+
+    try {
+      this.actions.showToast('Transitioning to Cleaning stage...', 'info');
+
+      // Build pipeline with column selection if columns were excluded
+      const pipeline: { transforms: any[] } = { transforms: [] };
+
+      if (state.selectedColumns.size > 0 && state.analysisResponse) {
+        const allColumns = state.analysisResponse.summary.map(c => c.name);
+        const selectedCols = Array.from(state.selectedColumns);
+
+        // Only add SelectColumnsTransform if some columns were excluded
+        if (selectedCols.length < allColumns.length) {
+          pipeline.transforms.push({
+            transform_type: 'select_columns',
+            parameters: {
+              columns: selectedCols
+            }
+          });
+        }
+      }
+
+      const pipelineJson = JSON.stringify(pipeline);
+
+      // Apply transforms (which will create a new version in Cleaned stage)
+      const newVersionId = await api.applyTransforms(
+        state.currentDataset.id,
+        pipelineJson,
+        'Cleaned'
+      );
+
+      // Refresh versions
+      const versionsJson = await api.listVersions(state.currentDataset.id);
+      const versions = JSON.parse(versionsJson);
+
+      // Update state
+      state.currentDataset.versions = versions;
+      state.currentDataset.activeVersionId = newVersionId;
+
+      // Re-render to show cleaning controls and update lifecycle rail
+      this.actions.onStateChange();
+      this.actions.showToast('Cleaning stage unlocked', 'success');
+    } catch (err) {
+      this.actions.showToast(`Failed to transition: ${err}`, 'error');
+    }
   }
 
   private initCharts(state: AppState) {
