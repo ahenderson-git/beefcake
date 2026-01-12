@@ -4,7 +4,10 @@
 
 :root {
   --accent-color: #ce412b;
+  --accent-rgb: 206, 65, 43;
   --primary: #3498db;
+  --primary-rgb: 52, 152, 219;
+  --surface-color: #fcfaf8;
   --bg-color: #f8f5f2;
   --card-bg: #ffffff;
   --bg-card: var(--card-bg);
@@ -76,12 +79,12 @@ nav {
 }
 
 .nav-item:hover {
-  background-color: rgba(206, 65, 43, 0.05);
+  background-color: rgba(var(--accent-rgb), 0.05);
   color: var(--accent-color);
 }
 
 .nav-item.active {
-  background-color: rgba(206, 65, 43, 0.1);
+  background-color: rgba(var(--accent-rgb), 0.1);
   color: var(--accent-color);
   font-weight: bold;
   border-right: 3px solid var(--accent-color);
@@ -296,7 +299,7 @@ main {
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid rgba(206, 65, 43, 0.1);
+  border: 3px solid rgba(var(--accent-rgb), 0.1);
   border-left-color: var(--accent-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -342,8 +345,8 @@ main {
 }
 
 .info-item {
-  background: rgba(206, 65, 43, 0.03);
-  border: 1px solid rgba(206, 65, 43, 0.08);
+  background: rgba(var(--accent-rgb), 0.03);
+  border: 1px solid rgba(var(--accent-rgb), 0.08);
   padding: var(--spacing-medium);
   border-radius: 8px;
   display: flex;
@@ -497,7 +500,7 @@ main {
 .form-grid input:focus {
   outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(206, 65, 43, 0.1);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1);
 }
 
 .form-actions {
@@ -1877,7 +1880,7 @@ td {
 .entry-icon {
   width: 40px;
   height: 40px;
-  background: rgba(206, 65, 43, 0.05);
+  background: rgba(var(--accent-rgb), 0.05);
   color: var(--accent-color);
   border-radius: 8px;
   display: flex;
@@ -2229,12 +2232,12 @@ td {
 
 .toggle-btn:hover {
   border-color: var(--accent-color);
-  background: rgba(206, 65, 43, 0.05);
+  background: rgba(var(--accent-rgb), 0.05);
 }
 
 .toggle-btn.active {
   border-color: var(--accent-color);
-  background: rgba(206, 65, 43, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
   color: var(--accent-color);
   font-weight: 600;
 }
@@ -2271,7 +2274,7 @@ td {
 .export-step input[type="text"]:focus {
   outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(206, 65, 43, 0.1);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1);
 }
 
 .export-summary {
@@ -2597,7 +2600,7 @@ td {
 .link-icon {
   font-size: 1.5rem;
   color: var(--accent-color);
-  background: rgba(206, 65, 43, 0.05);
+  background: rgba(var(--accent-rgb), 0.05);
   width: 40px;
   height: 40px;
   display: flex;
@@ -2771,8 +2774,8 @@ td {
 
 .lifecycle-stage.stage-active {
   border-color: var(--accent-color);
-  background: rgba(206, 65, 43, 0.05);
-  box-shadow: 0 0 0 3px rgba(206, 65, 43, 0.1);
+  background: rgba(var(--accent-rgb), 0.05);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
 }
 
 .lifecycle-stage.stage-locked {
@@ -2875,7 +2878,7 @@ td {
 
 .version-chip-active {
   border-color: var(--accent-color);
-  background: rgba(206, 65, 43, 0.05);
+  background: rgba(var(--accent-rgb), 0.05);
 }
 
 .version-chip-badge {
@@ -3322,7 +3325,7 @@ td {
 
 .version-tree-node-active .version-tree-content {
   border-color: var(--accent-color);
-  background: rgba(206, 65, 43, 0.03);
+  background: rgba(var(--accent-rgb), 0.03);
 }
 
 .version-tree-badge {

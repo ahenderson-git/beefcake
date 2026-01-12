@@ -50,8 +50,8 @@
  * - invoke() uses Rust name: "analyze_file"
  *
  * @module api
- * @see {@link docs/ARCHITECTURE.md} for system architecture
- * @see {@link docs/TYPESCRIPT_PATTERNS.md} for Tauri bridge pattern
+ * @see Architecture Documentation: ../docs/ARCHITECTURE.md
+ * @see TypeScript Patterns: ../docs/TYPESCRIPT_PATTERNS.md
  */
 
 import { invoke } from "@tauri-apps/api/core";

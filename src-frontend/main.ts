@@ -41,8 +41,8 @@
  * - **Optional Chaining**: `component?.render()`
  *
  * @module main
- * @see {@link docs/TYPESCRIPT_PATTERNS.md} for pattern explanations
- * @see {@link docs/ARCHITECTURE.md} for system design
+ * @see TypeScript Patterns: ../docs/TYPESCRIPT_PATTERNS.md
+ * @see Architecture Documentation: ../docs/ARCHITECTURE.md
  */
 
 import "@phosphor-icons/web/regular";

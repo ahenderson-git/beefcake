@@ -1,1120 +1,782 @@
-warning: used `unwrap()` on an `Option` value
-  --> src\analyser\lifecycle\query.rs:97:23
-   |
-97 |             return Ok(sorted.last().unwrap().clone());
-   |                       ^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = note: if this value is `None`, it will panic
-   = help: consider using `expect()` to provide a better panic message
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-   = note: requested on the command line with `-W clippy::unwrap-used`
-warning: used `unwrap()` on an `Option` value
-   --> src\analyser\lifecycle\query.rs:108:23
-    |
-108 |             return Ok(sorted.last().unwrap().clone());
-    |                       ^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is `None`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: iteration over unordered hash-based type
-  --> src\analyser\lifecycle\stages\advanced.rs:70:5
-   |
-70 | /     for config in configs.values_mut() {
-71 | |         config.ml_preprocessing = true;
-72 | |
-73 | |         if enable_imputation && config.impute_mode == crate::analyser...
-...  |
-84 | |     }
-   | |_____^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
-   = note: requested on the command line with `-W clippy::iter-over-hash-type`
-warning: field assignment outside of initializer for an instance created with Default::default()
-  --> src\analyser\lifecycle\stages\profile.rs:56:9
-   |
-56 |         config.new_name = summary.standardized_name.clone();
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { new_name: summary.standardized_name.clone(), active: true, ..Default::default() }` and removing relevant reassignments
-  --> src\analyser\lifecycle\stages\profile.rs:55:9
-   |
-55 |         let mut config = ColumnCleanConfig::default();
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
-note: the lint level is defined here
-  --> src\lib.rs:1:9
-   |
- 1 | #![warn(clippy::all, rust_2018_idioms)]
-   |         ^^^^^^^^^^^
-   = note: `#[warn(clippy::field_reassign_with_default)]` implied by `#[warn(clippy::all)]`
-warning: this function has too many lines (124/100)
-  --> src\analyser\lifecycle\stages\validate.rs:66:5
-   |
-66 |     fn validate_rule(rule: &ValidationRule, lf: &mut LazyFrame) -> Result<ValidationResult> {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
-   = note: requested on the command line with `-W clippy::too-many-lines`
-warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
-  --> src\analyser\lifecycle\stages\mod.rs:44:5
-   |
-44 | /     pub fn from_str(s: &str) -> Option<Self> {
-45 | |         match s.to_lowercase().as_str() {
-46 | |             "raw" => Some(Self::Raw),
-47 | |             "profiled" => Some(Self::Profiled),
-...  |
-54 | |     }
-   | |_____^
-   |
-   = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
-   = note: `#[warn(clippy::should_implement_trait)]` implied by `#[warn(clippy::all)]`
-warning: these match arms have identical bodies
-  --> src\analyser\lifecycle\stages\mod.rs:72:13
-   |
-72 | / ...   (Self::Raw, Self::Profiled)
-73 | | ...   | (Self::Profiled, Self::Cleaned)
-74 | | ...   | (Self::Cleaned, Self::Advanced)
-75 | | ...   | (Self::Advanced, Self::Validated)
-76 | | ...   | (Self::Validated, Self::Published) => true,
-   | |__________________________________________________^
-77 |   ...   // Can skip stages going forward
-78 | / ...   (Self::Raw, Self::Cleaned | Self::Advanced | Self::Validated | ...
-79 | | ...   | (Self::Profiled, Self::Advanced | Self::Validated | Self::Pub...
-80 | | ...   | (Self::Cleaned, Self::Validated | Self::Published)
-81 | | ...   | (Self::Advanced, Self::Published) => true,
-   | |_________________________________________________^
-   |
-   = help: if this is unintentional make the arms return different values
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#match_same_arms
-   = note: requested on the command line with `-W clippy::match-same-arms`
-help: otherwise merge the patterns into a single arm
-   |
-72 ~             // Can skip stages going forward
-73 ~             (Self::Raw, Self::Profiled)
-74 +             | (Self::Profiled, Self::Cleaned)
-75 +             | (Self::Cleaned, Self::Advanced)
-76 +             | (Self::Advanced, Self::Validated)
-77 ~             | (Self::Validated, Self::Published) | (Self::Raw, Self::Cleaned | Self::Advanced | Self::Validated | Self::Published)
-   |
-warning: writing `&PathBuf` instead of `&Path` involves a new object where a slice will do
-  --> src\analyser\lifecycle\storage.rs:52:66
-   |
-52 | ...taset_id: &Uuid, source_path: &PathBuf) -> Result<DataLocation> {
-   |                                  ^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#ptr_arg
-   = note: `#[warn(clippy::ptr_arg)]` implied by `#[warn(clippy::all)]`
-help: change this to
-   |
-52 ~     pub fn store_raw_data(&self, dataset_id: &Uuid, source_path: &Path) -> Result<DataLocation> {
-53 |         let dataset_dir = self.dataset_dir(dataset_id);
-...
-64 |
-65 ~         Ok(DataLocation::OriginalFile(source_path.to_path_buf()))
-   |
-warning: this argument is passed by value, but not consumed in the function body
-   --> src\analyser\lifecycle\version.rs:191:45
-    |
-191 |     pub fn new(name: String, raw_data_path: PathBuf, store: Arc<Versio...
-    |                                             ^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
-    = note: requested on the command line with `-W clippy::needless-pass-by-value`
-help: consider taking a reference instead
-    |
-191 |     pub fn new(name: String, raw_data_path: &PathBuf, store: Arc<VersionStore>) -> Result<Self> {
-    |                                             +
-warning: this function has too many lines (139/100)
-   --> src\analyser\logic\analysis.rs:388:1
-    |
-388 | / pub fn compute_numeric_stats(
-389 | |     lf: LazyFrame,
-390 | |     name: &str,
-391 | |     trim_pct: f64,
-392 | |     adaptive_sample_size: usize,
-393 | | ) -> Result<(ColumnKind, ColumnStats)> {
-    | |______________________________________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:704:27
-    |
-704 |             let name_i = &numeric_cols[i];
-    |                           ^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-    = note: requested on the command line with `-W clippy::indexing-slicing`
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:705:27
-    |
-705 |             let name_j = &numeric_cols[j];
-    |                           ^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: the loop variable `i` is used to index `matrix`
-   --> src\analyser\logic\analysis.rs:716:14
-    |
-716 |     for i in 0..numeric_cols.len() {
-    |              ^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
-    = note: `#[warn(clippy::needless_range_loop)]` implied by `#[warn(clippy::all)]`
-help: consider using an iterator and enumerate()
-    |
-716 -     for i in 0..numeric_cols.len() {
-716 +     for (i, <item>) in matrix.iter_mut().enumerate().take(numeric_cols.len()) {
-    |
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:717:9
-    |
-717 |         matrix[i][i] = 1.0;
-    |         ^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:717:9
-    |
-717 |         matrix[i][i] = 1.0;
-    |         ^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: the loop variable `i` is used to index `matrix`
-   --> src\analyser\logic\analysis.rs:720:14
-    |
-720 |     for i in 0..numeric_cols.len() {
-    |              ^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
-help: consider using an iterator and enumerate()
-    |
-720 -     for i in 0..numeric_cols.len() {
-720 +     for (i, <item>) in matrix.iter_mut().enumerate().take(numeric_cols.len()) {
-    |
-warning: the loop variable `j` is used to index `matrix`
-   --> src\analyser\logic\analysis.rs:721:18
-    |
-721 |         for j in i + 1..numeric_cols.len() {
-    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
-help: consider using an iterator and enumerate()
-    |
-721 -         for j in i + 1..numeric_cols.len() {
-721 +         for (j, <item>) in matrix.iter_mut().enumerate().take(numeric_cols.len()).skip(i + 1) {
-    |
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:729:13
-    |
-729 |             matrix[i][j] = val;
-    |             ^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:729:13
-    |
-729 |             matrix[i][j] = val;
-    |             ^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:730:13
-    |
-730 |             matrix[j][i] = val;
-    |             ^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:730:13
-    |
-730 |             matrix[j][i] = val;
-    |             ^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: field assignment outside of initializer for an instance created with Default::default()
-   --> src\analyser\logic\cleaning.rs:112:9
-    |
-112 |         config.active = true;
-    |         ^^^^^^^^^^^^^^^^^^^^^
-    |
-note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { active: true, trim_whitespace: true, ..Default::default() }` and removing relevant reassignments
-   --> src\analyser\logic\cleaning.rs:111:9
-    |
-111 |         let mut config = ColumnCleanConfig::default();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
-warning: these match arms have identical bodies
-   --> src\analyser\logic\cleaning.rs:130:13
-    |
-130 |             TextCase::TitleCase => {}
-    |             ^^^^^^^^^^^^^^^^^^^^^^^^^
-131 |             TextCase::None => {}
-    |             ^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: if this is unintentional make the arms return different values
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#match_same_arms
-help: otherwise merge the patterns into a single arm
-    |
-130 ~             TextCase::TitleCase | TextCase::None => {}
-131 ~             }
-    |
-warning: field assignment outside of initializer for an instance created with Default::default()
-  --> src\analyser\logic\flows.rs:59:9
-   |
-59 |         config.new_name = summary.standardized_name.clone();
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { new_name: summary.standardized_name.clone(), ..Default::default() }` and removing relevant reassignments
-  --> src\analyser\logic\flows.rs:58:9
-   |
-58 |         let mut config = ColumnCleanConfig::default();
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:442:26
-    |
-442 |                 .map(|w| w[1].0 - w[0].0)
-    |                          ^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:442:35
-    |
-442 |                 .map(|w| w[1].0 - w[0].0)
-    |                                   ^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: slicing may panic
-   --> src\analyser\logic\interpretation.rs:662:9
-    |
-662 | ...   histogram[1..histogram.len()-1].iter().any(|&(_, count)| count =...
-    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:671:16
-    |
-671 | ...   if histogram[i].1 > histogram[i-1].1 && histogram[i].1 > histogr...
-    |          ^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:671:33
-    |
-671 | ...   if histogram[i].1 > histogram[i-1].1 && histogram[i].1 > histogr...
-    |                           ^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:671:53
-    |
-671 | ...   if histogram[i].1 > histogram[i-1].1 && histogram[i].1 > histogr...
-    |                                               ^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:671:70
-    |
-671 | ...-1].1 && histogram[i].1 > histogram[i+1].1 {
-    |                              ^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:673:28
-    |
-673 | ...   let avg = (histogram[i-1].1 + histogram[i].1 + histogram[i+1].1)...
-    |                  ^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:673:47
-    |
-673 | ...   let avg = (histogram[i-1].1 + histogram[i].1 + histogram[i+1].1)...
-    |                                     ^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:673:64
-    |
-673 | ...   let avg = (histogram[i-1].1 + histogram[i].1 + histogram[i+1].1)...
-    |                                                      ^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\interpretation.rs:674:20
-    |
-674 |                 if histogram[i].1 as f64 > avg * 1.2 {
-    |                    ^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: non-binding `let` on an expression with `#[must_use]` type
-  --> src\analyser\logic\io.rs:46:21
-   |
-46 |                     let _ = df.replace(name, casted);
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: consider explicitly using expression value
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
-   = note: requested on the command line with `-W clippy::let-underscore-must-use`
-warning: non-binding `let` without a type annotation
-  --> src\analyser\logic\io.rs:46:21
-   |
-46 |                     let _ = df.replace(name, casted);
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-help: consider adding a type annotation
-  --> src\analyser\logic\io.rs:46:26
-   |
-46 |                     let _ = df.replace(name, casted);
-   |                          ^
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-   = note: requested on the command line with `-W clippy::let-underscore-untyped`
-warning: `if _ { .. } else { .. }` is an expression
-  --> src\analyser\logic\io.rs:85:5
-   |
-85 | /     let mut row_group_size = if col_count >= 100 { 16_384 } else { 32...
-86 | |
-87 | |     // Allow environment variable override for emergency debugging
-88 | |     if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SI...
-89 | |         && let Ok(parsed) = env_val.parse::<usize>() {
-90 | |             row_group_size = parsed;
-91 | |         }
-   | |_________^
-   |
-   = note: you might not need `mut` at all
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#useless_let_if_seq
-   = note: requested on the command line with `-W clippy::useless-let-if-seq`
-help: it is more idiomatic to write
-   |
-85 ~     let <mut> row_group_size = if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE")
-86 +         && let Ok(parsed) = env_val.parse::<usize>() { parsed } else { if col_count >= 100 { 16_384 } else { 32_768 } };
-   |
-warning: used `unwrap()` on an `Option` value
-  --> src\analyser\logic\naming.rs:29:30
-   |
-29 |     if !result.is_empty() && result.chars().next().unwrap().is_ascii_di...
-   |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = note: if this value is `None`, it will panic
-   = help: consider using `expect()` to provide a better panic message
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: indexing may panic
-   --> src\analyser\logic\profiling.rs:196:13
-    |
-196 |             bins[10] = ca.len() - ca.null_count();
-    |             ^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\profiling.rs:223:21
-    |
-223 |                     bins[bin_idx] += 1;
-    |                     ^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\profiling.rs:225:21
-    |
-225 |                     bins[num_bins - 1] += 1;
-    |                     ^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: this function has too many arguments (8/7)
-   --> src\analyser\logic\profiling.rs:237:1
-    |
-237 | / pub fn build_histogram_streaming(
-238 | |     lf: LazyFrame,
-239 | |     name: &str,
-240 | |     min: Option<f64>,
-...   |
-245 | |     null_count: usize,
-246 | | ) -> Result<(f64, Vec<(f64, usize)>)> {
-    | |_____________________________________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
-    = note: `#[warn(clippy::too_many_arguments)]` implied by `#[warn(clippy::all)]`
-warning: this argument is passed by value, but not consumed in the function body
-   --> src\analyser\logic\profiling.rs:238:9
-    |
-238 |     lf: LazyFrame,
-    |         ^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
-help: consider taking a reference instead
-    |
-238 |     lf: &LazyFrame,
-    |         +
-warning: indexing may panic
-   --> src\analyser\logic\profiling.rs:252:13
-    |
-252 |             bins[10] = total_count.saturating_sub(null_count);
-    |             ^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\profiling.rs:298:21
-    |
-298 |                     bins[bin_idx] += 1;
-    |                     ^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: indexing may panic
-   --> src\analyser\logic\profiling.rs:300:21
-    |
-300 |                     bins[num_bins - 1] += 1;
-    |                     ^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\logic\profiling.rs:379:21
-    |
-379 | ...   let names = vc.column(series.name()).unwrap().as_materialized_se...
-    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\logic\profiling.rs:380:22
-    |
-380 | ...   let counts = vc.column("counts").unwrap().as_materialized_series();
-    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\logic\profiling.rs:382:23
-    |
-382 |             let val = names.get(0).unwrap().to_string();
-    |                       ^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\logic\profiling.rs:383:25
-    |
-383 | ...   let count = counts.get(0).unwrap().try_extract::<u32>().unwrap_o...
-    |                   ^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\logic\profiling.rs:402:25
-    |
-402 | ...   let names = vc.column(series.name()).unwrap().as_materialized_se...
-    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\logic\profiling.rs:403:26
-    |
-403 | ...   let counts = vc.column("counts").unwrap().as_materialized_series();
-    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\logic\profiling.rs:405:30
-    |
-405 |                 let val_av = names.get(i).unwrap();
-    |                              ^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\logic\profiling.rs:411:29
-    |
-411 | ...   let count = counts.get(i).unwrap().try_extract::<u32>().unwrap_o...
-    |                   ^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: indexing may panic
-   --> src\analyser\logic\profiling.rs:468:21
-    |
-468 |             .column(vc.get_column_names()[0])?
-    |                     ^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: this function has too many lines (197/100)
-   --> src\pipeline\executor.rs:152:1
-    |
-152 | fn apply_step(step: &Step, mut lf: LazyFrame) -> Result<LazyFrame> {
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
-warning: this function's return value is unnecessarily wrapped by `Result`
-   --> src\pipeline\executor.rs:440:1
-    |
-440 | fn expand_path_template(template: &str) -> Result<PathBuf> {
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_wraps
-    = note: requested on the command line with `-W clippy::unnecessary-wraps`
-help: remove `Result` from the return type...
-    |
-440 - fn expand_path_template(template: &str) -> Result<PathBuf> {
-440 + fn expand_path_template(template: &str) -> std::path::PathBuf {
-    |
-help: ...and then remove the surrounding `Ok()` from returning expressions
-    |
-443 -     Ok(PathBuf::from(expanded))
-443 +     PathBuf::from(expanded)
-    |
-warning: this function has too many lines (147/100)
-  --> src\pipeline\powershell.rs:10:1
-   |
-10 | pub fn generate_powershell_script(spec: &PipelineSpec, spec_path: &Path) -> String {
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
-warning: iteration over unordered hash-based type
-   --> src\pipeline\spec.rs:87:9
-    |
- 87 | /         for (col_name, config) in configs {
- 88 | |             if !config.active {
- 89 | |                 continue;
-...   |
-145 | |         }
-    | |_________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
-warning: wildcard matches only a single variant and will also match any future added variants
-   --> src\pipeline\spec.rs:130:21
-    |
-130 |                     _ => continue,
-    |                     ^ help: try: `crate::analyser::logic::types::ImputeMode::None`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#match_wildcard_for_single_variants
-    = note: requested on the command line with `-W clippy::match-wildcard-for-single-variants`
-warning: this function has too many lines (129/100)
-   --> src\pipeline\validation.rs:108:1
-    |
-108 | / fn validate_step(
-109 | |     step: &Step,
-110 | |     idx: usize,
-111 | |     columns: &mut HashSet<String>,
-112 | |     errors: &mut Vec<ValidationError>,
-113 | | ) {
-    | |_^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
-warning: iteration over unordered hash-based type
-   --> src\pipeline\validation.rs:129:13
-    |
-129 | /             for (from, to) in mapping {
-130 | |                 if !columns.contains(from) {
-131 | |                     errors.push(ValidationError::step(
-132 | |                         idx,
-...   |
-146 | |             }
-    | |_____________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
-warning: iteration over unordered hash-based type
-   --> src\pipeline\validation.rs:163:13
-    |
-163 | /             for (col, type_str) in cast_cols {
-164 | |                 if !is_valid_type_string(type_str) {
-165 | |                     errors.push(ValidationError::step(
-166 | |                         idx,
-...   |
-170 | |             }
-    | |_____________^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
-warning: indexing may panic
-   --> src\utils.rs:385:32
-    |
-385 |     format!("{:.2} {}", value, units[i])
-    |                                ^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: non-binding `let` on an expression with `#[must_use]` type
-   --> src\utils.rs:428:17
-    |
-428 |                 let _ = fs::remove_file(path);
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider explicitly using expression value
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
-warning: non-binding `let` without a type annotation
-   --> src\utils.rs:428:17
-    |
-428 |                 let _ = fs::remove_file(path);
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-help: consider adding a type annotation
-   --> src\utils.rs:428:22
-    |
-428 |                 let _ = fs::remove_file(path);
-    |                      ^
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-warning: this lint expectation is unfulfilled
-   --> src\utils.rs:183:14
-    |
-183 |     #[expect(dead_code)]
-    |              ^^^^^^^^^
-    |
-    = note: `#[warn(unfulfilled_lint_expectations)]` on by default
-warning: this lint expectation is unfulfilled
-   --> src\utils.rs:188:14
-    |
-188 |     #[expect(dead_code)]
-    |              ^^^^^^^^^
-warning: `beefcake` (lib) generated 69 warnings
-warning: indexing may panic
-   --> src\analyser\lifecycle\diff.rs:326:20
-    |
-326 |         assert_eq!(changes.type_changes[0].column, "col1");
-    |                    ^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-    = note: requested on the command line with `-W clippy::indexing-slicing`
-warning: field assignment outside of initializer for an instance created with Default::default()
-   --> src\analyser\lifecycle\stages\advanced.rs:102:9
-    |
-102 |         config.active = true;
-    |         ^^^^^^^^^^^^^^^^^^^^^
-    |
-note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { active: true, ..Default::default() }` and removing relevant reassignments
-   --> src\analyser\lifecycle\stages\advanced.rs:101:9
-    |
-101 |         let mut config = ColumnCleanConfig::default();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
-note: the lint level is defined here
-   --> src\lib.rs:1:9
-    |
-  1 | #![warn(clippy::all, rust_2018_idioms)]
-    |         ^^^^^^^^^^^
-    = note: `#[warn(clippy::field_reassign_with_default)]` implied by `#[warn(clippy::all)]`
-warning: indexing may panic
-   --> src\analyser\lifecycle\stages\advanced.rs:107:23
-    |
-107 |         let config = &configs["col1"];
-    |                       ^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: field assignment outside of initializer for an instance created with Default::default()
-  --> src\analyser\lifecycle\stages\profile.rs:56:9
-   |
-56 |         config.new_name = summary.standardized_name.clone();
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { new_name: summary.standardized_name.clone(), active: true, ..Default::default() }` and removing relevant reassignments
-  --> src\analyser\lifecycle\stages\profile.rs:55:9
-   |
-55 |         let mut config = ColumnCleanConfig::default();
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
-warning: used `unwrap()` on a `Result` value
-   --> src\analyser\lifecycle\mod.rs:154:17
-    |
-154 |         assert!(registry.datasets.read().unwrap().is_empty());
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: indexing may panic
-   --> src\analyser\logic\analysis.rs:704:27
-    |
-704 |             let name_i = &numeric_cols[i];
-    |                           ^^^^^^^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: non-binding `let` on an expression with `#[must_use]` type
-    --> src\analyser\logic\tests.rs:1037:5
-     |
-1037 |     let _ = std::fs::remove_file(csv_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-     = help: consider explicitly using expression value
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
-warning: non-binding `let` without a type annotation
-    --> src\analyser\logic\tests.rs:1037:5
-     |
-1037 |     let _ = std::fs::remove_file(csv_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-help: consider adding a type annotation
-    --> src\analyser\logic\tests.rs:1037:10
-     |
-1037 |     let _ = std::fs::remove_file(csv_path);
-     |          ^
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-warning: non-binding `let` on an expression with `#[must_use]` type
-    --> src\analyser\logic\tests.rs:1043:5
-     |
-1043 |     let _ = std::fs::remove_file(parquet_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-     = help: consider explicitly using expression value
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
-warning: non-binding `let` without a type annotation
-    --> src\analyser\logic\tests.rs:1043:5
-     |
-1043 |     let _ = std::fs::remove_file(parquet_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-help: consider adding a type annotation
-    --> src\analyser\logic\tests.rs:1043:10
-     |
-1043 |     let _ = std::fs::remove_file(parquet_path);
-     |          ^
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-warning: non-binding `let` on an expression with `#[must_use]` type
-    --> src\analyser\logic\tests.rs:1049:5
-     |
-1049 |     let _ = std::fs::remove_file(json_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-     = help: consider explicitly using expression value
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
-warning: non-binding `let` without a type annotation
-    --> src\analyser\logic\tests.rs:1049:5
-     |
-1049 |     let _ = std::fs::remove_file(json_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-help: consider adding a type annotation
-    --> src\analyser\logic\tests.rs:1049:10
-     |
-1049 |     let _ = std::fs::remove_file(json_path);
-     |          ^
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-warning: non-binding `let` on an expression with `#[must_use]` type
-    --> src\analyser\logic\tests.rs:1084:5
-     |
-1084 |     let _ = std::fs::remove_file(parquet_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-     = help: consider explicitly using expression value
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
-warning: non-binding `let` without a type annotation
-    --> src\analyser\logic\tests.rs:1084:5
-     |
-1084 |     let _ = std::fs::remove_file(parquet_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-help: consider adding a type annotation
-    --> src\analyser\logic\tests.rs:1084:10
-     |
-1084 |     let _ = std::fs::remove_file(parquet_path);
-     |          ^
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-warning: non-binding `let` on an expression with `#[must_use]` type
-    --> src\analyser\logic\tests.rs:1128:5
-     |
-1128 |     let _ = std::fs::remove_file(parquet_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-     = help: consider explicitly using expression value
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
-warning: non-binding `let` without a type annotation
-    --> src\analyser\logic\tests.rs:1128:5
-     |
-1128 |     let _ = std::fs::remove_file(parquet_path);
-     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     |
-help: consider adding a type annotation
-    --> src\analyser\logic\tests.rs:1128:10
-     |
-1128 |     let _ = std::fs::remove_file(parquet_path);
-     |          ^
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-warning: used `unwrap_err()` on a `Result` value
-   --> src\error.rs:150:17
-    |
-150 | ...   assert!(result.unwrap_err().to_string().contains("Failed to read...
-    |               ^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Ok`, it will panic
-    = help: consider using `expect_err()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: field assignment outside of initializer for an instance created with Default::default()
-   --> src\pipeline\spec.rs:405:9
-    |
-405 |         config.active = true;
-    |         ^^^^^^^^^^^^^^^^^^^^^
-    |
-note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { active: true, new_name: "customer_id".to_owned(), trim_whitespace: true, advanced_cleaning: true, ..Default::default() }` and removing relevant reassignments
-   --> src\pipeline\spec.rs:404:9
-    |
-404 |         let mut config = ColumnCleanConfig::default();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
-warning: used `unwrap()` on a `Result` value
-   --> src\pipeline\validation.rs:320:22
-    |
-320 |         let errors = validate_pipeline(&spec, &schema).unwrap();
-    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: indexing may panic
-   --> src\pipeline\validation.rs:323:17
-    |
-323 |         assert!(errors[0].message.contains("nonexistent"));
-    |                 ^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: used `unwrap()` on a `Result` value
-   --> src\pipeline\validation.rs:341:22
-    |
-341 |         let errors = validate_pipeline(&spec, &schema).unwrap();
-    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: indexing may panic
-   --> src\pipeline\validation.rs:344:17
-    |
-344 |         assert!(errors[0].message.contains("target already exists"));
-    |                 ^^^^^^^^^
-    |
-    = help: consider using `.get(n)` or `.get_mut(n)` instead
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
-warning: used `unwrap()` on a `Result` value
-   --> src\pipeline\validation.rs:362:22
-    |
-362 |         let errors = validate_pipeline(&spec, &schema).unwrap();
-    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\pipeline\validation.rs:389:22
-    |
-389 |         let errors = validate_pipeline(&spec, &schema).unwrap();
-    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\utils.rs:471:9
-    |
-471 |         std::fs::write(&test_file, "test content").unwrap();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\utils.rs:490:9
-    |
-490 |         std::fs::write(&test_file, "test content").unwrap();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: non-binding `let` without a type annotation
-   --> src\utils.rs:496:13
-    |
-496 |             let _ = guard.keep();
-    |             ^^^^^^^^^^^^^^^^^^^^^
-    |
-help: consider adding a type annotation
-   --> src\utils.rs:496:18
-    |
-496 |             let _ = guard.keep();
-    |                  ^
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-warning: used `unwrap()` on a `Result` value
-   --> src\utils.rs:503:9
-    |
-503 |         std::fs::remove_file(&test_file).unwrap();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\utils.rs:513:9
-    |
-513 |         std::fs::write(&test_file1, "test1").unwrap();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: used `unwrap()` on a `Result` value
-   --> src\utils.rs:514:9
-    |
-514 |         std::fs::write(&test_file2, "test2").unwrap();
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Err`, it will panic
-    = help: consider using `expect()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-warning: writing `&PathBuf` instead of `&Path` involves a new object where a slice will do
-   --> src\cli.rs:320:40
-    |
-320 | ...h(input_path: &PathBuf, prefix: &str, extension: &str) -> PathBuf {
-    |                  ^^^^^^^^ help: change this to: `&Path`
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#ptr_arg
-note: the lint level is defined here
-   --> src\main.rs:1:9
-    |
-  1 | #![warn(clippy::all, rust_2018_idioms)]
-    |         ^^^^^^^^^^^
-    = note: `#[warn(clippy::ptr_arg)]` implied by `#[warn(clippy::all)]`
-warning: usage of `process::exit`
-   --> src\cli.rs:453:9
-    |
-453 |         std::process::exit(3);
-    |         ^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#exit
-    = note: requested on the command line with `-W clippy::exit`
-warning: name `SQL` contains a capitalized acronym
-  --> src\export.rs:18:5
-   |
-18 |     SQL,
-   |     ^^^ help: consider making the acronym lowercase, except the initial letter: `Sql`
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#upper_case_acronyms
-   = note: `#[warn(clippy::upper_case_acronyms)]` implied by `#[warn(clippy::all)]`
-warning: this function has too many lines (107/100)
-  --> src\export.rs:50:1
-   |
-50 | / pub async fn prepare_export_source(
-51 | |     source: &ExportSource,
-52 | |     temp_files: &mut beefcake::utils::TempFileCollection,
-53 | | ) -> Result<LazyFrame> {
-   | |______________________^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
-   = note: requested on the command line with `-W clippy::too-many-lines`
-warning: unnecessary `Debug` formatting in `format!` args
-   --> src\export.rs:197:60
-    |
-197 | ...   &format!("Sinking data to temporary file: {temp_path:?}"),
-    |                                                  ^^^^^^^^^
-    |
-    = help: use `Display` formatting and change this to `temp_path.display()`
-    = note: switching to `Display` formatting will change how the value is shown; escaped characters will no longer be escaped and surrounding quotes will be removed
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_debug_formatting
-    = note: requested on the command line with `-W clippy::unnecessary-debug-formatting`
-warning: non-binding `let` on an expression with `#[must_use]` type
-   --> src\export.rs:227:17
-    |
-227 |                 let _ = std::fs::remove_file(&temp_path);
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-    = help: consider explicitly using expression value
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
-    = note: requested on the command line with `-W clippy::let-underscore-must-use`
-warning: non-binding `let` without a type annotation
-   --> src\export.rs:227:17
-    |
-227 |                 let _ = std::fs::remove_file(&temp_path);
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-help: consider adding a type annotation
-   --> src\export.rs:227:22
-    |
-227 |                 let _ = std::fs::remove_file(&temp_path);
-    |                      ^
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
-    = note: requested on the command line with `-W clippy::let-underscore-untyped`
-warning: unnecessary `Debug` formatting in `format!` args
-   --> src\export.rs:232:53
-    |
-232 |                 &format!("Successfully exported to {final_path:?}"),
-    |                                                     ^^^^^^^^^^
-    |
-    = help: use `Display` formatting and change this to `final_path.display()`
-    = note: switching to `Display` formatting will change how the value is shown; escaped characters will no longer be escaped and surrounding quotes will be removed
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_debug_formatting
-warning: `map_err(|_|...` wildcard pattern discards the original error
-  --> src\tauri_app.rs:50:22
-   |
-50 | ...   .map_err(|_| format!("{name_for_join} thread joined with error (p...
-   |                ^^^
-   |
-   = help: consider storing the original error as a source in the new error, or silence this warning using an ignored identifier (`.map_err(|_foo| ...`)
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#map_err_ignore
-   = note: requested on the command line with `-W clippy::map-err-ignore`
-warning: `to_string()` called on a `&str`
-  --> src\tauri_app.rs:93:8
-   |
-93 |     Ok(env!("CARGO_PKG_VERSION").to_string())
-   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `env!("CARGO_PKG_VERSION").to_owned()`
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#str_to_string
-   = note: requested on the command line with `-W clippy::str-to-string`
-warning: iteration over unordered hash-based type
-   --> src\tauri_app.rs:146:5
-    |
-146 | /     for config in options.configs.values() {
-147 | |         if config.active && config.ml_preprocessing {
-148 | |             if config.impute_mode == ImputeMode::Median || config.im...
-149 | |                 high_mem_ops += 1;
-...   |
-155 | |     }
-    | |_____^
-    |
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#iter_over_hash_type
-    = note: requested on the command line with `-W clippy::iter-over-hash-type`
-warning: used `unwrap_err()` on a `Result` value
-   --> src\error.rs:150:17
-    |
-150 | ...   assert!(result.unwrap_err().to_string().contains("Failed to read...
-    |               ^^^^^^^^^^^^^^^^^^^
-    |
-    = note: if this value is an `Ok`, it will panic
-    = help: consider using `expect_err()` to provide a better panic message
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
-    = note: requested on the command line with `-W clippy::unwrap-used`
-warning: `beefcake` (lib test) generated 97 warnings (67 duplicates)
-warning: `beefcake` (bin "beefcake") generated 11 warnings
-warning: `beefcake` (bin "beefcake" test) generated 12 warnings (11 duplicates)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.65s
+
+node_modules\@tauri-apps\api\menu\checkMenuItem.d.ts:9: * A check menu item
+inside a {@linkcode Menu} or {@linkcode Submenu}
+node_modules\@tauri-apps\api\menu\iconMenuItem.d.ts:140: * An icon menu item
+inside a {@linkcode Menu} or {@linkcode Submenu}
+node_modules\@tauri-apps\api\menu\menu.d.ts:22: * - **macOS**: if using
+{@linkcode Menu} for the global menubar, it can only contain {@linkcode
+Submenu}s.
+node_modules\@tauri-apps\api\menu\menu.d.ts:36:     * - **macOS:** Only
+{@linkcode Submenu}s can be added to a {@linkcode Menu}.
+node_modules\@tauri-apps\api\menu\menu.d.ts:44:     * - **macOS:** Only
+{@linkcode Submenu}s can be added to a {@linkcode Menu}.
+node_modules\@tauri-apps\api\menu\menu.d.ts:52:     * - **macOS:** Only
+{@linkcode Submenu}s can be added to a {@linkcode Menu}.
+node_modules\@tauri-apps\api\menu\menu.d.ts:83:     * window, if you need to
+set it, use {@linkcode Menu.setAsAppMenu} instead.
+node_modules\@tauri-apps\api\menu\menuItem.d.ts:15:/** A menu item inside a
+{@linkcode Menu} or {@linkcode Submenu} and contains only text. */
+node_modules\@tauri-apps\api\menu\submenu.d.ts:19:/** A type that is a submenu
+inside a {@linkcode Menu} or {@linkcode Submenu}. */
+node_modules\@tauri-apps\api\menu\submenu.d.ts:38:     * - **macOS:** Only
+{@linkcode Submenu}s can be added to a {@linkcode Menu}.
+node_modules\@tauri-apps\api\menu\submenu.d.ts:46:     * - **macOS:** Only
+{@linkcode Submenu}s can be added to a {@linkcode Menu}.
+node_modules\@tauri-apps\api\menu\submenu.d.ts:54:     * - **macOS:** Only
+{@linkcode Submenu}s can be added to a {@linkcode Menu}.
+node_modules\@tauri-apps\api\core.d.ts:63:    /** The callback id returned
+from {@linkcode transformCallback} */
+node_modules\@tauri-apps\api\core.d.ts:164: * except on application exit. If
+you want to clean it up early, call {@linkcode Resource.close}
+node_modules\@tauri-apps\api\dpi.d.ts:7: * For logical-pixel-based position,
+see {@linkcode LogicalPosition}.
+node_modules\@tauri-apps\api\dpi.d.ts:56: * will have a different position in
+logical pixels {@linkcode LogicalSize}.
+node_modules\@tauri-apps\api\dpi.d.ts:58: * For physical-pixel-based position,
+see {@linkcode PhysicalPosition}.
+node_modules\@tauri-apps\api\dpi.d.ts:101: * This type is basically a union
+type of {@linkcode LogicalSize} and {@linkcode PhysicalSize}
+node_modules\@tauri-apps\api\dpi.d.ts:117: * You can just use {@linkcode Size}
+node_modules\@tauri-apps\api\dpi.d.ts:149: * For an explanation of what
+logical pixels are, see description of {@linkcode LogicalSize}.
+node_modules\@tauri-apps\api\dpi.d.ts:196: * For an explanation of what
+physical pixels are, see description of {@linkcode PhysicalSize}.
+node_modules\@tauri-apps\api\dpi.d.ts:243: * This type is basically a union
+type of {@linkcode LogicalSize} and {@linkcode PhysicalSize}
+node_modules\@tauri-apps\api\dpi.d.ts:259: * You can just use {@linkcode
+Position}
+node_modules\@tauri-apps\api\event.d.ts:38:     * The event target to listen
+to, defaults to `{ kind: 'Any' }`, see {@link EventTarget}.
+node_modules\@tauri-apps\api\event.d.ts:40:     * If a string is provided,
+{@link EventTarget.AnyLabel} is used.
+node_modules\@tauri-apps\api\event.d.ts:64: * Listen to an emitted event to
+any {@link EventTarget|target}.
+node_modules\@tauri-apps\api\event.d.ts:87: * Listens once to an emitted event
+to any {@link EventTarget|target}.
+node_modules\@tauri-apps\api\event.d.ts:114: * Emits an event to all {@link
+EventTarget|targets}.
+node_modules\@tauri-apps\api\event.d.ts:129: * Emits an event to all {@link
+EventTarget|targets} matching the given target.
+node_modules\@tauri-apps\api\event.d.ts:137: * @param target Label of the
+target Window/Webview/WebviewWindow or raw {@link EventTarget} object.
+node_modules\@tauri-apps\api\path.d.ts:6:     * @see {@link audioDir} for more
+information.
+node_modules\@tauri-apps\api\path.d.ts:10:     * @see {@link cacheDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:14:     * @see {@link configDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:18:     * @see {@link dataDir} for more
+information.
+node_modules\@tauri-apps\api\path.d.ts:22:     * @see {@link localDataDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:26:     * @see {@link documentDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:30:     * @see {@link downloadDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:34:     * @see {@link pictureDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:38:     * @see {@link publicDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:42:     * @see {@link videoDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:46:     * @see {@link resourceDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:50:     * @see {@link tempDir} for more
+information.
+node_modules\@tauri-apps\api\path.d.ts:54:     * @see {@link appConfigDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:58:     * @see {@link appDataDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:62:     * @see {@link appLocalDataDir}
+for more information.
+node_modules\@tauri-apps\api\path.d.ts:66:     * @see {@link appCacheDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:70:     * @see {@link appLogDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:74:     * @see {@link desktopDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:78:     * @see {@link executableDir}
+for more information.
+node_modules\@tauri-apps\api\path.d.ts:82:     * @see {@link fontDir} for more
+information.
+node_modules\@tauri-apps\api\path.d.ts:86:     * @see {@link homeDir} for more
+information.
+node_modules\@tauri-apps\api\path.d.ts:90:     * @see {@link runtimeDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:94:     * @see {@link templateDir} for
+more information.
+node_modules\@tauri-apps\api\path.d.ts:369: * To resolve a resource path, see
+{@linkcode resolveResource}.
+node_modules\@tauri-apps\api\tray.d.ts:42:/** {@link TrayIcon.new|`TrayIcon`}
+creation options */
+node_modules\@tauri-apps\api\tray.d.ts:92:     * @deprecated use {@linkcode
+TrayIconOptions.showMenuOnLeftClick} instead.
+node_modules\@tauri-apps\api\tray.d.ts:110: * instead, you should use the
+static method {@linkcode TrayIcon.new}.
+node_modules\@tauri-apps\api\tray.d.ts:117: * this object early, you need to
+call {@linkcode TrayIcon.close}.
+node_modules\@tauri-apps\api\tray.d.ts:140:     * Creates a new {@linkcode
+TrayIcon}
+node_modules\@tauri-apps\api\tray.d.ts:145:     * Setting an empty {@linkcode
+Menu} is enough.
+node_modules\@tauri-apps\api\tray.d.ts:206:     * @deprecated use {@linkcode
+TrayIcon.setShowMenuOnLeftClick} instead.
+node_modules\@tauri-apps\api\webview.d.ts:6: * Events can be listened to using
+{@link Webview.listen}:
+node_modules\@tauri-apps\api\webview.d.ts:143:     * @returns The {@link
+Webview} instance to communicate with the webview.
+node_modules\@tauri-apps\api\webview.d.ts:207:     * Emits an event to all
+{@link EventTarget|targets}.
+node_modules\@tauri-apps\api\webview.d.ts:220:     * Emits an event to all
+{@link EventTarget|targets} matching the given target.
+node_modules\@tauri-apps\api\webview.d.ts:228:     * @param target Label of
+the target Window/Webview/WebviewWindow or raw {@link EventTarget} object.
+node_modules\@tauri-apps\api\webviewWindow.d.ts:25:     * Creates a new {@link
+Window} hosting a {@link Webview}.
+node_modules\@tauri-apps\api\webviewWindow.d.ts:41:     * @returns The {@link
+WebviewWindow} instance to communicate with the window and webview.
+node_modules\@tauri-apps\api\window.d.ts:6: * Events can be listened to using
+{@link Window.listen}:
+node_modules\@tauri-apps\api\window.d.ts:184:     * @returns The {@link
+Window} instance to communicate with the window.
+node_modules\@tauri-apps\api\window.d.ts:259:     * Emits an event to all
+{@link EventTarget|targets}.
+node_modules\@tauri-apps\api\window.d.ts:271:     * Emits an event to all
+{@link EventTarget|targets} matching the given target.
+node_modules\@tauri-apps\api\window.d.ts:278:     * @param target Label of the
+target Window/Webview/WebviewWindow or raw {@link EventTarget} object.
+node_modules\@tauri-apps\api\window.d.ts:713:     * Note this emits a
+closeRequested event so you can intercept it. To force window close, use
+{@link Window.destroy}.
+node_modules\@tauri-apps\api\window.d.ts:724:     * Destroys the window.
+Behaves like {@link Window.close} but forces the window close instead of
+emitting a closeRequested event.
+node_modules\@tauri-apps\api\window.d.ts:885:     * On other platforms, this
+is the same as {@link Window.setFullscreen}.
+node_modules\@tauri-apps\api\window.d.ts:908:     *   In this case, you might
+consider calling {@link Window.setFocus} but it will move the window to the
+back i.e. at the bottom in terms of z-order.
+node_modules\@tauri-apps\api\window.d.ts:1519:     *  Window effect color.
+Affects {@link Effect.Blur} and {@link Effect.Acrylic} only
+node_modules\@tauri-apps\api\window.d.ts:1559:     * Can either be set to
+`true` or to a {@link PreventOverflowMargin} object to set an additional margin
+node_modules\@tauri-apps\api\window.d.ts:1656:     * Sets a parent to the
+window to be created. Can be either a {@linkcode Window} or a label of the
+window.
+node_modules\@tauri-apps\plugin-dialog\dist-js\index.d.ts:137:     *
+@deprecated Use {@linkcode MessageDialogOptions.buttons} instead.
+node_modules\chart.js\dist\platform\platform.base.d.ts:10:       * the [W3C
+Canvas 2D Context API standard]{@link https://www.w3.org/TR/2dcontext/}.
+node_modules\chart.js\dist\platform\platform.base.d.ts:25:       * @param
+{string} type - The ({@link ChartEvent}) type to listen for
+node_modules\chart.js\dist\platform\platform.base.d.ts:27:       * the {@link
+ChartEvent} interface) when an event of the specified type occurs.
+node_modules\chart.js\dist\platform\platform.base.d.ts:33:       * @param
+{string} type - The ({@link ChartEvent}) type to remove
+node_modules\chart.js\dist\types\index.d.ts:2170:   * the [W3C Canvas 2D
+Context API standard]{@link https://www.w3.org/TR/2dcontext/}.
+node_modules\chart.js\dist\types\index.d.ts:2188:   * @param {string} type -
+The ({@link ChartEvent}) type to listen for
+node_modules\chart.js\dist\types\index.d.ts:2190:   * the {@link ChartEvent}
+interface) when an event of the specified type occurs.
+node_modules\chart.js\dist\types\index.d.ts:2196:   * @param {string} type -
+The ({@link ChartEvent}) type to remove
+node_modules\jsonc-parser\lib\esm\main.d.ts:153: * A {@linkcode JSONPath}
+segment. Either a string representing an object property name
+node_modules\jsonc-parser\lib\esm\main.d.ts:185: * Visitor called by
+{@linkcode visit} when parsing JSON.
+node_modules\jsonc-parser\lib\esm\main.d.ts:238: * An edit result describes a
+textual edit operation. It is the result of a {@linkcode format} and
+{@linkcode modify} operation.
+node_modules\jsonc-parser\lib\esm\main.d.ts:244: * To apply an edit result use
+{@linkcode applyEdits}.
+node_modules\jsonc-parser\lib\esm\main.d.ts:279: * Options used by {@linkcode
+format} when computing the formatting edit operations
+node_modules\jsonc-parser\lib\esm\main.d.ts:309: * @returns The edit
+operations describing the formatting changes to the original document
+following the format described in {@linkcode EditResult}.
+node_modules\jsonc-parser\lib\esm\main.d.ts:310: * To apply the edit
+operations to the input, use {@linkcode applyEdits}.
+node_modules\jsonc-parser\lib\esm\main.d.ts:314: * Options used by {@linkcode
+modify} when computing the modification edit operations
+node_modules\jsonc-parser\lib\esm\main.d.ts:323:     * {@linkcode modify} will
+insert a new item at that location instead of overwriting its contents.
+node_modules\jsonc-parser\lib\esm\main.d.ts:340: * @returns The edit
+operations describing the changes to the original document, following the
+format described in {@linkcode EditResult}.
+node_modules\jsonc-parser\lib\esm\main.d.ts:341: * To apply the edit
+operations to the input, use {@linkcode applyEdits}.
+node_modules\jsonc-parser\lib\esm\main.d.ts:347: * @param edits Edit
+operations following the format described in {@linkcode EditResult}.
+node_modules\jsonc-parser\lib\esm\main.d.ts:349: * @throws An error if the
+edit operations are not well-formed as described in {@linkcode EditResult}.
+node_modules\jsonc-parser\lib\umd\main.d.ts:153: * A {@linkcode JSONPath}
+segment. Either a string representing an object property name
+node_modules\jsonc-parser\lib\umd\main.d.ts:185: * Visitor called by
+{@linkcode visit} when parsing JSON.
+node_modules\jsonc-parser\lib\umd\main.d.ts:238: * An edit result describes a
+textual edit operation. It is the result of a {@linkcode format} and
+{@linkcode modify} operation.
+node_modules\jsonc-parser\lib\umd\main.d.ts:244: * To apply an edit result use
+{@linkcode applyEdits}.
+node_modules\jsonc-parser\lib\umd\main.d.ts:279: * Options used by {@linkcode
+format} when computing the formatting edit operations
+node_modules\jsonc-parser\lib\umd\main.d.ts:309: * @returns The edit
+operations describing the formatting changes to the original document
+following the format described in {@linkcode EditResult}.
+node_modules\jsonc-parser\lib\umd\main.d.ts:310: * To apply the edit
+operations to the input, use {@linkcode applyEdits}.
+node_modules\jsonc-parser\lib\umd\main.d.ts:314: * Options used by {@linkcode
+modify} when computing the modification edit operations
+node_modules\jsonc-parser\lib\umd\main.d.ts:323:     * {@linkcode modify} will
+insert a new item at that location instead of overwriting its contents.
+node_modules\jsonc-parser\lib\umd\main.d.ts:340: * @returns The edit
+operations describing the changes to the original document, following the
+format described in {@linkcode EditResult}.
+node_modules\jsonc-parser\lib\umd\main.d.ts:341: * To apply the edit
+operations to the input, use {@linkcode applyEdits}.
+node_modules\jsonc-parser\lib\umd\main.d.ts:347: * @param edits Edit
+operations following the format described in {@linkcode EditResult}.
+node_modules\jsonc-parser\lib\umd\main.d.ts:349: * @throws An error if the
+edit operations are not well-formed as described in {@linkcode EditResult}.
+node_modules\minimatch\dist\commonjs\escape.d.ts:5: * If the {@link
+windowsPathsNoEscape | GlobOptions.windowsPathsNoEscape}
+node_modules\minimatch\dist\commonjs\unescape.d.ts:3: * Un-escape a string
+that has been escaped with {@link escape}.
+node_modules\minimatch\dist\commonjs\unescape.d.ts:5: * If the {@link
+windowsPathsNoEscape} option is used, then square-brace
+node_modules\minimatch\dist\esm\escape.d.ts:5: * If the {@link
+windowsPathsNoEscape | GlobOptions.windowsPathsNoEscape}
+node_modules\minimatch\dist\esm\unescape.d.ts:3: * Un-escape a string that has
+been escaped with {@link escape}.
+node_modules\minimatch\dist\esm\unescape.d.ts:5: * If the {@link
+windowsPathsNoEscape} option is used, then square-brace
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:241:    * and that it
+doesn't do any validation. Use {@link Uri.from} when received "untrusted"
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:1642:           * Whether the
+glyph margin lane in {@link position} should be rendered even
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:1740:           * If set and
+the decoration has {@link glyphMarginClassName} set, render this decoration
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:1741:           * with the
+specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:1847:           * Defaults to
+{@link InjectedTextCursorStops.Both}.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:5621:   * Coordinatees
+passed in {@link IContentWidget.afterRender}
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:6175:           * @see {@link
+ITextModel.getValue}
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:6183:           * @see {@link
+ITextModel.setValue}
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:6412:           * @see {@link
+ICodeEditor.getContainerDomNode}
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:6886:   * Metadata
+about the type of code actions that a {@link CodeActionProvider} provides.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:6890:           * List of
+code action kinds that a {@link CodeActionProvider} may return.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7168:   * A provider
+result represents the values a provider, like the {@link HoverProvider},
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7334:           * with other
+items. When `falsy` the {@link CompletionItem.label label}
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7340:           * completion
+items. When `falsy` the {@link CompletionItem.label label}
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7363:           * *Note:* The
+range must be a {@link Range.isSingleLine single line} and it must
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7364:           * {@link
+Range.contains contain} the position at which completion has been {@link
+CompletionItemProvider.provideCompletionItems requested}.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7423:   * {@link
+CompletionItemProvider.provideCompletionItems completion provider} is
+triggered.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7444:   * items with a
+{@link CompletionItem.label label} from the
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7445:   * {@link
+CompletionItemProvider.provideCompletionItems
+provideCompletionItems}-function. Subsequently,
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7447:   * the item,
+like adding {@link CompletionItem.documentation doc-comment} or {@link
+CompletionItem.detail details}.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7456:           * Given a
+completion item fill in more data, like {@link CompletionItem.documentation
+doc-comment}
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7457:           * or {@link
+CompletionItem.detail details}.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7465:   * How an
+{@link InlineCompletionsProvider inline completion provider} was triggered.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7624:           * Only used
+for {@link yieldsToGroupIds}.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7629:           * Returns a
+list of preferred provider {@link groupId}s.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:7837:           * The
+highlight kind, default is {@link DocumentHighlightKind.Text text}.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:8200:           * An {@link
+TextEdit edit} which is applied to a document when selecting
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:8205:           * An optional
+array of additional {@link TextEdit text edits} that are applied when
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:8277:           * Describes
+the {@link FoldingRangeKind Kind} of the folding range such as {@link
+FoldingRangeKind.Comment Comment} or
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:8278:           * {@link
+FoldingRangeKind.Region Region}. The kind is used to categorize folding ranges
+and used by commands
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:8280:           * {@link
+FoldingRangeKind} for an enumeration of standardized kinds.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:8301:           * Returns a
+{@link FoldingRangeKind} for the given value.
+node_modules\monaco-editor\esm\vs\editor\editor.api.d.ts:8307:           * Creates a
+new {@link FoldingRangeKind}.
+node_modules\monaco-editor\monaco.d.ts:241:      * and that it doesn't do any
+validation. Use {@link Uri.from} when received "untrusted"
+node_modules\monaco-editor\monaco.d.ts:1642:             * Whether the glyph margin lane
+in {@link position} should be rendered even
+node_modules\monaco-editor\monaco.d.ts:1740:             * If set and the decoration has
+{@link glyphMarginClassName} set, render this decoration
+node_modules\monaco-editor\monaco.d.ts:1741:             * with the specified {@link
+IModelDecorationGlyphMarginOptions} in the glyph margin.
+node_modules\monaco-editor\monaco.d.ts:1847:             * Defaults to {@link
+InjectedTextCursorStops.Both}.
+node_modules\monaco-editor\monaco.d.ts:5621:     * Coordinatees passed in {@link
+IContentWidget.afterRender}
+node_modules\monaco-editor\monaco.d.ts:6175:             * @see {@link
+ITextModel.getValue}
+node_modules\monaco-editor\monaco.d.ts:6183:             * @see {@link
+ITextModel.setValue}
+node_modules\monaco-editor\monaco.d.ts:6412:             * @see {@link
+ICodeEditor.getContainerDomNode}
+node_modules\monaco-editor\monaco.d.ts:6886:     * Metadata about the type of
+code actions that a {@link CodeActionProvider} provides.
+node_modules\monaco-editor\monaco.d.ts:6890:             * List of code action kinds
+that a {@link CodeActionProvider} may return.
+node_modules\monaco-editor\monaco.d.ts:7168:     * A provider result represents
+the values a provider, like the {@link HoverProvider},
+node_modules\monaco-editor\monaco.d.ts:7334:             * with other items. When
+`falsy` the {@link CompletionItem.label label}
+node_modules\monaco-editor\monaco.d.ts:7340:             * completion items. When
+`falsy` the {@link CompletionItem.label label}
+node_modules\monaco-editor\monaco.d.ts:7363:             * *Note:* The range must be a
+{@link Range.isSingleLine single line} and it must
+node_modules\monaco-editor\monaco.d.ts:7364:             * {@link Range.contains
+contain} the position at which completion has been {@link
+CompletionItemProvider.provideCompletionItems requested}.
+node_modules\monaco-editor\monaco.d.ts:7423:     * {@link
+CompletionItemProvider.provideCompletionItems completion provider} is
+triggered.
+node_modules\monaco-editor\monaco.d.ts:7444:     * items with a {@link
+CompletionItem.label label} from the
+node_modules\monaco-editor\monaco.d.ts:7445:     * {@link
+CompletionItemProvider.provideCompletionItems
+provideCompletionItems}-function. Subsequently,
+node_modules\monaco-editor\monaco.d.ts:7447:     * the item, like adding {@link
+CompletionItem.documentation doc-comment} or {@link CompletionItem.detail
+details}.
+node_modules\monaco-editor\monaco.d.ts:7456:             * Given a completion item fill
+in more data, like {@link CompletionItem.documentation doc-comment}
+node_modules\monaco-editor\monaco.d.ts:7457:             * or {@link
+CompletionItem.detail details}.
+node_modules\monaco-editor\monaco.d.ts:7465:     * How an {@link
+InlineCompletionsProvider inline completion provider} was triggered.
+node_modules\monaco-editor\monaco.d.ts:7624:             * Only used for {@link
+yieldsToGroupIds}.
+node_modules\monaco-editor\monaco.d.ts:7629:             * Returns a list of preferred
+provider {@link groupId}s.
+node_modules\monaco-editor\monaco.d.ts:7837:             * The highlight kind, default
+is {@link DocumentHighlightKind.Text text}.
+node_modules\monaco-editor\monaco.d.ts:8200:             * An {@link TextEdit edit}
+which is applied to a document when selecting
+node_modules\monaco-editor\monaco.d.ts:8205:             * An optional array of
+additional {@link TextEdit text edits} that are applied when
+node_modules\monaco-editor\monaco.d.ts:8277:             * Describes the {@link
+FoldingRangeKind Kind} of the folding range such as {@link
+FoldingRangeKind.Comment Comment} or
+node_modules\monaco-editor\monaco.d.ts:8278:             * {@link
+FoldingRangeKind.Region Region}. The kind is used to categorize folding ranges
+and used by commands
+node_modules\monaco-editor\monaco.d.ts:8280:             * {@link FoldingRangeKind} for
+an enumeration of standardized kinds.
+node_modules\monaco-editor\monaco.d.ts:8301:             * Returns a {@link
+FoldingRangeKind} for the given value.
+node_modules\monaco-editor\monaco.d.ts:8307:             * Creates a new {@link
+FoldingRangeKind}.
+node_modules\postcss\lib\container.d.ts:459:   * An internal method that
+converts a {@link NewChild} into a list of actual
+node_modules\postcss\lib\node.d.ts:62:   * Source represents an interface for
+the {@link Node.source} property.
+node_modules\postcss\lib\node.d.ts:526:   * It is a wrapper for {@link
+Result#warn}, providing convenient
+node_modules\postcss\lib\node.d.ts:547:   * indicates to the LazyResult
+processor that the {@link Root} has been
+node_modules\postcss\lib\processor.d.ts:90:   * * A function. PostCSS will
+pass the function a {@link Root}
+node_modules\typedoc\dist\lib\converter\plugins\ImplementsPlugin.d.ts:25:
+* Responsible for setting the {@link DeclarationReflection.inheritedFrom},
+node_modules\typedoc\dist\lib\converter\plugins\ImplementsPlugin.d.ts:26:
+* {@link DeclarationReflection.overwrites}, and {@link
+DeclarationReflection.implementationOf}
+node_modules\typedoc\dist\lib\converter\plugins\LinkResolverPlugin.d.ts:6: * A
+plugin that resolves `{@link Foo}` tags.
+node_modules\typedoc\dist\lib\converter\plugins\SourcePlugin.d.ts:32:     *
+Attach the current source file to the {@link DeclarationReflection.sources}
+array.
+node_modules\typedoc\dist\lib\converter\utils\base-path.d.ts:4: * In the first
+step all files must be passed to {@link add}. Afterwards {@link trim}
+node_modules\typedoc\dist\lib\converter\utils\base-path.d.ts:26:     * Reset
+this instance, ignore all paths already passed to {@link add}.
+node_modules\typedoc\dist\lib\converter\utils\repository.d.ts:44:     *
+creates a new instance of {@link GitRepository}.
+node_modules\typedoc\dist\lib\converter\utils\repository.d.ts:47:     *
+@returns A new instance of {@link GitRepository} or undefined.
+node_modules\typedoc\dist\lib\converter\converter.d.ts:51:     * The listener
+will be given a {@link Context} object.
+node_modules\typedoc\dist\lib\converter\converter.d.ts:57:     * The listener
+will be given a {@link Context} object.
+node_modules\typedoc\dist\lib\converter\converter.d.ts:66:     * The listener
+will be given {@link Context} and a {@link Models.DeclarationReflection}.
+node_modules\typedoc\dist\lib\converter\converter.d.ts:72:     * The listener
+will be given {@link Context}, {@link Models.SignatureReflection} | {@link
+Models.ProjectReflection} the declaration,
+node_modules\typedoc\dist\lib\converter\converter.d.ts:80:     * The listener
+will be given {@link Context}, {@link Models.ParameterReflection} and a
+`ts.Node?`
+node_modules\typedoc\dist\lib\converter\converter.d.ts:86:     * The listener
+will be given {@link Context} and a {@link Models.TypeParameterReflection}
+node_modules\typedoc\dist\lib\converter\converter.d.ts:95:     * The listener
+will be given {@link Context}.
+node_modules\typedoc\dist\lib\converter\converter.d.ts:101:     * The listener
+will be given {@link Context} and a {@link Reflection}.
+node_modules\typedoc\dist\lib\converter\converter.d.ts:107:     * The listener
+will be given {@link Context}.
+node_modules\typedoc\dist\lib\models\comments\comment.d.ts:32: * Tags are
+stored in the {@link Comment.blockTags} property.
+node_modules\typedoc\dist\lib\models\comments\comment.d.ts:61: * through the
+{@link DeclarationReflection.comment} property.
+node_modules\typedoc\dist\lib\models\comments\comment.d.ts:77:     * Helper
+utility to clone {@link Comment.summary} or {@link CommentTag.content}
+node_modules\typedoc\dist\lib\models\reflections\abstract.d.ts:99: * While
+generating a documentation, TypeDoc generates an instance of {@link
+ProjectReflection}
+node_modules\typedoc\dist\lib\models\reflections\abstract.d.ts:101: * by the
+{@link DeclarationReflection} class.
+node_modules\typedoc\dist\lib\models\reflections\abstract.d.ts:104: * You can
+use the {@link ContainerReflection.children} and {@link parent} properties to
+walk the tree. The {@link ContainerReflection.groups} property
+node_modules\typedoc\dist\lib\models\reflections\abstract.d.ts:164:     *
+intended to be displayed to the user for them to fix, prefer {@link
+getFriendlyFullName} instead.
+node_modules\typedoc\dist\lib\models\reflections\declaration.d.ts:13: * @see
+{@link DeclarationReflection.typeHierarchy}
+node_modules\typedoc\dist\lib\models\reflections\project.d.ts:25:     * All
+mutation should be done via {@link registerReflection} and {@link
+removeReflection}
+node_modules\typedoc\dist\lib\models\reflections\reference.d.ts:28:     * To
+fully resolve any references, use {@link tryGetTargetReflectionDeep}.
+node_modules\typedoc\dist\lib\models\reflections\reference.d.ts:33:     * To
+only resolve one reference, use {@link tryGetTargetReflection}.
+node_modules\typedoc\dist\lib\models\reflections\reference.d.ts:38:     * To
+fully resolve any references, use {@link getTargetReflectionDeep}.
+node_modules\typedoc\dist\lib\models\reflections\reference.d.ts:43:     * To
+only resolve one reference, use {@link getTargetReflection}.
+node_modules\typedoc\dist\lib\models\reflections\ReflectionSymbolId.d.ts:4: *
+See {@link ReflectionSymbolId}
+node_modules\typedoc\dist\lib\models\reflections\ReflectionSymbolId.d.ts:27:
+  * Note: This can only be non-NaN if {@link pos} is finite.
+node_modules\typedoc\dist\lib\models\reflections\variant.d.ts:8: * A map of
+known {@link Reflection} concrete subclasses.
+node_modules\typedoc\dist\lib\models\sources\file.d.ts:6: * @see {@link
+DeclarationReflection.sources}
+node_modules\typedoc\dist\lib\models\types.d.ts:369:     * If set, will prefer
+reflections with {@link ReflectionKind | ReflectionKinds} which represent
+node_modules\typedoc\dist\lib\output\themes\default\DefaultTheme.d.ts:18: *
+{@link Theme} implementation, this theme class will be used.
+node_modules\typedoc\dist\lib\output\themes\default\DefaultTheme.d.ts:25:
+* the {@link DefaultThemeRenderContext.icons} member will produce references
+to these.
+node_modules\typedoc\dist\lib\output\themes\default\DefaultTheme.d.ts:88:
+* @returns        A list of {@link UrlMapping} instances defining which models
+node_modules\typedoc\dist\lib\output\themes\default\DefaultTheme.d.ts:119:
+* If implementing a custom theme, it is recommended to override {@link
+buildNavigation} instead.
+node_modules\typedoc\dist\lib\output\themes\default\DefaultThemeRenderContext.d
+.ts:19:     * Note: This creates a reference to icons declared by {@link
+DefaultTheme.icons},
+node_modules\typedoc\dist\lib\output\themes\default\DefaultThemeRenderContext.d
+.ts:40:     * by their type declaration, which is already rendered by {@link
+DefaultThemeRenderContext.memberDeclaration}
+node_modules\typedoc\dist\lib\output\themes\MarkedPlugin.d.ts:63:     *
+Triggered when {@link MarkedPlugin} parses a markdown string.
+node_modules\typedoc\dist\lib\output\events.d.ts:6: * An event emitted by the
+{@link Renderer} class at the very beginning and
+node_modules\typedoc\dist\lib\output\events.d.ts:9: * @see {@link
+Renderer.EVENT_BEGIN}
+node_modules\typedoc\dist\lib\output\events.d.ts:10: * @see {@link
+Renderer.EVENT_END}
+node_modules\typedoc\dist\lib\output\events.d.ts:24:     * This list can be
+altered during the {@link Renderer.EVENT_BEGIN} event.
+node_modules\typedoc\dist\lib\output\events.d.ts:39:     * Create an {@link
+PageEvent} event based on this event and the given url mapping.
+node_modules\typedoc\dist\lib\output\events.d.ts:42:     * @param mapping  The
+mapping that defines the generated {@link PageEvent} state.
+node_modules\typedoc\dist\lib\output\events.d.ts:43:     * @returns A newly
+created {@link PageEvent} instance.
+node_modules\typedoc\dist\lib\output\events.d.ts:48: * An event emitted by the
+{@link Renderer} class before and after the
+node_modules\typedoc\dist\lib\output\events.d.ts:51: * @see {@link
+Renderer.EVENT_BEGIN_PAGE}
+node_modules\typedoc\dist\lib\output\events.d.ts:52: * @see {@link
+Renderer.EVENT_END_PAGE}
+node_modules\typedoc\dist\lib\output\events.d.ts:103: * @see {@link
+MarkdownEvent.PARSE}
+node_modules\typedoc\dist\lib\output\events.d.ts:104: * @see {@link
+MarkdownEvent.INCLUDE}
+node_modules\typedoc\dist\lib\output\events.d.ts:145:     * same index from
+{@link searchFields}. The {@link removeResult} helper
+node_modules\typedoc\dist\lib\output\events.d.ts:160:     * If a field added
+to {@link searchFields} is not added to this object, it
+node_modules\typedoc\dist\lib\output\renderer.d.ts:66: * The renderer
+processes a {@link ProjectReflection} using a {@link Theme} instance and writes
+node_modules\typedoc\dist\lib\output\renderer.d.ts:70: * {@link Renderer} is a
+subclass of {@link EventDispatcher} and triggers a series of events while
+node_modules\typedoc\dist\lib\output\renderer.d.ts:74: *  * {@link
+Renderer.EVENT_BEGIN}<br>
+node_modules\typedoc\dist\lib\output\renderer.d.ts:76: *    an instance of
+{@link RendererEvent}. By calling {@link RendererEvent.preventDefault} the
+entire
+node_modules\typedoc\dist\lib\output\renderer.d.ts:79: *    * {@link
+Renderer.EVENT_BEGIN_PAGE}<br>
+node_modules\typedoc\dist\lib\output\renderer.d.ts:81: *      {@link
+PageEvent}. By calling {@link PageEvent.preventDefault} the generation of the
+node_modules\typedoc\dist\lib\output\renderer.d.ts:84: *    * {@link
+Renderer.EVENT_END_PAGE}<br>
+node_modules\typedoc\dist\lib\output\renderer.d.ts:86: *      listener
+receives an instance of {@link PageEvent}. When calling
+node_modules\typedoc\dist\lib\output\renderer.d.ts:87: *      {@link
+PageEvent.preventDefault} the the document will not be saved to disc.
+node_modules\typedoc\dist\lib\output\renderer.d.ts:89: *  * {@link
+Renderer.EVENT_END}<br>
+node_modules\typedoc\dist\lib\output\renderer.d.ts:91: *    an instance of
+{@link RendererEvent}.
+node_modules\typedoc\dist\lib\output\renderer.d.ts:93: * * {@link
+Renderer.EVENT_PREPARE_INDEX}<br>
+node_modules\typedoc\dist\lib\output\renderer.d.ts:95: *    an instance of
+{@link IndexEvent}.
+node_modules\typedoc\dist\lib\output\renderer.d.ts:111:     * They will be
+called after {@link RendererEvent.BEGIN} has fired, but before any files have
+been written.
+node_modules\typedoc\dist\lib\output\renderer.d.ts:116:     * Note: This array
+is cleared after calling the contained functions on each {@link
+Renderer.render} call.
+node_modules\typedoc\dist\lib\output\renderer.d.ts:126:     * Note: This array
+is cleared after calling the contained functions on each {@link
+Renderer.render} call.
+node_modules\typedoc\dist\lib\output\renderer.d.ts:139:     * See {@link
+RendererHooks} for a description of each available hook, and when it will be
+called.
+node_modules\typedoc\dist\lib\output\theme.d.ts:10: * The theme class controls
+which files will be created through the {@link Theme.getUrls}
+node_modules\typedoc\dist\lib\output\theme.d.ts:11: * function. It returns an
+array of {@link UrlMapping} instances defining the target files, models
+node_modules\typedoc\dist\lib\output\theme.d.ts:13: * {@link Renderer} to
+control and manipulate the output process.
+node_modules\typedoc\dist\lib\output\theme.d.ts:35:     * @returns A list of
+{@link UrlMapping} instances defining which models
+node_modules\typedoc\dist\lib\output\theme.d.ts:40:     * Renders the provided
+page to a string, which will be written to disk by the {@link Renderer}
+node_modules\typedoc\dist\lib\serialization\components.d.ts:6: * Like {@link
+Converter} plugins each {@link Serializer} plugin defines a predicate that
+instructs if an
+node_modules\typedoc\dist\lib\serialization\components.d.ts:9: * Additionally,
+each {@link Serializer} plugin must define a predicate that instructs the group
+node_modules\typedoc\dist\lib\serialization\components.d.ts:15:     * A higher
+priority means the {@link Serializer} will be applied earlier.
+node_modules\typedoc\dist\lib\serialization\events.d.ts:5: * An event emitted
+by the {@link Serializer} class at the very beginning and
+node_modules\typedoc\dist\lib\serialization\events.d.ts:8: * @see {@link
+Serializer.EVENT_BEGIN}
+node_modules\typedoc\dist\lib\serialization\events.d.ts:9: * @see {@link
+Serializer.EVENT_END}
+node_modules\typedoc\dist\lib\serialization\schema.d.ts:7: * For example, if
+your custom serializer adds a property to all {@link Reflection} objects:
+node_modules\typedoc\dist\lib\serialization\schema.d.ts:16: * If a plugin
+defines a new Model type, {@link ModelToObject} will not pick up the
+serializer type and
+node_modules\typedoc\dist\lib\serialization\schema.d.ts:17: * the resulting
+type will not be included in the return type of {@link Serializer.toObject}.
+node_modules\typedoc\dist\lib\serialization\schema.d.ts:18: * To fix this, use
+declaration merging to augment the {@link Serializer} class.
+node_modules\typedoc\dist\lib\serialization\serializer.d.ts:7:     * Triggered
+when the {@link Serializer} begins transforming a project.
+node_modules\typedoc\dist\lib\serialization\serializer.d.ts:12:     *
+Triggered when the {@link Serializer} has finished transforming a project.
+node_modules\typedoc\dist\lib\serialization\serializer.d.ts:32:     * Same as
+toObject but emits {@link Serializer.EVENT_BEGIN} and {@link
+Serializer.EVENT_END} events.
+node_modules\typedoc\dist\lib\utils\options\readers\tsconfig.d.ts:5:     *
+Note: Runs after the {@link TypeDocReader}.
+node_modules\typedoc\dist\lib\utils\options\declaration.d.ts:35: * Describes
+all TypeDoc specific options as returned by {@link Options.getValue}, this is
+node_modules\typedoc\dist\lib\utils\options\declaration.d.ts:36: * slightly
+more restrictive than the {@link TypeDocOptions} since it does not allow both
+node_modules\typedoc\dist\lib\utils\options\declaration.d.ts:45: * External
+consumers should likely use {@link TypeDocOptions} instead.
+node_modules\typedoc\dist\lib\utils\options\options.d.ts:34:     * {@link
+ParameterType.Mixed}. Options which have been declared must be converted to the
+node_modules\typedoc\dist\lib\utils\options\options.d.ts:36:     * the reader
+may use {@link Options.setValue}, which will correctly convert values.
+node_modules\typedoc\dist\lib\utils\options\options.d.ts:211: * @deprecated
+Will be removed in 0.26, use {@link Option | `@Option`} instead.
+node_modules\typedoc\dist\lib\utils\options\options.d.ts:226: * @deprecated
+Will be removed in 0.26, use {@link Option | `@Option`} instead
+node_modules\typedoc\dist\lib\utils\events.d.ts:16:     * Has {@link
+Event.stopPropagation} been called?
+node_modules\typedoc\dist\lib\utils\events.d.ts:20:     * Has {@link
+Event.preventDefault} been called?
+node_modules\typedoc\dist\lib\utils\events.d.ts:40:     * Has {@link
+Event.stopPropagation} been called?
+node_modules\typedoc\dist\lib\utils\events.d.ts:44:     * Has {@link
+Event.preventDefault} been called?
+node_modules\typedoc\dist\lib\utils\general.d.ts:15: * in the {@link Options}
+class.
+node_modules\typedoc\dist\lib\utils\general.d.ts:30: * See {@link IfInternal}
+for the rationale.
+node_modules\typedoc\dist\lib\utils\jsx.d.ts:3: * When overriding a default
+TypeDoc theme output, your implementation must create valid {@link Element}
+node_modules\typedoc\dist\lib\utils\jsx.d.ts:38: * JSX factory function to
+create an "element" that can later be rendered with {@link renderElement}
+node_modules\typedoc\dist\lib\application.d.ts:14: * This class holds the two
+main components of TypeDoc, the {@link Converter} and
+node_modules\typedoc\dist\lib\application.d.ts:15: * the {@link Renderer}.
+When running TypeDoc, first the {@link Converter} is invoked which
+node_modules\typedoc\dist\lib\application.d.ts:16: * generates a {@link
+ProjectReflection} from the passed in source files. The
+node_modules\typedoc\dist\lib\application.d.ts:17: * {@link ProjectReflection}
+is a hierarchical model representation of the TypeScript
+node_modules\typedoc\dist\lib\application.d.ts:18: * project. Afterwards the
+model is passed to the {@link Renderer} which uses an instance
+node_modules\typedoc\dist\lib\application.d.ts:19: * of {@link Theme} to
+generate the final documentation.
+node_modules\typedoc\dist\lib\application.d.ts:21: * Both the {@link
+Converter} and the {@link Renderer} emit a series of events while processing
+the project.
+node_modules\typedoc\dist\lib\application.d.ts:58:     * The listener will be
+given an instance of {@link Application}.
+node_modules\typedoc\dist\lib\application.d.ts:63:     * The listener will be
+given an instance of {@link ProjectReflection}.
+node_modules\typedoc\dist\lib\application.d.ts:68:     * The listener will be
+given an instance of {@link ProjectReflection}.
+node_modules\typedoc\dist\index.d.ts:11: * Describes a documentation entry.
+The root entry is a {@link ProjectReflection}
+node_modules\typedoc\dist\index.d.ts:12: * and contains {@link
+DeclarationReflection} instances.
+node_modules\typescript\lib\lib.es2015.symbol.wellknown.d.ts:244:     * Passes
+a string and {@linkcode replaceValue} to the `[Symbol.replace]` method on
+{@linkcode searchValue}. This method is expected to implement its own
+replacement algorithm.
+node_modules\typescript\lib\lib.es2020.bigint.d.ts:23:     * The locale
+matching algorithm to use.The default is "best fit". For information about
+this option, see the {@link https://developer.mozilla.org/en-US/docs/Web/JavaSc
+ript/Reference/Global_Objects/Intl#Locale_negotiation Intl page}.
+node_modules\typescript\lib\lib.es2020.bigint.d.ts:69:     * The minimum
+number of fraction digits to use. Possible values are from 0 to 20; the
+default for plain number and percent formatting is 0; the default for currency
+formatting is the number of minor unit digits provided by the {@link
+http://www.currency-iso.org/en/home/tables/table-a1.html ISO 4217 currency
+codes list} (2 if the list doesn't provide that information).
+node_modules\typescript\lib\lib.es2020.bigint.d.ts:74:     * The maximum
+number of fraction digits to use. Possible values are from 0 to 20; the
+default for plain number formatting is the larger of minimumFractionDigits and
+3; the default for currency formatting is the larger of minimumFractionDigits
+and the number of minor unit digits provided by the {@link
+http://www.currency-iso.org/en/home/tables/table-a1.html ISO 4217 currency
+codes list} (2 if the list doesn't provide that information); the default for
+percent formatting is the larger of minimumFractionDigits and 0.
+node_modules\typescript\lib\lib.es5.d.ts:461:     * @param replaceValue A
+string containing the text to replace. When the {@linkcode searchValue} is a
+`RegExp`, all matches are replaced if the `g` flag is set (or only those
+matches at the beginning, if the `y` flag is also present). Otherwise, only
+the first match of {@linkcode searchValue} is replaced.
+node_modules\typescript\lib\lib.esnext.disposable.d.ts:65:     * @returns The
+provided {@link value}.
+node_modules\typescript\lib\lib.esnext.disposable.d.ts:73:     * @returns The
+provided {@link value}.
+node_modules\typescript\lib\lib.esnext.disposable.d.ts:132:     * @returns The
+provided {@link value}.
+node_modules\typescript\lib\lib.esnext.disposable.d.ts:140:     * @returns The
+provided {@link value}.
+node_modules\typescript\lib\typescript.d.ts:989:                 * If {@link
+UserPreferences.disableLineTextInReferences} is enabled, the property won't be
+filled
+node_modules\typescript\lib\typescript.d.ts:1910:                 * {@link
+CompletionEntry.name name}, without any spacing. Should be
+node_modules\typescript\lib\typescript.d.ts:1916:                 * {@link
+CompletionEntryLabelDetails.detail}. Should be used for fully qualified
+node_modules\typescript\lib\typescript.d.ts:2858:                 * Indicates
+whether {@link CompletionEntry.labelDetails completion entry label details}
+are supported.
+node_modules\typescript\lib\typescript.d.ts:2859:                 * If not,
+contents of `labelDetails` may be included in the {@link CompletionEntry.name}
+property.
+node_modules\typescript\lib\typescript.d.ts:2893:                 * specified
+in {@link organizeImportsCollationLocale}.
+node_modules\typescript\lib\typescript.d.ts:2902:                 * This
+preference is ignored if {@link organizeImportsCollation} is not `"unicode"`.
+node_modules\typescript\lib\typescript.d.ts:2911:                 * This
+preference is ignored if {@link organizeImportsCollation} is not `"unicode"`.
+node_modules\typescript\lib\typescript.d.ts:2919:                 * in {@link
+organizeImportsCollationLocale}.
+node_modules\typescript\lib\typescript.d.ts:2921:                 * This
+preference is ignored if {@link organizeImportsCollation} is not `"unicode"`.
+node_modules\typescript\lib\typescript.d.ts:2928:                 * specified
+in {@link organizeImportsCollationLocale} is used.
+node_modules\typescript\lib\typescript.d.ts:2930:                 * This
+preference is ignored if {@link organizeImportsCollation} is not `"unicode"`.
+This preference is also
+node_modules\typescript\lib\typescript.d.ts:2931:                 * ignored if
+we are using case-insensitive sorting, which occurs when {@link
+organizeImportsIgnoreCase} is `true`,
+node_modules\typescript\lib\typescript.d.ts:2932:                 * or if
+{@link organizeImportsIgnoreCase} is `"auto"` and the auto-detected case
+sensitivity is determined to be
+node_modules\typescript\lib\typescript.d.ts:2946:                 * Indicates
+whether {@link ReferencesResponseItem.lineText} is supported.
+node_modules\typescript\lib\typescript.d.ts:3161:        /** @deprecated Use
+{@link ModuleImportResult} instead. */
+node_modules\typescript\lib\typescript.d.ts:8771:         * Note: Do not use
+this mode if you require accurate type errors; use {@link ParseForTypeErrors}
+instead.
+node_modules\typescript\lib\typescript.d.ts:8898:        /** @deprecated use
+{@link getTokenFullStart} */
+node_modules\typescript\lib\typescript.d.ts:8904:        /** @deprecated use
+{@link getTokenEnd} */
+node_modules\typescript\lib\typescript.d.ts:8906:        /** @deprecated use
+{@link getTokenStart} */
+node_modules\typescript\lib\typescript.d.ts:8920:        /** @deprecated use
+{@link reScanTemplateToken}(false) */
+node_modules\typescript\lib\typescript.d.ts:8940:        /** @deprecated use
+{@link resetTokenState} */
+node_modules\typescript\lib\typescript.d.ts:9249:     * the comment. In the
+first case, location adds the entire {@link JSDoc} object. In the
+node_modules\typescript\lib\typescript.d.ts:9250:     * second case, it adds
+the applicable {@link JSDocTag}.
+node_modules\typescript\lib\typescript.d.ts:9252:     * For example, a JSDoc
+comment before a parameter adds the entire {@link JSDoc}. But a
+node_modules\typescript\lib\typescript.d.ts:9253:     * `@param` tag on the
+parent function only adds the {@link JSDocTag} for the `@param`.
+node_modules\typescript\lib\typescript.d.ts:9872:     * Visits the elements of
+a {@link CommaListExpression}.
+node_modules\typescript\lib\typescript.d.ts:9874:     * @param discardVisitor
+The visitor to use when visiting expressions whose result will be discarded at
+runtime. Defaults to {@link visitor}.
+node_modules\typescript\lib\typescript.d.ts:11485:        /** Jsdoc @link: in
+`{@link C link text}`, the before and after text "{@link " and "}" */
+node_modules\typescript\lib\typescript.d.ts:11487:        /** Jsdoc @link: in
+`{@link C link text}`, the entity name "C" */
+node_modules\typescript\lib\typescript.d.ts:11489:        /** Jsdoc @link: in
+`{@link C link text}`, the link text "link text" */
+node_modules\vite\dist\node\index.d.ts:3059: * rollup type definition of
+{@link rollup#PluginHooks}). You can think of the
+node_modules\vite\dist\node\index.d.ts:3102:     * Configure the vite server.
+The hook receives the {@link ViteDevServer}
+node_modules\vite\dist\node\index.d.ts:3112:     * Configure the preview
+server. The hook receives the {@link PreviewServer}
+node_modules\vite\dist\node\index.d.ts:3212: * accepts a direct {@link
+UserConfig} object, or a function that returns it.
+node_modules\vite\dist\node\index.d.ts:3213: * The function receives a {@link
+ConfigEnv} object.
