@@ -11,3 +11,7 @@ target_wasm
 
 # https://github.com/lycheeverse/lychee
 .lycheecache
+
+# Generated documentation
+docs/typescript/
+target/doc/

@@ -116,7 +116,7 @@ export interface AuditEntry {
   details: string;
 }
 
-export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle";
+export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle" | "Pipeline";
 
 // Dataset Lifecycle Types
 export type LifecycleStage = "Raw" | "Profiled" | "Cleaned" | "Advanced" | "Validated" | "Published";

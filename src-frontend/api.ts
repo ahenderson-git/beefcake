@@ -1,7 +1,91 @@
+/**
+ * # Tauri Backend API
+ *
+ * This module provides TypeScript wrappers for Rust backend functions.
+ * All communication with the Rust backend happens through Tauri's `invoke()` function.
+ *
+ * ## How It Works
+ *
+ * ```
+ * TypeScript (Frontend)           Rust (Backend)
+ * ────────────────────────────────────────────────
+ * api.analyseFile(path)
+ *   ↓
+ * invoke("analyze_file", { path })
+ *   ↓ (IPC/JSON serialization)
+ *   ↓
+ *                              #[tauri::command]
+ *                              fn analyze_file(path: String)
+ *   ↓
+ * Promise<AnalysisResponse>
+ * ```
+ *
+ * ## TypeScript-Rust Type Mapping
+ *
+ * | TypeScript       | Rust              |
+ * |------------------|-------------------|
+ * | string           | String            |
+ * | number           | i32, u32, f64     |
+ * | boolean          | bool              |
+ * | object           | struct (Serialize)|
+ * | Array<T>         | Vec<T>            |
+ * | null/undefined   | Option<T>         |
+ *
+ * ## Error Handling
+ *
+ * All async functions can throw errors (returned as Promise rejection):
+ *
+ * ```typescript
+ * try {
+ *   const data = await api.analyseFile(path);
+ * } catch (error) {
+ *   console.error('Backend error:', error);  // error is a string
+ * }
+ * ```
+ *
+ * ## Naming Convention
+ *
+ * - TypeScript: camelCase (analyseFile)
+ * - Rust: snake_case (analyze_file)
+ * - invoke() uses Rust name: "analyze_file"
+ *
+ * @module api
+ * @see {@link docs/ARCHITECTURE.md} for system architecture
+ * @see {@link docs/TYPESCRIPT_PATTERNS.md} for Tauri bridge pattern
+ */
+
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { AnalysisResponse, AppConfig, ColumnCleanConfig, ExportOptions } from "./types";
 
+/**
+ * Analyzes a data file (CSV, JSON, or Parquet) and returns statistics.
+ *
+ * **Backend**: Calls `analyze_file` in `src/tauri_app.rs`
+ *
+ * The analysis includes:
+ * - Column type detection (numeric, text, temporal, etc.)
+ * - Statistical summaries (mean, median, percentiles)
+ * - Data quality assessment (nulls, outliers, patterns)
+ * - Business insights and recommendations
+ *
+ * @param path - Absolute path to the data file
+ * @returns Promise resolving to analysis results
+ * @throws Error string if file not found, invalid format, or analysis fails
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const response = await api.analyseFile('C:/data/customers.csv');
+ *   console.log(`Analyzed ${response.row_count} rows`);
+ *   response.summary.forEach(col => {
+ *     console.log(`${col.name}: ${col.kind}`);
+ *   });
+ * } catch (error) {
+ *   console.error('Analysis failed:', error);
+ * }
+ * ```
+ */
 export async function analyseFile(path: string): Promise<AnalysisResponse> {
   return await invoke("analyze_file", { path });
 }

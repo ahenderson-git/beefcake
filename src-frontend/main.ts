@@ -1,3 +1,50 @@
+/**
+ * # Beefcake Frontend Application
+ *
+ * Main entry point for the Beefcake desktop application frontend.
+ * This file orchestrates the component-based architecture and manages
+ * application state.
+ *
+ * ## Architecture Overview
+ *
+ * ```
+ * BeefcakeApp (this file)
+ *   │
+ *   ├─ state: AppState              (centralized state)
+ *   ├─ components: Component[]      (UI components)
+ *   └─ lifecycleRail: Component     (dataset lifecycle UI)
+ * ```
+ *
+ * ## Key Patterns
+ *
+ * ### 1. Component-Based Architecture
+ * Each view (Dashboard, Analyser, etc.) is a separate component class
+ * that handles its own rendering and event handling.
+ *
+ * ### 2. Centralized State Management
+ * All state lives in `BeefcakeApp.state`. When state changes,
+ * `render()` is called to update the UI.
+ *
+ * ### 3. Event-Driven Updates
+ * User actions → Update state → Call render() → Update DOM
+ *
+ * ### 4. Tauri Bridge
+ * All backend communication goes through `api.ts`, which uses
+ * Tauri's `invoke()` to call Rust functions.
+ *
+ * ## TypeScript Concepts Used
+ *
+ * - **Classes**: Object-oriented state management
+ * - **Async/Await**: Handling asynchronous operations
+ * - **Interfaces**: Type-safe state and configuration
+ * - **Generics**: `Partial<Record<View, Component>>`
+ * - **Optional Chaining**: `component?.render()`
+ *
+ * @module main
+ * @see {@link docs/TYPESCRIPT_PATTERNS.md} for pattern explanations
+ * @see {@link docs/ARCHITECTURE.md} for system design
+ */
+
 import "@phosphor-icons/web/regular";
 import "@fontsource/fira-code/300.css";
 import "@fontsource/fira-code/400.css";
@@ -25,8 +72,50 @@ import { ActivityLogComponent } from './components/ActivityLogComponent';
 import { ReferenceComponent } from './components/ReferenceComponent';
 import { LifecycleComponent } from './components/LifecycleComponent';
 import { LifecycleRailComponent } from './components/LifecycleRailComponent';
+import { PipelineComponent } from './components/PipelineComponent';
 
+/**
+ * Main application controller for Beefcake frontend.
+ *
+ * Manages application state, component lifecycle, and coordinates
+ * communication between UI components and Rust backend via Tauri.
+ *
+ * ## Lifecycle
+ *
+ * 1. **Constructor**: Starts async initialization
+ * 2. **init()**: Loads config, creates components, sets up navigation
+ * 3. **render()**: Updates active component with current state
+ * 4. **User Interaction**: Triggers state changes and re-renders
+ *
+ * ## State Management Pattern
+ *
+ * ```typescript
+ * // State is private - components receive it as read-only
+ * private state: AppState = { ... };
+ *
+ * // State updates trigger re-renders
+ * this.state.currentView = 'Analyser';
+ * this.render();  // Updates DOM
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // App initializes automatically on DOM load
+ * window.addEventListener('DOMContentLoaded', () => {
+ *   new BeefcakeApp();
+ * });
+ * ```
+ */
 class BeefcakeApp {
+  /**
+   * Centralized application state.
+   *
+   * **Pattern**: Single source of truth for all UI state.
+   * When state changes, call `render()` to update the display.
+   *
+   * **TypeScript Note**: Using `private` prevents external access.
+   * Components receive state as a parameter in `render(state)`.
+   */
   private state: AppState = {
     version: '0.0.0',
     currentView: 'Dashboard',
@@ -140,7 +229,8 @@ class BeefcakeApp {
       'CLI': new CliHelpComponent('view-container', actions),
       'ActivityLog': new ActivityLogComponent('view-container', actions),
       'Reference': new ReferenceComponent('view-container', actions),
-      'Lifecycle': new LifecycleComponent('view-container', actions)
+      'Lifecycle': new LifecycleComponent('view-container', actions),
+      'Pipeline': new PipelineComponent('view-container', actions)
     };
 
     // Initialize lifecycle rail component

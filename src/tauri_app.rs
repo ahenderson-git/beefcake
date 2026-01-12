@@ -18,7 +18,7 @@ use crate::python_runner;
 async fn run_on_worker_thread<F, Fut, R>(name_str: &str, f: F) -> Result<R, String>
 where
     F: FnOnce() -> Fut + Send + 'static,
-    Fut: std::future::Future<Output = Result<R, String>> + Send + 'static,
+    Fut: Future<Output = Result<R, String>> + Send + 'static,
     R: Send + 'static,
 {
     let name = name_str.to_owned();
@@ -38,10 +38,7 @@ where
                     tauri::async_runtime::block_on(f())
                 }));
 
-                match res {
-                    Ok(r) => r,
-                    Err(_) => Err(format!("{name_for_thread} thread panicked.")),
-                }
+                res.unwrap_or_else(|_| Err(format!("{name_for_thread} thread panicked.")))
             })
             .map_err(|e| format!("Failed to spawn {name_for_err} thread: {e}"))?;
 
@@ -95,7 +92,7 @@ pub async fn get_app_version() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn get_config() -> Result<AppConfig, String> {
-    Ok(beefcake::utils::load_app_config())
+    Ok(load_app_config())
 }
 
 #[tauri::command]
@@ -124,9 +121,9 @@ pub async fn save_config(mut config: AppConfig) -> Result<(), String> {
     }
 
     if !config.audit_log().is_empty() {
-        beefcake::utils::push_audit_log(&mut config, "Config", "Updated application settings");
+        push_audit_log(&mut config, "Config", "Updated application settings");
     }
-    beefcake::utils::save_app_config(&config).map_err(|e| e.to_string())
+    save_app_config(&config).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -378,7 +375,7 @@ static LIFECYCLE_REGISTRY: LazyLock<Arc<RwLock<Option<Arc<DatasetRegistry>>>>> =
     LazyLock::new(|| Arc::new(RwLock::new(None)));
 
 fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
-    // First try to get existing registry with a read lock (non-blocking for concurrent access)
+    // First, try to get the existing registry with a read lock (non-blocking for concurrent access)
     {
         let reg_guard = LIFECYCLE_REGISTRY.read()
             .map_err(|e| format!("Lock poisoned: {e}"))?;
@@ -388,11 +385,11 @@ fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
         }
     }
 
-    // If not initialized, acquire write lock to initialize
+    // If not initialised, acquire a write lock to initialise
     let mut reg_guard = LIFECYCLE_REGISTRY.write()
         .map_err(|e| format!("Lock poisoned: {e}"))?;
 
-    // Double-check in case another thread initialized while we waited
+    // Double-check in case another thread initialised while we waited
     if let Some(registry) = reg_guard.as_ref() {
         return Ok(Arc::clone(registry));
     }
@@ -561,13 +558,13 @@ pub async fn save_pipeline_spec(spec_json: String, path: String) -> Result<(), S
         .map_err(|e| format!("Invalid pipeline spec: {e}"))?;
 
     // Ensure directory exists
-    let path_buf = std::path::PathBuf::from(&path);
+    let path_buf = PathBuf::from(&path);
     if let Some(parent) = path_buf.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create directory: {e}"))?;
     }
 
-    // Write to file
+    // Write to a file
     spec.to_file(&path_buf)
         .map_err(|e| format!("Failed to save pipeline spec: {e}"))
 }
@@ -596,7 +593,7 @@ pub async fn validate_pipeline_spec(spec_json: String, input_path: String) -> Re
     let spec = PipelineSpec::from_json(&spec_json)
         .map_err(|e| format!("Invalid pipeline spec JSON: {e}"))?;
 
-    // Load input file to get schema
+    // Load the input file to get schema
     let mut lf = load_df_lazy(std::path::Path::new(&input_path))
         .map_err(|e| format!("Failed to load input file: {e}"))?;
 
@@ -620,8 +617,8 @@ pub async fn generate_powershell(spec_json: String, output_path: String) -> Resu
     let spec = PipelineSpec::from_json(&spec_json)
         .map_err(|e| format!("Invalid pipeline spec: {e}"))?;
 
-    // Determine spec path (adjacent to ps1 file)
-    let ps1_path = std::path::PathBuf::from(&output_path);
+    // Determine a spec path (adjacent to ps1 file)
+    let ps1_path = PathBuf::from(&output_path);
     let spec_path = ps1_path.with_extension("json");
 
     // Generate PowerShell script
@@ -633,11 +630,11 @@ pub async fn generate_powershell(spec_json: String, output_path: String) -> Resu
             .map_err(|e| format!("Failed to create directory: {e}"))?;
     }
 
-    // Write script file
+    // Write a script file
     std::fs::write(&ps1_path, &script)
         .map_err(|e| format!("Failed to write PowerShell script: {e}"))?;
 
-    // Also write spec file alongside
+    // Also write a spec file alongside
     spec.to_file(&spec_path)
         .map_err(|e| format!("Failed to write spec file: {e}"))?;
 
@@ -667,6 +664,151 @@ pub async fn pipeline_from_configs(
     // Serialize to JSON
     spec.to_json()
         .map_err(|e| format!("Failed to serialize pipeline: {e}"))
+}
+
+#[tauri::command]
+pub async fn execute_pipeline_spec(
+    spec_json: String,
+    input_path: String,
+    output_path: Option<String>,
+) -> Result<String, String> {
+    use beefcake::pipeline::{PipelineSpec, run_pipeline};
+
+    beefcake::utils::log_event("Pipeline", &format!("Executing pipeline on: {input_path}"));
+
+    // Parse spec
+    let spec = PipelineSpec::from_json(&spec_json)
+        .map_err(|e| format!("Invalid pipeline spec: {e}"))?;
+
+    // Execute pipeline
+    let report = run_pipeline(&spec, &input_path, output_path.as_deref())
+        .map_err(|e| format!("Pipeline execution failed: {e}"))?;
+
+    // Return JSON report
+    let result = serde_json::json!({
+        "success": true,
+        "rows_before": report.rows_before,
+        "rows_after": report.rows_after,
+        "columns_before": report.columns_before,
+        "columns_after": report.columns_after,
+        "steps_applied": report.steps_applied,
+        "warnings": report.warnings,
+        "duration_secs": report.duration.as_secs_f64(),
+        "summary": report.summary()
+    });
+
+    serde_json::to_string(&result)
+        .map_err(|e| format!("Failed to serialize result: {e}"))
+}
+
+#[tauri::command]
+pub async fn list_pipeline_specs() -> Result<String, String> {
+    use std::fs;
+
+    beefcake::utils::log_event("Pipeline", "Listing pipeline specs");
+
+    // Get pipelines directory - use data/pipelines in current directory
+    let pipelines_dir = PathBuf::from("data").join("pipelines");
+
+    // Create directory if it doesn't exist
+    if !pipelines_dir.exists() {
+        fs::create_dir_all(&pipelines_dir)
+            .map_err(|e| format!("Failed to create pipelines directory: {e}"))?;
+    }
+
+    // Scan for .json files
+    let mut pipelines = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(&pipelines_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                // Try to load pipeline to get metadata
+                if let Ok(spec) = beefcake::pipeline::PipelineSpec::from_file(&path) {
+                    let metadata = entry.metadata().ok();
+                    let created = metadata
+                        .as_ref()
+                        .and_then(|m| m.created().ok())
+                        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
+                        .unwrap_or_default();
+                    let modified = metadata
+                        .as_ref()
+                        .and_then(|m| m.modified().ok())
+                        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
+                        .unwrap_or_default();
+
+                    pipelines.push(serde_json::json!({
+                        "name": spec.name,
+                        "path": path.to_string_lossy(),
+                        "created": created,
+                        "modified": modified,
+                        "step_count": spec.steps.len()
+                    }));
+                }
+            }
+        }
+    }
+
+    serde_json::to_string(&pipelines)
+        .map_err(|e| format!("Failed to serialize pipeline list: {e}"))
+}
+
+#[tauri::command]
+pub async fn list_pipeline_templates() -> Result<String, String> {
+    use std::fs;
+
+    beefcake::utils::log_event("Pipeline", "Listing pipeline templates");
+
+    // Get templates directory
+    let templates_dir = PathBuf::from("data").join("pipelines").join("templates");
+
+    // Create directory if it doesn't exist
+    if !templates_dir.exists() {
+        fs::create_dir_all(&templates_dir)
+            .map_err(|e| format!("Failed to create templates directory: {e}"))?;
+    }
+
+    // Scan for .json files
+    let mut templates = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(&templates_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                // Try to load template to get metadata
+                if let Ok(spec) = beefcake::pipeline::PipelineSpec::from_file(&path) {
+                    let info = serde_json::json!({
+                        "name": spec.name,
+                        "path": path.to_string_lossy(),
+                        "step_count": spec.steps.len(),
+                    });
+                    templates.push(info);
+                }
+            }
+        }
+    }
+
+    serde_json::to_string(&templates)
+        .map_err(|e| format!("Failed to serialize templates: {e}"))
+}
+
+#[tauri::command]
+pub async fn load_pipeline_template(template_name: String) -> Result<String, String> {
+    beefcake::utils::log_event("Pipeline", &format!("Loading template: {template_name}"));
+
+    // Construct path to template
+    let template_path = PathBuf::from("data")
+        .join("pipelines")
+        .join("templates")
+        .join(format!("{}.json", template_name.to_lowercase().replace(' ', "-")));
+
+    // Load template
+    let spec = beefcake::pipeline::PipelineSpec::from_file(&template_path)
+        .map_err(|e| format!("Failed to load template: {e}"))?;
+
+    // Return as JSON
+    spec.to_json()
+        .map_err(|e| format!("Failed to serialize template: {e}"))
 }
 
 pub fn run() {
@@ -702,10 +844,14 @@ pub fn run() {
             load_pipeline_spec,
             validate_pipeline_spec,
             generate_powershell,
-            pipeline_from_configs
+            pipeline_from_configs,
+            execute_pipeline_spec,
+            list_pipeline_specs,
+            list_pipeline_templates,
+            load_pipeline_template
         ])
         .setup(|_app| {
-            // Setup cleanup handlers
+            // Set up clean-up handlers
             Ok(())
         })
         .build(tauri::generate_context!())
