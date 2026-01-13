@@ -132,7 +132,9 @@ class BeefcakeApp {
     pythonSkipCleaning: true,
     sqlSkipCleaning: true,
     currentDataset: null,
-    selectedColumns: new Set()
+    selectedColumns: new Set(),
+    useOriginalColumnNames: false,
+    cleanAllActive: true
   };
 
   private components: Partial<Record<View, Component>> = {};

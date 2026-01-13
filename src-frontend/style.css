@@ -1627,10 +1627,23 @@ td {
   accent-color: var(--accent-color);
 }
 
+.col-name-display {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .col-name {
   font-weight: 600;
   color: var(--text-color);
   font-size: 0.95rem;
+}
+
+.col-name-original {
+  font-size: 0.75rem;
+  color: #999;
+  font-style: italic;
+  font-weight: 400;
 }
 
 .col-type {

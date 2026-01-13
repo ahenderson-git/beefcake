@@ -270,6 +270,8 @@ export interface AppState {
   sqlSkipCleaning: boolean;
   currentDataset: CurrentDataset | null;
   selectedColumns: Set<string>;
+  useOriginalColumnNames: boolean;
+  cleanAllActive: boolean;
 }
 
 export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConfig {

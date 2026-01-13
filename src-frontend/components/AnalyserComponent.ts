@@ -60,7 +60,8 @@ export class AnalyserComponent extends Component {
       state.cleaningConfigs,
       currentStage,
       isReadOnly,
-      state.selectedColumns
+      state.selectedColumns,
+      state.useOriginalColumnNames
     );
 
     const header = document.getElementById('analyser-header-container');
@@ -68,7 +69,9 @@ export class AnalyserComponent extends Component {
       header.innerHTML = renderers.renderAnalyserHeader(
         state.analysisResponse,
         currentStage,
-        isReadOnly
+        isReadOnly,
+        state.useOriginalColumnNames,
+        state.cleanAllActive
       );
     }
 
@@ -149,7 +152,20 @@ export class AnalyserComponent extends Component {
         
         if (action === 'active-all') {
           const checked = (target as HTMLInputElement).checked;
+          state.cleanAllActive = checked;
           Object.values(state.cleaningConfigs).forEach(c => c.active = checked);
+        } else if (action === 'use-original-names') {
+          const checked = (target as HTMLInputElement).checked;
+          state.useOriginalColumnNames = checked;
+          // Update all configs to use either original or standardized names
+          if (state.analysisResponse) {
+            state.analysisResponse.summary.forEach((s) => {
+              const config = state.cleaningConfigs[s.name];
+              if (config) {
+                config.new_name = checked ? s.name : s.standardized_name;
+              }
+            });
+          }
         } else if (action === 'impute-all') {
           const val = target.value;
           Object.values(state.cleaningConfigs).forEach(c => c.impute_mode = val as any);

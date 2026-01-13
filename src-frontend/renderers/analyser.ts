@@ -5,7 +5,9 @@ import { CASE_OPTIONS, IMPUTE_OPTIONS, NORM_OPTIONS, renderSelect, ROUND_OPTIONS
 export function renderAnalyserHeader(
   response: AnalysisResponse,
   currentStage: LifecycleStage | null = null,
-  isReadOnly: boolean = false
+  isReadOnly: boolean = false,
+  useOriginalColumnNames: boolean = false,
+  cleanAllActive: boolean = true
 ): string {
   const isSampled = response.total_row_count > response.row_count;
   const rowDisplay = isSampled
@@ -51,7 +53,10 @@ export function renderAnalyserHeader(
     ${!isReadOnly ? `
       <div class="bulk-actions">
         <div class="bulk-group">
-          <label><input type="checkbox" class="header-action" data-action="active-all" checked> All Active</label>
+          <label><input type="checkbox" class="header-action" data-action="active-all" ${cleanAllActive ? 'checked' : ''}> Clean All</label>
+        </div>
+        <div class="bulk-group">
+          <label><input type="checkbox" class="header-action" data-action="use-original-names" id="toggle-original-names" ${useOriginalColumnNames ? 'checked' : ''}> Original Names</label>
         </div>
         <div class="bulk-group">
           <label>Impute All:</label>
@@ -182,7 +187,8 @@ export function renderAnalyser(
   configs: Record<string, ColumnCleanConfig>,
   _currentStage: LifecycleStage | null = null,
   isReadOnly: boolean = false,
-  selectedColumns: Set<string> = new Set()
+  selectedColumns: Set<string> = new Set(),
+  _useOriginalColumnNames: boolean = false
 ): string {
   const healthScore = Math.round(response.health.score * 100);
   const healthClass = healthScore > 80 ? 'health-good' : healthScore > 50 ? 'health-warn' : 'health-poor';
@@ -401,6 +407,10 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
   const [min, max] = getMinMax(col);
   const meanOrMode = getMeanOrMode(col);
 
+  // Determine which name to show as primary (proposed) vs secondary (original)
+  const proposedName = config?.new_name || col.name;
+  const hasNameChange = proposedName !== col.name;
+
   return `
     <tr class="analyser-row ${isExpanded ? 'expanded' : ''}" data-col="${escapeHtml(col.name)}">
       <td><i class="ph ${isExpanded ? 'ph-caret-down' : 'ph-caret-right'} expand-toggle"></i></td>
@@ -409,7 +419,12 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
           ${isReadOnly ? `
             <input type="checkbox" class="col-select-checkbox" data-col="${escapeHtml(col.name)}" ${isSelected ? 'checked' : ''} title="Include in cleaning">
           ` : ''}
-          <span class="col-name">${escapeHtml(col.name)}</span>
+          <div class="col-name-display">
+            <span class="col-name">${escapeHtml(proposedName)}</span>
+            ${hasNameChange ? `
+              <span class="col-name-original">Originally: "${escapeHtml(col.name)}"</span>
+            ` : ''}
+          </div>
         </div>
       </td>
       <td><span class="col-type"><i class="ph ${typeIcon}"></i> ${col.kind}</span></td>
