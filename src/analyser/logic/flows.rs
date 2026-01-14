@@ -56,7 +56,7 @@ pub fn generate_auto_clean_configs(lf: LazyFrame) -> Result<HashMap<String, Colu
     let mut configs = HashMap::new();
     for summary in summaries {
         let mut config = ColumnCleanConfig::default();
-        config.new_name = summary.standardized_name.clone();
+        config.new_name = summary.standardised_name.clone();
         summary.apply_advice_to_config(&mut config);
         configs.insert(summary.name.clone(), config);
     }

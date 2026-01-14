@@ -2,6 +2,55 @@ import { AnalysisResponse, ColumnCleanConfig, ColumnSummary, LifecycleStage } fr
 import { escapeHtml, fmtBytes, fmtDuration } from "../utils";
 import { CASE_OPTIONS, IMPUTE_OPTIONS, NORM_OPTIONS, renderSelect, ROUND_OPTIONS } from "./common";
 
+function renderCleaningInfoBox(): string {
+  return `
+    <div class="cleaning-info-box">
+      <div class="cleaning-info-header">
+        <i class="ph ph-info"></i>
+        <h4>What does cleaning include?</h4>
+        <button class="cleaning-info-toggle" aria-label="Toggle info">
+          <i class="ph ph-caret-up"></i>
+        </button>
+      </div>
+      <div class="cleaning-info-content">
+        <p class="cleaning-info-intro">The Cleaning stage applies <strong>reversible text and type transformations</strong> to prepare your data:</p>
+        <div class="cleaning-info-grid">
+          <div class="cleaning-info-section">
+            <strong><i class="ph ph-text-t"></i> Text Cleaning:</strong>
+            <ul>
+              <li>Trim whitespace</li>
+              <li>Convert case (lower/upper/title)</li>
+              <li>Remove special characters</li>
+              <li>Standardize null representations</li>
+            </ul>
+          </div>
+          <div class="cleaning-info-section">
+            <strong><i class="ph ph-swap"></i> Type Casting:</strong>
+            <ul>
+              <li>Convert to Numeric, Text, Boolean</li>
+              <li>Parse Temporal (dates/times)</li>
+              <li>Detect Categorical patterns</li>
+            </ul>
+          </div>
+          <div class="cleaning-info-section">
+            <strong><i class="ph ph-tag"></i> Column Renaming:</strong>
+            <ul>
+              <li>Standardize column names</li>
+              <li>Apply custom naming conventions</li>
+            </ul>
+          </div>
+        </div>
+        <p class="cleaning-info-note">
+          <i class="ph ph-arrow-counter-clockwise"></i>
+          <strong>Note:</strong> All cleaning operations in this stage are reversible.
+          Advanced operations (imputation, normalization, encoding) are available in the <strong>Advanced</strong> stage.
+          <a href="#" class="cleaning-info-link" data-view="reference">View full documentation →</a>
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 export function renderAnalyserHeader(
   response: AnalysisResponse,
   currentStage: LifecycleStage | null = null,
@@ -25,6 +74,7 @@ export function renderAnalyserHeader(
         </div>
       </div>
     ` : ''}
+    ${currentStage === 'Cleaned' && !isReadOnly ? renderCleaningInfoBox() : ''}
     <div class="analyser-header">
       <div class="header-main">
         <h2>${escapeHtml(response.file_name)} <small>(${fmtBytes(response.file_size)})</small></h2>
@@ -253,7 +303,7 @@ export function renderEmptyAnalyser(): string {
   return `
     <div class="empty-state">
       <i class="ph ph-file-search"></i>
-      <h3>No data analyzed yet</h3>
+      <h3>No data analysed yet</h3>
       <p>Select a file to begin advanced profiling and cleaning.</p>
       <button id="btn-open-file" class="btn-primary">
         <i class="ph ph-cloud-arrow-up"></i> Select File
@@ -456,7 +506,7 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
           <div class="cleaning-summary">
             ${config?.active ? '<span class="active-dot" title="Cleaning Active"></span>' : ''}
             ${config?.impute_mode !== 'None' ? `<span class="clean-tag">Impute: ${config?.impute_mode}</span>` : ''}
-            ${config?.normalization !== 'None' ? `<span class="clean-tag">Norm: ${config?.normalization}</span>` : ''}
+            ${config?.normalisation !== 'None' ? `<span class="clean-tag">Norm: ${config?.normalisation}</span>` : ''}
           </div>
         `}
       </td>
@@ -489,7 +539,7 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
                         </div>
                         <div class="control-item">
                           <label>Normalization</label>
-                          ${renderSelect(NORM_OPTIONS, config?.normalization || 'None', 'row-action', { col: col.name, prop: 'normalization' })}
+                          ${renderSelect(NORM_OPTIONS, config?.normalisation || 'None', 'row-action', { col: col.name, prop: 'normalisation' })}
                         </div>
                       ` : ''}
                       ${col.kind === 'Text' ? `
@@ -599,7 +649,7 @@ export function renderSchemaSidebar(response: AnalysisResponse, configs: Record<
               <span class="schema-col-name">${escapeHtml(col.name)}</span>
               <div class="schema-badges">
                 ${config.impute_mode !== 'None' ? `<span class="badge">Impute</span>` : ''}
-                ${config.normalization !== 'None' ? `<span class="badge">Norm</span>` : ''}
+                ${config.normalisation !== 'None' ? `<span class="badge">Norm</span>` : ''}
                 ${config.text_case !== 'None' ? `<span class="badge">Case</span>` : ''}
                 ${config.ml_preprocessing ? `<span class="badge-ml">ML</span>` : ''}
               </div>

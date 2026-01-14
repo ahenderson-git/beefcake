@@ -1,4 +1,4 @@
-use super::types::{ColumnCleanConfig, ColumnKind, ImputeMode, NormalizationMethod, TextCase};
+use super::types::{ColumnCleanConfig, ColumnKind, ImputeMode, NormalisationMethod, TextCase};
 use anyhow::{Context as _, Result};
 use polars::prelude::*;
 use std::collections::HashMap;
@@ -67,7 +67,7 @@ pub fn clean_df_lazy(
 
             // 6. Normalization
             if !restricted {
-                expr = apply_normalization_with_stats(expr, config, None);
+                expr = apply_normalisation_with_stats(expr, config, None);
             }
 
             // 6. Rename if needed
@@ -149,7 +149,7 @@ pub fn apply_text_cleaning(expr: Expr, config: &ColumnCleanConfig, _restricted: 
             );
         }
 
-        if config.standardize_nulls {
+        if config.standardise_nulls {
             let null_values =
                 Series::new("nulls".into(), &["null", "NULL", "", "N/A", "nan", "NaN"]);
             expr = when(expr.clone().is_in(lit(null_values)))
@@ -229,7 +229,7 @@ pub fn apply_numeric_refinement(expr: Expr, config: &ColumnCleanConfig) -> Expr 
     expr
 }
 
-pub fn apply_normalization_with_stats(
+pub fn apply_normalisation_with_stats(
     expr: Expr,
     config: &ColumnCleanConfig,
     _stats: Option<&StatsValues>,
@@ -237,14 +237,14 @@ pub fn apply_normalization_with_stats(
     if !config.ml_preprocessing {
         return expr;
     }
-    match config.normalization {
-        NormalizationMethod::None => expr,
-        NormalizationMethod::MinMax => {
+    match config.normalisation {
+        NormalisationMethod::None => expr,
+        NormalisationMethod::MinMax => {
             let min = expr.clone().min();
             let max = expr.clone().max();
             (expr - min.clone()) / (max - min)
         }
-        NormalizationMethod::ZScore => {
+        NormalisationMethod::ZScore => {
             let mean = expr.clone().mean();
             let std = expr.clone().std(1);
             (expr - mean) / std

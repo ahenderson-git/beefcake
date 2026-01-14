@@ -59,7 +59,7 @@ export interface ColumnSummary {
   samples: string[];
 }
 
-export type NormalizationMethod = "None" | "ZScore" | "MinMax";
+export type NormalisationMethod = "None" | "ZScore" | "MinMax";
 export type ImputeMode = "None" | "Mean" | "Median" | "Zero" | "Mode";
 export type TextCase = "None" | "Lowercase" | "Uppercase" | "TitleCase";
 
@@ -72,7 +72,7 @@ export interface ColumnCleanConfig {
   trim_whitespace: boolean;
   remove_special_chars: boolean;
   text_case: TextCase;
-  standardize_nulls: boolean;
+  standardise_nulls: boolean;
   remove_non_ascii: boolean;
   regex_find: string;
   regex_replace: string;
@@ -82,7 +82,7 @@ export interface ColumnCleanConfig {
   temporal_format: string;
   timezone_utc: boolean;
   freq_threshold: number | null;
-  normalization: NormalizationMethod;
+  normalisation: NormalisationMethod;
   one_hot_encode: boolean;
   impute_mode: ImputeMode;
 }
@@ -116,7 +116,7 @@ export interface AuditEntry {
   details: string;
 }
 
-export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle" | "Pipeline" | "Watcher";
+export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle" | "Pipeline" | "Watcher" | "Dictionary";
 
 // Dataset Lifecycle Types
 export type LifecycleStage = "Raw" | "Profiled" | "Cleaned" | "Advanced" | "Validated" | "Published";
@@ -287,7 +287,7 @@ export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConf
     trim_whitespace: true,
     remove_special_chars: false,
     text_case: "None",
-    standardize_nulls: true,
+    standardise_nulls: true,
     remove_non_ascii: false,
     regex_find: "",
     regex_replace: "",
@@ -297,7 +297,7 @@ export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConf
     temporal_format: "",
     timezone_utc: false,
     freq_threshold: null,
-    normalization: "None",
+    normalisation: "None",
     one_hot_encode: false,
     impute_mode: "None"
   };

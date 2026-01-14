@@ -158,7 +158,7 @@ pub async fn prepare_data(
         return Ok((data_path, None));
     }
 
-    // Optimization: Check if any configs are actually active before proceeding
+    // Optimisation: Check if any configs are actually active before proceeding
     let has_active_configs = cfgs.values().any(|config| config.active);
     if !has_active_configs {
         beefcake::utils::log_event(

@@ -19,7 +19,7 @@ pub use io::{get_parquet_write_options, load_df, load_df_lazy, save_df};
 pub use naming::{sanitize_column_name, sanitize_column_names};
 pub use types::{
     AnalysisResponse, BooleanStats, ColumnCleanConfig, ColumnKind, ColumnStats, ColumnSummary,
-    CorrelationMatrix, FileHealth, ImputeMode, MlModelKind, NormalizationMethod, NumericStats,
+    CorrelationMatrix, FileHealth, ImputeMode, MlModelKind, NormalisationMethod, NumericStats,
     TemporalStats, TextCase, TextStats,
 };
 

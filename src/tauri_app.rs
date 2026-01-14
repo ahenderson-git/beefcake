@@ -778,9 +778,23 @@ pub async fn list_pipeline_templates() -> Result<String, String> {
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 // Try to load template to get metadata
                 if let Ok(spec) = beefcake::pipeline::PipelineSpec::from_file(&path) {
+                    let metadata = entry.metadata().ok();
+                    let created = metadata
+                        .as_ref()
+                        .and_then(|m| m.created().ok())
+                        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
+                        .unwrap_or_default();
+                    let modified = metadata
+                        .as_ref()
+                        .and_then(|m| m.modified().ok())
+                        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
+                        .unwrap_or_default();
+
                     let info = serde_json::json!({
                         "name": spec.name,
                         "path": path.to_string_lossy(),
+                        "created": created,
+                        "modified": modified,
                         "step_count": spec.steps.len(),
                     });
                     templates.push(info);

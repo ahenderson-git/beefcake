@@ -318,7 +318,7 @@ impl ColumnSummary {
         // Variability
         if range > 0.0 {
             if iqr / range < VARIABILITY_LOW {
-                signals.push("Values are tightly clustered around the center.");
+                signals.push("Values are tightly clustered around the centre.");
             } else if iqr / range > VARIABILITY_HIGH {
                 signals.push("High variability across the range.");
             }

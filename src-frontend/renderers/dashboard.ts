@@ -25,7 +25,7 @@ export function renderDashboardView(state: any): string {
           </div>
           <div class="info-item">
             <strong><i class="ph ph-magic-wand"></i> Smart Cleaning</strong>
-            <span>Interactive tools for normalization, imputation, case conversion, and encoding.</span>
+            <span>Interactive tools for normalisation, imputation, case conversion, and encoding.</span>
           </div>
           <div class="info-item">
             <strong><i class="ph ph-database"></i> Seamless ETL</strong>
@@ -33,7 +33,7 @@ export function renderDashboardView(state: any): string {
           </div>
           <div class="info-item">
             <strong><i class="ph ph-brain"></i> ML Insights</strong>
-            <span>Train predictive models (Regression, Trees) directly on your analyzed datasets.</span>
+            <span>Train predictive models (Regression, Trees) directly on your analysed datasets.</span>
           </div>
         </div>
         

@@ -174,7 +174,7 @@ export class AnalyserComponent extends Component {
           Object.values(state.cleaningConfigs).forEach(c => c.rounding = val);
         } else if (action === 'norm-all') {
           const val = target.value;
-          Object.values(state.cleaningConfigs).forEach(c => c.normalization = val as any);
+          Object.values(state.cleaningConfigs).forEach(c => c.normalisation = val as any);
         } else if (action === 'case-all') {
           const val = target.value;
           Object.values(state.cleaningConfigs).forEach(c => c.text_case = val as any);
@@ -236,6 +236,24 @@ export class AnalyserComponent extends Component {
     document.getElementById('btn-continue-advanced')?.addEventListener('click', async () => {
       await this.handleContinueToAdvanced(state);
     });
+
+    // Cleaning info box toggle
+    const cleaningInfoHeader = document.querySelector('.cleaning-info-header');
+    if (cleaningInfoHeader) {
+      cleaningInfoHeader.addEventListener('click', () => {
+        const infoBox = document.querySelector('.cleaning-info-box');
+        infoBox?.classList.toggle('collapsed');
+      });
+    }
+
+    // Handle link to reference page in cleaning info box
+    const cleaningInfoLink = document.querySelector('.cleaning-info-link');
+    if (cleaningInfoLink) {
+      cleaningInfoLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.actions.navigateTo?.('reference');
+      });
+    }
   }
 
   private async handleExport(state: AppState) {

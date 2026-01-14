@@ -129,7 +129,7 @@ pub fn analyse_df_lazy(mut lf: LazyFrame, trim_pct: f64) -> Result<Vec<ColumnSum
     let sanitized_names = naming::sanitize_column_names(&names);
     for (i, summary) in summaries.iter_mut().enumerate() {
         if let Some(sanitized) = sanitized_names.get(i) {
-            summary.standardized_name = sanitized.clone();
+            summary.standardised_name = sanitized.clone();
         }
     }
 
@@ -194,7 +194,7 @@ fn compute_numeric_stats_streaming(
 
     let mut summary = ColumnSummary {
         name: name.to_owned(),
-        standardized_name: String::new(),
+        standardised_name: String::new(),
         kind,
         count: total_rows,
         nulls: null_count,
@@ -254,7 +254,7 @@ fn compute_categorical_stats_bounded(
 
     let mut summary = ColumnSummary {
         name: name.to_owned(),
-        standardized_name: String::new(),
+        standardised_name: String::new(),
         kind,
         count: total_rows,
         nulls: null_count,
@@ -292,7 +292,7 @@ fn compute_boolean_stats_streaming(
 
     let mut summary = ColumnSummary {
         name: name.to_owned(),
-        standardized_name: String::new(),
+        standardised_name: String::new(),
         kind,
         count: total_rows,
         nulls: null_count,
@@ -330,7 +330,7 @@ fn compute_temporal_stats_streaming(
 
     let mut summary = ColumnSummary {
         name: name.to_owned(),
-        standardized_name: String::new(),
+        standardised_name: String::new(),
         kind,
         count: total_rows,
         nulls: null_count,
@@ -368,7 +368,7 @@ fn compute_text_stats_streaming(
 
     let mut summary = ColumnSummary {
         name: name.to_owned(),
-        standardized_name: String::new(),
+        standardised_name: String::new(),
         kind,
         count: total_rows,
         nulls: null_count,

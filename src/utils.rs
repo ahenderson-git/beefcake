@@ -103,7 +103,7 @@ impl AuditLog {
 }
 
 /// Application settings (connections, fonts, preferences).
-/// Separated from audit log for cleaner organization.
+/// Separated from audit log for cleaner organisation.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 #[serde(default)]
 pub struct AppSettings {

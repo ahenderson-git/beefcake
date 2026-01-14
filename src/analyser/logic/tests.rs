@@ -395,7 +395,7 @@ fn test_clean_df_logic() -> Result<()> {
             ml_preprocessing: false,
             trim_whitespace: true,
             remove_special_chars: true,
-            normalization: NormalizationMethod::None,
+            normalisation: NormalisationMethod::None,
             one_hot_encode: false,
             impute_mode: ImputeMode::None,
             ..Default::default()
@@ -411,7 +411,7 @@ fn test_clean_df_logic() -> Result<()> {
             ml_preprocessing: false,
             trim_whitespace: false,
             remove_special_chars: false,
-            normalization: NormalizationMethod::None,
+            normalisation: NormalisationMethod::None,
             one_hot_encode: false,
             impute_mode: ImputeMode::None,
             ..Default::default()
@@ -625,7 +625,7 @@ fn test_ml_advice_auto_config() {
     // Case 1: Skewed data -> Clip Outliers
     let mut summary = ColumnSummary {
         name: "skewed".to_owned(),
-        standardized_name: "skewed".to_owned(),
+        standardised_name: "skewed".to_owned(),
         kind: ColumnKind::Numeric,
         count: 100,
         nulls: 0,
@@ -657,7 +657,7 @@ fn test_ml_advice_auto_config() {
     // Case 2: Numeric features -> Z-Score Normalization
     let mut summary2 = ColumnSummary {
         name: "feature".to_owned(),
-        standardized_name: "feature".to_owned(),
+        standardised_name: "feature".to_owned(),
         kind: ColumnKind::Numeric,
         count: 100,
         nulls: 0,
@@ -682,15 +682,15 @@ fn test_ml_advice_auto_config() {
     let mut config2 = ColumnCleanConfig::default();
     summary2.apply_advice_to_config(&mut config2);
     assert_eq!(
-        config2.normalization,
-        NormalizationMethod::ZScore,
+        config2.normalisation,
+        NormalisationMethod::ZScore,
         "Z-Score should be auto-enabled for numeric features"
     );
 
     // Case 3: Missing data -> Mean Imputation
     let mut summary3 = ColumnSummary {
         name: "missing".to_owned(),
-        standardized_name: "missing".to_owned(),
+        standardised_name: "missing".to_owned(),
         kind: ColumnKind::Numeric,
         count: 100,
         nulls: 10,
@@ -720,7 +720,7 @@ fn test_ml_advice_auto_config() {
     // Case 4: Categorical data -> One-Hot Encoding
     let mut summary4 = ColumnSummary {
         name: "category".to_owned(),
-        standardized_name: "category".to_owned(),
+        standardised_name: "category".to_owned(),
         kind: ColumnKind::Categorical,
         count: 100,
         nulls: 0,
@@ -749,7 +749,7 @@ fn test_ml_advice_auto_config() {
     // Case 5: Special characters detected -> Remove Special Chars
     let summary5 = ColumnSummary {
         name: "special".to_owned(),
-        standardized_name: "special".to_owned(),
+        standardised_name: "special".to_owned(),
         kind: ColumnKind::Text,
         count: 100,
         nulls: 0,
@@ -789,7 +789,7 @@ fn test_ml_preprocessing_logic() -> Result<()> {
             trim_whitespace: false,
             remove_special_chars: false,
             impute_mode: ImputeMode::Mean,
-            normalization: NormalizationMethod::MinMax,
+            normalisation: NormalisationMethod::MinMax,
             one_hot_encode: false,
             ..Default::default()
         },
@@ -805,7 +805,7 @@ fn test_ml_preprocessing_logic() -> Result<()> {
             trim_whitespace: false,
             remove_special_chars: false,
             impute_mode: ImputeMode::None,
-            normalization: NormalizationMethod::None,
+            normalisation: NormalisationMethod::None,
             one_hot_encode: true,
             ..Default::default()
         },
@@ -946,7 +946,7 @@ fn test_restricted_cleaning() -> Result<()> {
             trim_whitespace: true,
             remove_special_chars: true,
             remove_non_ascii: true,
-            standardize_nulls: true,
+            standardise_nulls: true,
             extract_numbers: true,
             // These should be skipped in restricted mode
             text_case: TextCase::Lowercase,
@@ -972,7 +972,7 @@ fn test_restricted_cleaning() -> Result<()> {
             new_name: "renamed".to_owned(),            // Should be skipped
             impute_mode: ImputeMode::Zero,              // Should be skipped
             rounding: Some(0),                          // Should be skipped
-            normalization: NormalizationMethod::MinMax, // Should be skipped
+            normalisation: NormalisationMethod::MinMax, // Should be skipped
             one_hot_encode: true,                       // Should be skipped
             ..Default::default()
         },
@@ -986,7 +986,7 @@ fn test_restricted_cleaning() -> Result<()> {
     // After remove_special_chars: "$1,000" -> "1000"
     // Then extract_numbers extracts digits
     // The actual value extracted depends on how the regex works after special char removal
-    // Accept either 1.0 or 1000.0 depending on extraction behavior
+    // Accept either 1.0 or 1000.0 depending on extraction behaviour
     let val = text_ca.get(4);
     assert!(val.is_some(), "Expected a numeric value from '$1,000'");
     // The value should be positive
@@ -1108,7 +1108,7 @@ fn test_export_massive_columns() -> Result<()> {
             ColumnCleanConfig {
                 active: true,
                 target_dtype: Some(ColumnKind::Numeric),
-                normalization: NormalizationMethod::ZScore,
+                normalisation: NormalisationMethod::ZScore,
                 impute_mode: ImputeMode::Mean,
                 advanced_cleaning: true,
                 trim_whitespace: true,
@@ -1117,7 +1117,7 @@ fn test_export_massive_columns() -> Result<()> {
         );
     }
 
-    // This should not overflow the stack because of our batching optimization
+    // This should not overflow the stack because of our batching optimisation
     let mut cleaned = clean_df(df, &configs, false)?;
     assert_eq!(cleaned.width(), num_cols);
 
@@ -1152,12 +1152,12 @@ fn test_export_super_massive_columns() -> Result<()> {
             ColumnCleanConfig {
                 active: true,
                 target_dtype: Some(ColumnKind::Numeric),
-                normalization: NormalizationMethod::ZScore,
+                normalisation: NormalisationMethod::ZScore,
                 impute_mode: ImputeMode::Mean,
                 advanced_cleaning: true,
                 trim_whitespace: true,
                 remove_special_chars: true,
-                standardize_nulls: true,
+                standardise_nulls: true,
                 ml_preprocessing: true,
                 ..Default::default()
             },

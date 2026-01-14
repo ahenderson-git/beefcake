@@ -43,7 +43,7 @@ mod duration_serde {
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct ColumnSummary {
     pub name: String,
-    pub standardized_name: String,
+    pub standardised_name: String,
     pub kind: ColumnKind,
     pub count: usize,
     pub nulls: usize,
@@ -120,7 +120,7 @@ impl ColumnSummary {
         // Automatically enable basic text cleaning for string-like columns
         if self.kind == ColumnKind::Text || self.kind == ColumnKind::Categorical {
             config.trim_whitespace = true;
-            config.standardize_nulls = true;
+            config.standardise_nulls = true;
         }
 
         // Automatically enable special character removal if they were detected during analysis
@@ -135,7 +135,7 @@ impl ColumnSummary {
                 config.clip_outliers = true;
             }
             if advice.contains("Normalization") {
-                config.normalization = NormalizationMethod::ZScore;
+                config.normalisation = NormalisationMethod::ZScore;
             }
             if advice.contains("Mean or Median Imputation") {
                 config.impute_mode = ImputeMode::Mean;
@@ -155,14 +155,14 @@ impl ColumnCleanConfig {
             && (self.trim_whitespace
                 || self.remove_special_chars
                 || self.remove_non_ascii
-                || self.standardize_nulls
+                || self.standardise_nulls
                 || self.text_case != TextCase::None
                 || !self.regex_find.is_empty())
     }
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub enum NormalizationMethod {
+pub enum NormalisationMethod {
     #[default]
     None,
     ZScore,
@@ -239,7 +239,7 @@ pub struct ColumnCleanConfig {
     pub trim_whitespace: bool,
     pub remove_special_chars: bool,
     pub text_case: TextCase,
-    pub standardize_nulls: bool,
+    pub standardise_nulls: bool,
     pub remove_non_ascii: bool,
     pub regex_find: String,
     pub regex_replace: String,
@@ -249,7 +249,7 @@ pub struct ColumnCleanConfig {
     pub temporal_format: String,
     pub timezone_utc: bool,
     pub freq_threshold: Option<usize>,
-    pub normalization: NormalizationMethod,
+    pub normalisation: NormalisationMethod,
     pub one_hot_encode: bool,
     pub impute_mode: ImputeMode,
 }
@@ -265,7 +265,7 @@ impl Default for ColumnCleanConfig {
             trim_whitespace: false,
             remove_special_chars: false,
             text_case: TextCase::None,
-            standardize_nulls: false,
+            standardise_nulls: false,
             remove_non_ascii: false,
             regex_find: String::new(),
             regex_replace: String::new(),
@@ -275,7 +275,7 @@ impl Default for ColumnCleanConfig {
             temporal_format: String::new(),
             timezone_utc: false,
             freq_threshold: None,
-            normalization: NormalizationMethod::None,
+            normalisation: NormalisationMethod::None,
             one_hot_encode: false,
             impute_mode: ImputeMode::None,
         }
@@ -351,7 +351,7 @@ pub struct NumericStats {
     pub is_sorted: bool,
     pub is_sorted_rev: bool,
     pub bin_width: f64,
-    pub histogram: Vec<(f64, usize)>, // bin center and count
+    pub histogram: Vec<(f64, usize)>, // bin centre and count
 }
 
 #[derive(Clone, Deserialize, Serialize, Debug, Default)]
@@ -461,7 +461,7 @@ mod tests {
 
         let summary = ColumnSummary {
             name: "city".to_owned(),
-            standardized_name: "city".to_owned(),
+            standardised_name: "city".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,
@@ -485,7 +485,7 @@ mod tests {
 
         let summary_num = ColumnSummary {
             name: "id".to_owned(),
-            standardized_name: "id".to_owned(),
+            standardised_name: "id".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,
@@ -507,7 +507,7 @@ mod tests {
 
         let summary_date = ColumnSummary {
             name: "date".to_owned(),
-            standardized_name: "date".to_owned(),
+            standardised_name: "date".to_owned(),
             kind: ColumnKind::Categorical,
             count: 10,
             nulls: 0,
@@ -527,7 +527,7 @@ mod tests {
 
         let summary_bool = ColumnSummary {
             name: "active".to_owned(),
-            standardized_name: "active".to_owned(),
+            standardised_name: "active".to_owned(),
             kind: ColumnKind::Categorical,
             count: 15,
             nulls: 0,

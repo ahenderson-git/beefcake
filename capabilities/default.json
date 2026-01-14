@@ -44,6 +44,15 @@
     "allow-generate-powershell",
     "allow-pipeline-from-configs",
     "allow-list-pipeline-templates",
-    "allow-load-pipeline-template"
+    "allow-load-pipeline-template",
+    "allow-dictionary-load-snapshot",
+    "allow-dictionary-list-snapshots",
+    "allow-dictionary-update-business-metadata",
+    "allow-dictionary-export-markdown",
+    "allow-watcher-get-state",
+    "allow-watcher-start",
+    "allow-watcher-stop",
+    "allow-watcher-set-folder",
+    "allow-watcher-ingest-now"
   ]
 }

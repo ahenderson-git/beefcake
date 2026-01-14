@@ -74,6 +74,7 @@ import { LifecycleComponent } from './components/LifecycleComponent';
 import { LifecycleRailComponent } from './components/LifecycleRailComponent';
 import { PipelineComponent } from './components/PipelineComponent';
 import { WatcherComponent } from './components/WatcherComponent';
+import { DictionaryComponent } from './components/DictionaryComponent';
 
 /**
  * Main application controller for Beefcake frontend.
@@ -223,13 +224,13 @@ class BeefcakeApp {
       onStateChange: () => this.render(),
       showToast: (msg: string, type?: any) => this.showToast(msg, type),
       runAnalysis: (path: string) => this.handleAnalysis(path),
-      switchView: (view: View) => this.switchView(view),
-      navigateTo: (view: string, datasetId?: string) => {
+      switchView: (view: View) => { this.switchView(view); },
+      navigateTo: async (view: string, datasetId?: string) => {
         if (view === 'analyser' && datasetId) {
           // Load dataset and switch to analyser
-          this.loadDatasetById(datasetId);
+          await this.loadDatasetById(datasetId);
         } else {
-          this.switchView(view as View);
+          await this.switchView(view as View);
         }
       }
     };
@@ -246,7 +247,8 @@ class BeefcakeApp {
       'Reference': new ReferenceComponent('view-container', actions),
       'Lifecycle': new LifecycleComponent('view-container', actions),
       'Pipeline': new PipelineComponent('view-container', actions),
-      'Watcher': new WatcherComponent('view-container', actions)
+      'Watcher': new WatcherComponent('view-container', actions),
+      'Dictionary': new DictionaryComponent('view-container', actions)
     };
 
     // Initialize lifecycle rail component
@@ -255,17 +257,17 @@ class BeefcakeApp {
 
   private setupNavigation() {
     document.querySelectorAll('.nav-item').forEach(item => {
-      item.addEventListener('click', (e) => {
+      item.addEventListener('click', async (e) => {
         const view = (e.currentTarget as HTMLElement).dataset.view as View;
-        this.switchView(view);
+        await this.switchView(view);
       });
     });
   }
 
-  private switchView(view: View) {
+  private async switchView(view: View) {
     this.state.currentView = view;
     this.state.isAddingConnection = false;
-    
+
     document.querySelectorAll('.nav-item').forEach(item => {
       item.classList.toggle('active', (item as HTMLElement).dataset.view === view);
     });
@@ -278,7 +280,16 @@ class BeefcakeApp {
       else if (view === 'SQL') title.innerText = 'SQL IDE';
       else if (view === 'Reference') title.innerText = 'Reference Material';
       else if (view === 'Lifecycle') title.innerText = 'Dataset Lifecycle';
+      else if (view === 'Dictionary') title.innerText = 'Data Dictionary';
       else title.innerText = view;
+    }
+
+    // Load snapshots when switching to Dictionary view
+    if (view === 'Dictionary') {
+      const dictionaryComponent = this.components['Dictionary'] as DictionaryComponent;
+      if (dictionaryComponent) {
+        await dictionaryComponent.loadSnapshots();
+      }
     }
 
     this.render();
@@ -306,7 +317,7 @@ class BeefcakeApp {
       this.state.isLoading = true;
       this.state.isAborting = false;
       this.state.loadingMessage = `Analyzing ${path}...`;
-      this.switchView('Analyser');
+      await this.switchView('Analyser');
 
       this.showToast(`Analyzing ${path}...`, 'info');
       const response = await api.analyseFile(path);
