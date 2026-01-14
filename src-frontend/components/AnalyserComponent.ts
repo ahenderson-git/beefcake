@@ -232,6 +232,10 @@ export class AnalyserComponent extends Component {
     document.getElementById('btn-begin-cleaning')?.addEventListener('click', async () => {
       await this.handleBeginCleaning(state);
     });
+
+    document.getElementById('btn-continue-advanced')?.addEventListener('click', async () => {
+      await this.handleContinueToAdvanced(state);
+    });
   }
 
   private async handleExport(state: AppState) {
@@ -293,6 +297,57 @@ export class AnalyserComponent extends Component {
       // Re-render to show cleaning controls and update lifecycle rail
       this.actions.onStateChange();
       this.actions.showToast('Cleaning stage unlocked', 'success');
+    } catch (err) {
+      this.actions.showToast(`Failed to transition: ${err}`, 'error');
+    }
+  }
+
+  private async handleContinueToAdvanced(state: AppState) {
+    if (!state.currentDataset) {
+      this.actions.showToast('No dataset loaded', 'error');
+      return;
+    }
+
+    try {
+      this.actions.showToast('Transitioning to Advanced stage...', 'info');
+
+      // Build pipeline from current cleaning configs
+      const pipeline: { transforms: any[] } = { transforms: [] };
+
+      // Add clean transform with current configs
+      const activeConfigs = Object.fromEntries(
+        Object.entries(state.cleaningConfigs).filter(([_, cfg]) => cfg.active)
+      );
+
+      if (Object.keys(activeConfigs).length > 0) {
+        pipeline.transforms.push({
+          transform_type: 'clean',
+          parameters: {
+            configs: activeConfigs,
+            restricted: true  // Cleaned stage uses restricted mode
+          }
+        });
+      }
+
+      const pipelineJson = JSON.stringify(pipeline);
+
+      // Apply transforms (which will create a new version in Advanced stage)
+      const newVersionId = await api.applyTransforms(
+        state.currentDataset.id,
+        pipelineJson,
+        'Advanced'
+      );
+
+      // Refresh versions
+      const versionsJson = await api.listVersions(state.currentDataset.id);
+
+      // Update state
+      state.currentDataset.versions = JSON.parse(versionsJson);
+      state.currentDataset.activeVersionId = newVersionId;
+
+      // Re-render to show advanced controls and update lifecycle rail
+      this.actions.onStateChange();
+      this.actions.showToast('Advanced stage unlocked - ML preprocessing now available', 'success');
     } catch (err) {
       this.actions.showToast(`Failed to transition: ${err}`, 'error');
     }

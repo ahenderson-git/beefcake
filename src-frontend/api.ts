@@ -56,7 +56,17 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { AnalysisResponse, AppConfig, ColumnCleanConfig, ExportOptions } from "./types";
+import {
+  AnalysisResponse,
+  AppConfig,
+  ColumnCleanConfig,
+  ExportOptions,
+  WatcherState,
+  DataDictionary,
+  DatasetBusinessMetadata,
+  ColumnBusinessMetadata,
+  SnapshotMetadata
+} from "./types";
 
 /**
  * Analyzes a data file (CSV, JSON, or Parquet) and returns statistics.
@@ -253,4 +263,52 @@ export async function pipelineFromConfigs(
   outputPath: string
 ): Promise<string> {
   return await invoke("pipeline_from_configs", { name, configsJson, inputFormat, outputPath });
+}
+
+// Watcher API
+export async function watcherGetState(): Promise<WatcherState> {
+  return await invoke("watcher_get_state");
+}
+
+export async function watcherStart(folder: string): Promise<WatcherState> {
+  return await invoke("watcher_start", { folder });
+}
+
+export async function watcherStop(): Promise<WatcherState> {
+  return await invoke("watcher_stop");
+}
+
+export async function watcherSetFolder(folder: string): Promise<WatcherState> {
+  return await invoke("watcher_set_folder", { folder });
+}
+
+export async function watcherIngestNow(path: string): Promise<void> {
+  return await invoke("watcher_ingest_now", { path });
+}
+
+// Data Dictionary API
+export async function dictionaryLoadSnapshot(snapshotId: string): Promise<DataDictionary> {
+  return await invoke("dictionary_load_snapshot", { snapshotId });
+}
+
+export async function dictionaryListSnapshots(datasetHash?: string): Promise<SnapshotMetadata[]> {
+  return await invoke("dictionary_list_snapshots", { datasetHash });
+}
+
+export async function dictionaryUpdateBusinessMetadata(
+  snapshotId: string,
+  datasetBusiness?: DatasetBusinessMetadata,
+  columnBusinessUpdates?: Record<string, ColumnBusinessMetadata>
+): Promise<string> {
+  return await invoke("dictionary_update_business_metadata", {
+    request: {
+      snapshot_id: snapshotId,
+      dataset_business: datasetBusiness,
+      column_business_updates: columnBusinessUpdates,
+    }
+  });
+}
+
+export async function dictionaryExportMarkdown(snapshotId: string, outputPath: string): Promise<void> {
+  return await invoke("dictionary_export_markdown", { snapshotId, outputPath });
 }

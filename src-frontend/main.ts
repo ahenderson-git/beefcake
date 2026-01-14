@@ -73,6 +73,7 @@ import { ReferenceComponent } from './components/ReferenceComponent';
 import { LifecycleComponent } from './components/LifecycleComponent';
 import { LifecycleRailComponent } from './components/LifecycleRailComponent';
 import { PipelineComponent } from './components/PipelineComponent';
+import { WatcherComponent } from './components/WatcherComponent';
 
 /**
  * Main application controller for Beefcake frontend.
@@ -134,7 +135,9 @@ class BeefcakeApp {
     currentDataset: null,
     selectedColumns: new Set(),
     useOriginalColumnNames: false,
-    cleanAllActive: true
+    cleanAllActive: true,
+    watcherState: null,
+    watcherActivities: []
   };
 
   private components: Partial<Record<View, Component>> = {};
@@ -183,6 +186,8 @@ class BeefcakeApp {
       this.initComponents();
       console.log('BeefcakeApp: Setting up navigation...');
       this.setupNavigation();
+      console.log('BeefcakeApp: Setting up watcher events...');
+      this.setupWatcherEvents();
       console.log('BeefcakeApp: Rendering...');
       this.render();
       console.log('BeefcakeApp: Initialization complete');
@@ -218,7 +223,15 @@ class BeefcakeApp {
       onStateChange: () => this.render(),
       showToast: (msg: string, type?: any) => this.showToast(msg, type),
       runAnalysis: (path: string) => this.handleAnalysis(path),
-      switchView: (view: View) => this.switchView(view)
+      switchView: (view: View) => this.switchView(view),
+      navigateTo: (view: string, datasetId?: string) => {
+        if (view === 'analyser' && datasetId) {
+          // Load dataset and switch to analyser
+          this.loadDatasetById(datasetId);
+        } else {
+          this.switchView(view as View);
+        }
+      }
     };
 
     this.components = {
@@ -232,7 +245,8 @@ class BeefcakeApp {
       'ActivityLog': new ActivityLogComponent('view-container', actions),
       'Reference': new ReferenceComponent('view-container', actions),
       'Lifecycle': new LifecycleComponent('view-container', actions),
-      'Pipeline': new PipelineComponent('view-container', actions)
+      'Pipeline': new PipelineComponent('view-container', actions),
+      'Watcher': new WatcherComponent('view-container', actions)
     };
 
     // Initialize lifecycle rail component
@@ -391,6 +405,78 @@ class BeefcakeApp {
       toastEl.classList.add('fade-out');
       setTimeout(() => toastEl.remove(), 500);
     }, duration);
+  }
+
+  private async setupWatcherEvents() {
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+
+      // Listen for watcher status updates
+      listen('watcher:status', (event: any) => {
+        this.state.watcherState = event.payload;
+        this.render();
+      });
+
+      // Listen for file detected
+      listen('watcher:file_detected', (event: any) => {
+        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
+        if (watcherComp) {
+          watcherComp.handleWatcherEvent(this.state, 'watcher:file_detected', event.payload);
+        }
+      });
+
+      // Listen for file ready
+      listen('watcher:file_ready', (event: any) => {
+        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
+        if (watcherComp) {
+          watcherComp.handleWatcherEvent(this.state, 'watcher:file_ready', event.payload);
+        }
+      });
+
+      // Listen for ingest started
+      listen('watcher:ingest_started', (event: any) => {
+        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
+        if (watcherComp) {
+          watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_started', event.payload);
+        }
+      });
+
+      // Listen for ingest succeeded
+      listen('watcher:ingest_succeeded', (event: any) => {
+        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
+        if (watcherComp) {
+          watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_succeeded', event.payload);
+        }
+      });
+
+      // Listen for ingest failed
+      listen('watcher:ingest_failed', (event: any) => {
+        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
+        if (watcherComp) {
+          watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_failed', event.payload);
+        }
+      });
+
+      // Load initial watcher state
+      try {
+        this.state.watcherState = await api.watcherGetState();
+      } catch (err) {
+        console.error('Failed to load watcher state:', err);
+      }
+    } catch (err) {
+      console.error('Failed to setup watcher events:', err);
+    }
+  }
+
+  private async loadDatasetById(_datasetId: string) {
+    try {
+      // This would need to be implemented to load a dataset by ID
+      // For now, just switch to analyser view
+      this.switchView('Analyser');
+      this.showToast('Dataset loaded', 'success');
+    } catch (err) {
+      this.showToast(`Failed to load dataset: ${err}`, 'error');
+    }
   }
 }
 

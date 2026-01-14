@@ -5,6 +5,7 @@ export interface ComponentActions {
   showToast: (message: string, type?: 'info' | 'error' | 'success') => void;
   onStateChange: () => void;
   runAnalysis: (path: string) => void;
+  navigateTo?: (view: string, datasetId?: string) => void;
 }
 
 export abstract class Component {

@@ -25,6 +25,7 @@
 //! - [`analyser`]: Data analysis, profiling, and quality assessment
 //!   - [`analyser::logic`]: Core analysis algorithms
 //!   - [`analyser::lifecycle`]: Dataset version management
+//! - [`dictionary`]: Data dictionary snapshots and metadata management
 //! - [`pipeline`]: Automation and transformation pipeline system
 //! - [`error`]: Error types and handling utilities
 //! - [`utils`]: Common utility functions
@@ -99,6 +100,8 @@
 // #![warn(missing_docs)]
 
 pub mod analyser;
+pub mod dictionary;
 pub mod error;
 pub mod pipeline;
 pub mod utils;
+pub mod watcher;

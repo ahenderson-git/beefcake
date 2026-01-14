@@ -16,6 +16,13 @@ export function renderExportConfig(
         </div>
         <p class="help-text">Recommended formats: .parquet (high performance), .csv, .json</p>
       </div>
+      <div class="export-step">
+        <label class="checkbox-label">
+          <input type="checkbox" id="export-create-dictionary" checked>
+          <span>Create data dictionary snapshot</span>
+        </label>
+        <p class="help-text">Automatically generates metadata documentation (JSON + Markdown)</p>
+      </div>
     `;
   } else {
     return `

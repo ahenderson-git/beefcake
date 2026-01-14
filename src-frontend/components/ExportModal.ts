@@ -145,6 +145,15 @@ export class ExportModal extends Component {
       }
     }
 
+    // Check if dictionary creation is enabled (only for file exports)
+    let createDictionary = true; // Default
+    if (this.currentDestType === 'File') {
+      const dictCheckbox = document.getElementById('export-create-dictionary') as HTMLInputElement;
+      if (dictCheckbox) {
+        createDictionary = dictCheckbox.checked;
+      }
+    }
+
     const options: ExportOptions = {
       source: this.source,
       configs: state.cleaningConfigs,
@@ -152,7 +161,8 @@ export class ExportModal extends Component {
         type: this.currentDestType,
         target,
         ...(format && { format })
-      }
+      },
+      create_dictionary: createDictionary
     };
 
     try {

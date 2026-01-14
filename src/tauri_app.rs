@@ -407,6 +407,7 @@ fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
     Ok(registry)
 }
 
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateDatasetRequest {
     pub name: String,
@@ -811,6 +812,129 @@ pub async fn load_pipeline_template(template_name: String) -> Result<String, Str
         .map_err(|e| format!("Failed to serialize template: {e}"))
 }
 
+// ============================================================================
+// Data Dictionary Commands
+// ============================================================================
+
+use beefcake::dictionary::{DataDictionary, storage::SnapshotMetadata};
+
+#[tauri::command]
+pub async fn dictionary_load_snapshot(snapshot_id: String) -> Result<DataDictionary, String> {
+    beefcake::utils::log_event("Dictionary", &format!("Loading snapshot: {snapshot_id}"));
+
+    let snapshot_uuid = Uuid::parse_str(&snapshot_id)
+        .map_err(|e| format!("Invalid snapshot ID: {e}"))?;
+
+    let base_path = PathBuf::from("data");
+
+    beefcake::dictionary::load_snapshot(&snapshot_uuid, &base_path)
+        .map_err(|e| format!("Failed to load snapshot: {e}"))
+}
+
+#[tauri::command]
+pub async fn dictionary_list_snapshots(dataset_hash: Option<String>) -> Result<Vec<SnapshotMetadata>, String> {
+    beefcake::utils::log_event("Dictionary", "Listing snapshots");
+
+    let base_path = PathBuf::from("data");
+
+    beefcake::dictionary::list_snapshots(&base_path, dataset_hash.as_deref())
+        .map_err(|e| format!("Failed to list snapshots: {e}"))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateBusinessMetadataRequest {
+    pub snapshot_id: String,
+    pub dataset_business: Option<beefcake::dictionary::DatasetBusinessMetadata>,
+    pub column_business_updates: Option<HashMap<String, beefcake::dictionary::ColumnBusinessMetadata>>,
+}
+
+#[tauri::command]
+pub async fn dictionary_update_business_metadata(
+    request: UpdateBusinessMetadataRequest,
+) -> Result<String, String> {
+    beefcake::utils::log_event("Dictionary", "Updating business metadata");
+
+    let snapshot_uuid = Uuid::parse_str(&request.snapshot_id)
+        .map_err(|e| format!("Invalid snapshot ID: {e}"))?;
+
+    let base_path = PathBuf::from("data");
+
+    let updated = beefcake::dictionary::storage::update_business_metadata(
+        &snapshot_uuid,
+        &base_path,
+        request.dataset_business,
+        request.column_business_updates,
+    )
+    .map_err(|e| format!("Failed to update business metadata: {e}"))?;
+
+    Ok(updated.snapshot_id.to_string())
+}
+
+#[tauri::command]
+pub async fn dictionary_export_markdown(snapshot_id: String, output_path: String) -> Result<(), String> {
+    beefcake::utils::log_event("Dictionary", &format!("Exporting markdown: {snapshot_id}"));
+
+    let snapshot_uuid = Uuid::parse_str(&snapshot_id)
+        .map_err(|e| format!("Invalid snapshot ID: {e}"))?;
+
+    let base_path = PathBuf::from("data");
+
+    // Load snapshot
+    let snapshot = beefcake::dictionary::load_snapshot(&snapshot_uuid, &base_path)
+        .map_err(|e| format!("Failed to load snapshot: {e}"))?;
+
+    // Render markdown
+    let markdown = beefcake::dictionary::render_markdown(&snapshot)
+        .map_err(|e| format!("Failed to render markdown: {e}"))?;
+
+    // Write to file
+    std::fs::write(&output_path, markdown)
+        .map_err(|e| format!("Failed to write markdown file: {e}"))?;
+
+    beefcake::utils::log_event("Dictionary", &format!("Markdown exported to: {output_path}"));
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn watcher_get_state() -> Result<beefcake::watcher::WatcherStatusPayload, String> {
+    beefcake::watcher::get_state()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn watcher_start(folder: String) -> Result<beefcake::watcher::WatcherStatusPayload, String> {
+    let path = PathBuf::from(folder);
+    beefcake::watcher::start(path)
+        .map_err(|e| e.to_string())?;
+    beefcake::watcher::get_state()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn watcher_stop() -> Result<beefcake::watcher::WatcherStatusPayload, String> {
+    beefcake::watcher::stop()
+        .map_err(|e| e.to_string())?;
+    beefcake::watcher::get_state()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn watcher_set_folder(folder: String) -> Result<beefcake::watcher::WatcherStatusPayload, String> {
+    let path = PathBuf::from(folder);
+    beefcake::watcher::set_folder(path)
+        .map_err(|e| e.to_string())?;
+    beefcake::watcher::get_state()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn watcher_ingest_now(path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(path);
+    beefcake::watcher::ingest_now(path_buf)
+        .map_err(|e| e.to_string())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -848,10 +972,22 @@ pub fn run() {
             execute_pipeline_spec,
             list_pipeline_specs,
             list_pipeline_templates,
-            load_pipeline_template
+            load_pipeline_template,
+            dictionary_load_snapshot,
+            dictionary_list_snapshots,
+            dictionary_update_business_metadata,
+            dictionary_export_markdown,
+            watcher_get_state,
+            watcher_start,
+            watcher_stop,
+            watcher_set_folder,
+            watcher_ingest_now
         ])
-        .setup(|_app| {
-            // Set up clean-up handlers
+        .setup(|app| {
+            // Initialize watcher service
+            if let Err(e) = beefcake::watcher::init(app.handle().clone()) {
+                eprintln!("Failed to initialize watcher service: {e}");
+            }
             Ok(())
         })
         .build(tauri::generate_context!())

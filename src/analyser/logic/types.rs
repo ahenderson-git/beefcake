@@ -373,6 +373,12 @@ pub enum ColumnKind {
     Nested,
 }
 
+impl std::fmt::Display for ColumnKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 impl ColumnKind {
     pub fn as_str(&self) -> &'static str {
         match self {

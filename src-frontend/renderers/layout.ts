@@ -19,6 +19,9 @@ export function renderLayout(): string {
           <button class="nav-item" data-view="Pipeline">
             <i class="ph ph-flow-arrow"></i> Pipeline
           </button>
+          <button class="nav-item" data-view="Watcher">
+            <i class="ph ph-eye"></i> Watcher
+          </button>
           <button class="nav-item" data-view="PowerShell">
             <i class="ph ph-terminal"></i> PowerShell
           </button>

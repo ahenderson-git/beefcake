@@ -39,9 +39,13 @@ export function renderAnalyserHeader(
           <i class="ph ph-file-plus"></i> Select File
         </button>
         <button id="btn-reanalyze" class="btn-secondary btn-small">Re-analyze</button>
-        ${isReadOnly ? `
+        ${currentStage === 'Profiled' || currentStage === 'Raw' ? `
           <button id="btn-begin-cleaning" class="btn-primary btn-small">
             <i class="ph ph-broom"></i> Begin Cleaning
+          </button>
+        ` : currentStage === 'Cleaned' ? `
+          <button id="btn-continue-advanced" class="btn-primary btn-small">
+            <i class="ph ph-arrow-right"></i> Continue to Advanced
           </button>
         ` : `
           <button id="btn-export" class="btn-primary btn-small">
@@ -58,18 +62,22 @@ export function renderAnalyserHeader(
         <div class="bulk-group">
           <label><input type="checkbox" class="header-action" data-action="use-original-names" id="toggle-original-names" ${useOriginalColumnNames ? 'checked' : ''}> Original Names</label>
         </div>
-        <div class="bulk-group">
-          <label>Impute All:</label>
-          ${renderSelect(IMPUTE_OPTIONS, 'None', 'header-action', { action: 'impute-all' }, 'Mixed')}
-        </div>
+        ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
+          <div class="bulk-group">
+            <label>Impute All:</label>
+            ${renderSelect(IMPUTE_OPTIONS, 'None', 'header-action', { action: 'impute-all' }, 'Mixed')}
+          </div>
+        ` : ''}
         <div class="bulk-group">
           <label>Round All:</label>
           ${renderSelect(ROUND_OPTIONS, 'none', 'header-action', { action: 'round-all' }, 'Mixed')}
         </div>
-        <div class="bulk-group">
-          <label>Norm All:</label>
-          ${renderSelect(NORM_OPTIONS, 'None', 'header-action', { action: 'norm-all' }, 'Mixed')}
-        </div>
+        ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
+          <div class="bulk-group">
+            <label>Norm All:</label>
+            ${renderSelect(NORM_OPTIONS, 'None', 'header-action', { action: 'norm-all' }, 'Mixed')}
+          </div>
+        ` : ''}
       </div>
     ` : ''}
   `;
@@ -185,7 +193,7 @@ export function renderAnalyser(
   response: AnalysisResponse,
   expandedRows: Set<string>,
   configs: Record<string, ColumnCleanConfig>,
-  _currentStage: LifecycleStage | null = null,
+  currentStage: LifecycleStage | null = null,
   isReadOnly: boolean = false,
   selectedColumns: Set<string> = new Set(),
   _useOriginalColumnNames: boolean = false
@@ -232,7 +240,8 @@ export function renderAnalyser(
             expandedRows.has(col.name),
             configs[col.name],
             isReadOnly,
-            selectedColumns.size === 0 || selectedColumns.has(col.name)
+            selectedColumns.size === 0 || selectedColumns.has(col.name),
+            currentStage
           )).join('')}
         </tbody>
       </table>
@@ -396,7 +405,7 @@ function renderEnhancedStats(col: ColumnSummary, nullPct: number, uniqueCount: n
   return statsHTML;
 }
 
-export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, config?: ColumnCleanConfig, isReadOnly: boolean = false, isSelected: boolean = true): string {
+export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, config?: ColumnCleanConfig, isReadOnly: boolean = false, isSelected: boolean = true, currentStage: LifecycleStage | null = null): string {
   const nullPct = (col.nulls / col.count) * 100;
   const uniqueCount = getUniqueCount(col);
   const uniquePct = (uniqueCount / col.count) * 100;
@@ -473,14 +482,16 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
                     </div>
 
                     <div class="control-grid">
-                      <div class="control-item">
-                        <label>Handle Nulls (Impute)</label>
-                        ${renderSelect(IMPUTE_OPTIONS, config?.impute_mode || 'None', 'row-action', { col: col.name, prop: 'impute_mode' })}
-                      </div>
-                      <div class="control-item">
-                        <label>Normalization</label>
-                        ${renderSelect(NORM_OPTIONS, config?.normalization || 'None', 'row-action', { col: col.name, prop: 'normalization' })}
-                      </div>
+                      ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
+                        <div class="control-item">
+                          <label>Handle Nulls (Impute)</label>
+                          ${renderSelect(IMPUTE_OPTIONS, config?.impute_mode || 'None', 'row-action', { col: col.name, prop: 'impute_mode' })}
+                        </div>
+                        <div class="control-item">
+                          <label>Normalization</label>
+                          ${renderSelect(NORM_OPTIONS, config?.normalization || 'None', 'row-action', { col: col.name, prop: 'normalization' })}
+                        </div>
+                      ` : ''}
                       ${col.kind === 'Text' ? `
                         <div class="control-item">
                           <label>Text Case</label>
@@ -495,10 +506,12 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
                       ` : ''}
                     </div>
 
-                    <div class="control-advanced">
-                      <label title="Automatic outlier handling and normalization"><input type="checkbox" class="row-action" data-prop="ml_preprocessing" ${config?.ml_preprocessing ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> ML Preprocessing</label>
-                      <label title="Clip values to 3x std dev"><input type="checkbox" class="row-action" data-prop="clip_outliers" ${config?.clip_outliers ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Clip Outliers</label>
-                    </div>
+                    ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
+                      <div class="control-advanced">
+                        <label title="Automatic outlier handling and normalization"><input type="checkbox" class="row-action" data-prop="ml_preprocessing" ${config?.ml_preprocessing ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> ML Preprocessing</label>
+                        <label title="Clip values to 3x std dev"><input type="checkbox" class="row-action" data-prop="clip_outliers" ${config?.clip_outliers ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Clip Outliers</label>
+                      </div>
+                    ` : ''}
                   </div>
                 </div>
               ` : ''}

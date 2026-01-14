@@ -7,6 +7,8 @@ use polars::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use std::str::FromStr as _;
 use uuid::Uuid;
 
@@ -45,6 +47,12 @@ pub struct ExportOptions {
     pub source: ExportSource,
     pub configs: HashMap<String, ColumnCleanConfig>,
     pub destination: ExportDestination,
+    #[serde(default = "default_create_dictionary")]
+    pub create_dictionary: bool,
+}
+
+fn default_create_dictionary() -> bool {
+    true // Default ON
 }
 
 pub async fn prepare_export_source(
@@ -310,6 +318,88 @@ pub async fn export_data_execution(
     if beefcake::utils::is_aborted() {
         return Err(BeefcakeError::Aborted);
     }
+
+    // 4. Create data dictionary snapshot if requested and destination is a file
+    if options.create_dictionary && matches!(options.destination.dest_type, ExportDestinationType::File) {
+        if let Err(e) = create_dictionary_snapshot(&options).await {
+            beefcake::utils::log_event(
+                "Export",
+                &format!("Warning: Failed to create data dictionary: {}", e),
+            );
+            // Don't fail the export if dictionary creation fails
+        }
+    }
+
+    Ok(())
+}
+
+/// Create a data dictionary snapshot for the exported dataset.
+async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
+    beefcake::utils::log_event("Export", "Creating data dictionary snapshot...");
+
+    // Get input path
+    let input_path = match &options.source.path {
+        Some(p) => PathBuf::from(p),
+        None => return Ok(()), // Skip if no input path available
+    };
+
+    // Get output path
+    let output_path = PathBuf::from(&options.destination.target);
+
+    // Load the exported file to analyze it
+    let dummy_progress = Arc::new(AtomicU64::new(0));
+    let df = match beefcake::analyser::logic::load_df(&output_path, &dummy_progress) {
+        Ok(df) => df,
+        Err(e) => {
+            beefcake::utils::log_event(
+                "Export",
+                &format!("Could not load exported file for dictionary: {}", e),
+            );
+            return Ok(());
+        }
+    };
+
+    // Determine dataset name from output filename
+    let dataset_name = output_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("exported_dataset")
+        .to_string();
+
+    // Create snapshot
+    let snapshot = beefcake::dictionary::create_snapshot(
+        &dataset_name,
+        &df,
+        input_path,
+        output_path.clone(),
+        None, // TODO: Could pass pipeline JSON if available
+        None, // No previous snapshot for now
+    )?;
+
+    // Save snapshot to dictionaries folder (in data/ directory or alongside export)
+    let dict_base_path = if let Some(parent) = output_path.parent() {
+        parent.join("data")
+    } else {
+        PathBuf::from("data")
+    };
+
+    let snapshot_path = beefcake::dictionary::save_snapshot(&snapshot, &dict_base_path)?;
+
+    beefcake::utils::log_event(
+        "Export",
+        &format!("Data dictionary saved: {}", snapshot_path.display()),
+    );
+
+    // Also export as Markdown
+    let markdown = beefcake::dictionary::render_markdown(&snapshot)?;
+    let md_path = output_path.with_extension("md");
+    std::fs::write(&md_path, markdown)
+        .with_context(|| format!("Failed to write markdown dictionary: {}", md_path.display()))?;
+
+    beefcake::utils::log_event(
+        "Export",
+        &format!("Data dictionary markdown: {}", md_path.display()),
+    );
 
     Ok(())
 }

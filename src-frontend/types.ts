@@ -116,7 +116,7 @@ export interface AuditEntry {
   details: string;
 }
 
-export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle" | "Pipeline";
+export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle" | "Pipeline" | "Watcher";
 
 // Dataset Lifecycle Types
 export type LifecycleStage = "Raw" | "Profiled" | "Cleaned" | "Advanced" | "Validated" | "Published";
@@ -226,6 +226,7 @@ export interface ExportOptions {
   source: ExportSource;
   configs: Record<string, ColumnCleanConfig>;
   destination: ExportDestination;
+  create_dictionary?: boolean;
 }
 
 export interface DbConnection {
@@ -272,6 +273,8 @@ export interface AppState {
   selectedColumns: Set<string>;
   useOriginalColumnNames: boolean;
   cleanAllActive: boolean;
+  watcherState: WatcherState | null;
+  watcherActivities: WatcherActivity[];
 }
 
 export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConfig {
@@ -298,4 +301,112 @@ export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConf
     one_hot_encode: false,
     impute_mode: "None"
   };
+}
+
+// Watcher Types
+export interface WatcherState {
+  enabled: boolean;
+  folder: string;
+  state: 'idle' | 'watching' | 'ingesting' | 'error';
+  message?: string;
+}
+
+export interface WatcherActivity {
+  id: string;
+  timestamp: string;
+  filename: string;
+  path: string;
+  status: 'detected' | 'ingesting' | 'success' | 'failed';
+  message?: string;
+  datasetId?: string;
+  rows?: number;
+  cols?: number;
+}
+
+// Data Dictionary Types
+export interface DataDictionary {
+  snapshot_id: string;
+  dataset_name: string;
+  export_timestamp: string;
+  dataset_metadata: DatasetMetadata;
+  columns: ColumnMetadata[];
+  previous_snapshot_id: string | null;
+}
+
+export interface DatasetMetadata {
+  technical: TechnicalMetadata;
+  business: DatasetBusinessMetadata;
+}
+
+export interface TechnicalMetadata {
+  input_sources: InputSource[];
+  pipeline_id: string | null;
+  pipeline_json: string | null;
+  input_dataset_hash: string | null;
+  output_dataset_hash: string;
+  row_count: number;
+  column_count: number;
+  export_format: string;
+  quality_summary: QualitySummary;
+}
+
+export interface InputSource {
+  path: string;
+  hash: string | null;
+}
+
+export interface QualitySummary {
+  avg_null_percentage: number;
+  empty_column_count: number;
+  constant_column_count: number;
+  duplicate_row_count: number | null;
+  overall_score: number;
+}
+
+export interface DatasetBusinessMetadata {
+  description?: string;
+  intended_use?: string;
+  owner_or_steward?: string;
+  refresh_expectation?: string;
+  sensitivity_classification?: string;
+  known_limitations?: string;
+  tags: string[];
+}
+
+export interface ColumnMetadata {
+  column_id: string;
+  current_name: string;
+  original_name: string | null;
+  technical: ColumnTechnicalMetadata;
+  business: ColumnBusinessMetadata;
+}
+
+export interface ColumnTechnicalMetadata {
+  data_type: string;
+  nullable: boolean;
+  null_percentage: number;
+  distinct_count: number;
+  min_value: string | null;
+  max_value: string | null;
+  sample_values: string[];
+  warnings: string[];
+  stats_json: string | null;
+}
+
+export interface ColumnBusinessMetadata {
+  business_definition?: string;
+  business_rules?: string;
+  sensitivity_tag?: string;
+  approved_examples: string[];
+  notes?: string;
+}
+
+export interface SnapshotMetadata {
+  snapshot_id: string;
+  dataset_name: string;
+  timestamp: string;
+  output_hash: string;
+  row_count: number;
+  column_count: number;
+  completeness_pct: number;
 }
