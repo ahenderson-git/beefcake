@@ -8,6 +8,7 @@ import csv
 import random
 import string
 import sys
+import os
 from datetime import datetime, timedelta
 
 def generate_test_csv(
@@ -95,8 +96,6 @@ def generate_test_csv(
 
 
 if __name__ == "__main__":
-    import os
-
     # Default: 5M rows × 100 columns (~2GB file)
     rows = 5_000_000
     cols = 100
