@@ -90,9 +90,10 @@ pub fn list_snapshots(
         if let Ok(snapshot) = load_snapshot_from_path(&path) {
             // Filter by dataset hash if provided
             if let Some(filter_hash) = dataset_hash_filter
-                && snapshot.dataset_metadata.technical.output_dataset_hash != filter_hash {
-                    continue;
-                }
+                && snapshot.dataset_metadata.technical.output_dataset_hash != filter_hash
+            {
+                continue;
+            }
 
             snapshots.push(SnapshotMetadata {
                 snapshot_id: snapshot.snapshot_id,

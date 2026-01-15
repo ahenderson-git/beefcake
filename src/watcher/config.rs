@@ -44,7 +44,7 @@ impl WatcherConfig {
         }
 
         let contents = std::fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read watcher config from {path:?}"))?;
+            .with_context(|| format!("Failed to read watcher config from {}", path.display()))?;
 
         let config: Self =
             serde_json::from_str(&contents).context("Failed to parse watcher config JSON")?;
@@ -58,15 +58,16 @@ impl WatcherConfig {
 
         // Create parent directory if it doesn't exist
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create config directory: {parent:?}"))?;
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create config directory: {}", parent.display())
+            })?;
         }
 
         let json =
             serde_json::to_string_pretty(self).context("Failed to serialize watcher config")?;
 
         std::fs::write(&path, json)
-            .with_context(|| format!("Failed to write watcher config to {path:?}"))?;
+            .with_context(|| format!("Failed to write watcher config to {}", path.display()))?;
 
         Ok(())
     }

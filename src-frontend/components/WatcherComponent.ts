@@ -70,8 +70,7 @@ export class WatcherComponent extends Component {
 
       if (currentlyEnabled) {
         // Stop watcher
-        const newState = await api.watcherStop();
-        state.watcherState = newState;
+        state.watcherState = await api.watcherStop();
         this.actions.showToast('Watcher stopped', 'info');
       } else {
         // Start watcher - need folder
@@ -79,8 +78,7 @@ export class WatcherComponent extends Component {
           this.actions.showToast('Please select a folder first', 'error');
           return;
         }
-        const newState = await api.watcherStart(state.watcherState.folder);
-        state.watcherState = newState;
+        state.watcherState = await api.watcherStart(state.watcherState.folder);
         this.actions.showToast('Watcher started', 'success');
       }
 
@@ -101,12 +99,11 @@ export class WatcherComponent extends Component {
         title: 'Select Folder to Watch',
       });
 
-      if (!selected || typeof selected !== 'string') {
+      if (!selected) {
         return;
       }
 
-      const newState = await api.watcherSetFolder(selected);
-      state.watcherState = newState;
+      state.watcherState = await api.watcherSetFolder(selected);
 
       this.actions.showToast(`Watch folder set: ${selected}`, 'success');
       this.actions.onStateChange();

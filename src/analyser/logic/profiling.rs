@@ -237,6 +237,7 @@ pub fn calculate_histogram(
     (bin_width, histogram)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn build_histogram_streaming(
     lf: LazyFrame,
     name: &str,

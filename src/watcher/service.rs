@@ -20,7 +20,10 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter as _};
 
 use super::config::WatcherConfig;
-use super::events::{WatcherServiceState, FileDetectedPayload, FileReadyPayload, IngestFailedPayload, IngestStartedPayload, IngestSucceededPayload, WatcherStatusPayload};
+use super::events::{
+    FileDetectedPayload, FileReadyPayload, IngestFailedPayload, IngestStartedPayload,
+    IngestSucceededPayload, WatcherServiceState, WatcherStatusPayload,
+};
 use crate::utils;
 
 /// Maximum time to wait for file stability (30 seconds)
@@ -70,7 +73,7 @@ impl StabilityChecker {
 
         // Get current file size
         let metadata = std::fs::metadata(&self.path)
-            .with_context(|| format!("Failed to read file metadata: {:?}", self.path))?;
+            .with_context(|| format!("Failed to read file metadata: {}", self.path.display()))?;
         let current_size = metadata.len();
 
         // Check if size changed
@@ -114,11 +117,7 @@ impl WatcherService {
         std::thread::Builder::new()
             .name("watcher-service".to_owned())
             .spawn(move || {
-                if let Err(e) =
-                    Self::worker_thread(app_clone, config_clone, state_clone, command_rx)
-                {
-                    eprintln!("Watcher service error: {e:?}");
-                }
+                Self::worker_thread(app_clone, config_clone, state_clone, command_rx);
             })
             .context("Failed to spawn watcher service thread")?;
 
@@ -131,15 +130,15 @@ impl WatcherService {
         config: Arc<Mutex<WatcherConfig>>,
         state: Arc<Mutex<WatcherServiceState>>,
         command_rx: Receiver<WatcherMessage>,
-    ) -> Result<()> {
+    ) {
         let (file_tx, file_rx) = channel();
         let mut _watcher: Option<Box<dyn Watcher + Send>> = None;
 
         // Main event loop
         loop {
-            // Check for commands (non-blocking)
-            if let Ok(msg) = command_rx.try_recv() {
-                match msg {
+            // Check for commands
+            match command_rx.try_recv() {
+                Ok(msg) => match msg {
                     WatcherMessage::Start(folder) => {
                         // Stop existing watcher if any
                         _watcher = None;
@@ -188,18 +187,21 @@ impl WatcherService {
                     WatcherMessage::IngestNow(path) => {
                         Self::handle_file_ingestion(&app, &config, &state, path);
                     }
-                }
+                },
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
 
             // Check for file events (non-blocking)
             if let Ok(event) = file_rx.try_recv()
-                && let EventKind::Create(_) = event.kind {
-                    for path in event.paths {
-                        if Self::is_supported_file(&path) {
-                            Self::handle_new_file(&app, &config, &state, path);
-                        }
+                && let EventKind::Create(_) = event.kind
+            {
+                for path in event.paths {
+                    if Self::is_supported_file(&path) {
+                        Self::handle_new_file(&app, &config, &state, path);
                     }
                 }
+            }
 
             // Small sleep to prevent busy-waiting
             std::thread::sleep(Duration::from_millis(100));
@@ -375,7 +377,8 @@ impl WatcherService {
         let file_name = path
             .file_stem()
             .and_then(|s| s.to_str())
-            .unwrap_or("Unnamed Dataset").to_owned();
+            .unwrap_or("Unnamed Dataset")
+            .to_owned();
 
         // Get data directory and create registry
         let data_dir = dirs::data_local_dir()

@@ -40,9 +40,9 @@ This guide provides step-by-step instructions and code examples for implementing
  * const spec = await loadPipeline('pipelines/cleaning.json');
  *
  * // Execute pipeline
- * const result = await executePipeline(spec, 'data.csv');
- * ```
+ * const result = await executePipeline(spec, 'data.csv', 'out.parquet')
  */
+```
 
 import { invoke } from '@tauri-apps/api/core';
 
@@ -655,6 +655,15 @@ export class PipelineLibrary {
 **File**: `src-frontend/styles/pipeline.css`
 
 ```css
+:root {
+    --error-color: #ff0000;
+    --primary-color: #007bff;
+    --primary-color-dark: #0056b3;
+    --border-color: #ddd;
+    --card-bg: #fff;
+    --text-secondary: #6c757d;
+}
+
 /* Pipeline Library Styles */
 
 .pipeline-library {
@@ -941,37 +950,46 @@ After completing Phase 1:
 **Technical Implementation**:
 ```typescript
 // In PipelineEditor class
-private draggedStepIndex: number | null = null;
+class PipelineEditor {
+  private draggedStepIndex: number | null = null;
 
-// Render step card with draggable attribute
-<div class="step-card" data-index="${index}" draggable="true">
-    <span class="step-drag-handle" title="Drag to reorder">⋮⋮</span>
-    ...
-</div>
+  // Render step card with draggable attribute
+  private renderStepCard(step: Step, index: number): string {
+    return `
+      <div class="step-card" data-index="${index}" draggable="true">
+        <span class="step-drag-handle" title="Drag to reorder">⋮⋮</span>
+        ...
+      </div>
+    `;
+  }
 
-// Event handlers
-cardElement.addEventListener('dragstart', (e: DragEvent) => {
-    this.draggedStepIndex = index;
-    cardElement.classList.add('dragging');
-});
+  // Event handlers
+  private attachDragHandlers(cardElement: HTMLElement, index: number): void {
+    cardElement.addEventListener('dragstart', (e: DragEvent) => {
+      this.draggedStepIndex = index;
+      cardElement.classList.add('dragging');
+    });
 
-cardElement.addEventListener('drop', (e: DragEvent) => {
-    const dropIndex = parseInt(cardElement.getAttribute('data-index'));
-    if (this.draggedStepIndex !== null) {
+    cardElement.addEventListener('drop', (e: DragEvent) => {
+      const dropIndex = parseInt(cardElement.getAttribute('data-index') || '0');
+      if (this.draggedStepIndex !== null) {
         this.moveStepToIndex(this.draggedStepIndex, dropIndex);
-    }
-});
+      }
+    });
+  }
 
-// Reorder method with smart selection tracking
-private moveStepToIndex(fromIndex: number, toIndex: number): void {
+  // Reorder method with smart selection tracking
+  private moveStepToIndex(fromIndex: number, toIndex: number): void {
+    const steps = this.state.pipeline?.steps || [];
     const movedStep = steps[fromIndex];
     steps.splice(fromIndex, 1);
     steps.splice(toIndex, 0, movedStep);
 
     // Update selected index if necessary
     if (this.state.selectedStepIndex === fromIndex) {
-        this.state.selectedStepIndex = toIndex;
+      this.state.selectedStepIndex = toIndex;
     }
+  }
 }
 ```
 
@@ -1062,34 +1080,35 @@ export async function loadTemplate(templateName: string): Promise<PipelineSpec> 
 **UI Components**:
 ```typescript
 // PipelineLibrary - Template rendering
-
-private renderTemplateCard(template: PipelineInfo): string {
+class PipelineLibrary {
+  private renderTemplateCard(template: PipelineInfo): string {
     const icon = this.getTemplateIcon(template.name);
     const category = this.getTemplateCategory(template.name);
 
     return `
-        <div class="template-card" data-template="${template.name}">
-            <div class="template-icon">${icon}</div>
-            <div class="template-content">
-                <h3>${template.name}</h3>
-                <p class="template-description">${template.description}</p>
-                <div class="template-meta">
-                    <span class="template-category">${category}</span>
-                    <span class="template-steps">${template.step_count} steps</span>
-                </div>
-            </div>
-            <button class="btn-primary use-template-btn">Use Template</button>
+      <div class="template-card" data-template="${template.name}">
+        <div class="template-icon">${icon}</div>
+        <div class="template-content">
+          <h3>${template.name}</h3>
+          <p class="template-description">${template.description}</p>
+          <div class="template-meta">
+            <span class="template-category">${category}</span>
+            <span class="template-steps">${template.step_count} steps</span>
+          </div>
         </div>
+        <button class="btn-primary use-template-btn">Use Template</button>
+      </div>
     `;
-}
+  }
 
-// Event handler for "Use Template" button
-private async handleUseTemplate(templateName: string): Promise<void> {
+  // Event handler for "Use Template" button
+  private async handleUseTemplate(templateName: string): Promise<void> {
     const spec = await loadTemplate(templateName);
     const event = new CustomEvent('pipeline:new-from-template', {
-        detail: { spec }
+      detail: { spec }
     });
     this.container.dispatchEvent(event);
+  }
 }
 ```
 

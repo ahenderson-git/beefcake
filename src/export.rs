@@ -317,13 +317,14 @@ pub async fn export_data_execution(
     // 4. Create data dictionary snapshot if requested and destination is a file
     if options.create_dictionary
         && matches!(options.destination.dest_type, ExportDestinationType::File)
-        && let Err(e) = create_dictionary_snapshot(&options).await {
-            beefcake::utils::log_event(
-                "Export",
-                &format!("Warning: Failed to create data dictionary: {e}"),
-            );
-            // Don't fail the export if dictionary creation fails
-        }
+        && let Err(e) = create_dictionary_snapshot(&options).await
+    {
+        beefcake::utils::log_event(
+            "Export",
+            &format!("Warning: Failed to create data dictionary: {e}"),
+        );
+        // Don't fail the export if dictionary creation fails
+    }
 
     Ok(())
 }
@@ -345,10 +346,10 @@ async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
     let dummy_progress = Arc::new(AtomicU64::new(0));
     let df = match beefcake::analyser::logic::load_df(&output_path, &dummy_progress) {
         Ok(df) => df,
-        Err(e) => {
+        Err(_) => {
             beefcake::utils::log_event(
                 "Export",
-                &format!("Could not load exported file for dictionary: {e}"),
+                "Could not load exported file for dictionary analysis",
             );
             return Ok(());
         }
@@ -358,7 +359,8 @@ async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
     let dataset_name = output_path
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or("exported_dataset").to_owned();
+        .unwrap_or("exported_dataset")
+        .to_owned();
 
     // Create snapshot
     let snapshot = beefcake::dictionary::create_snapshot(

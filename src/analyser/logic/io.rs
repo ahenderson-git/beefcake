@@ -83,14 +83,15 @@ pub fn get_parquet_write_options(lf: &LazyFrame) -> Result<ParquetWriteOptions> 
     let col_count = schema.len();
 
     // Conservative row group sizing to prevent OOM on large datasets
-    let mut row_group_size = if col_count >= 100 { 16_384 } else { 32_768 };
-
-    // Allow environment variable override for emergency debugging
-    if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE")
+    let row_group_size = if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE")
         && let Ok(parsed) = env_val.parse::<usize>()
     {
-        row_group_size = parsed;
-    }
+        parsed
+    } else if col_count >= 100 {
+        16_384
+    } else {
+        32_768
+    };
 
     Ok(ParquetWriteOptions {
         maintain_order: false,

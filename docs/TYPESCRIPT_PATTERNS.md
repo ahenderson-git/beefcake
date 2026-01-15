@@ -21,44 +21,21 @@ TypeScript = JavaScript + Type System
 
 ```typescript
 // JavaScript (dynamic typing)
-let name = "Beefcake";
-name = 123;  // OK, but dangerous
+let appName = "Beefcake";
+appName = 123;  // OK, but dangerous
 
 // TypeScript (static typing)
-let name: string = "Beefcake";
-name = 123;  // ERROR: Type 'number' not assignable to 'string'
+let typedAppName: string = "Beefcake";
+typedAppName = 123;  // ERROR: Type 'number' not assignable to 'string'
 ```
 
 ### Core Types
 
 ```typescript
 // Primitives
-let count: number = 42;
-let name: string = "Beefcake";
-let isActive: boolean = true;
-let nothing: null = null;
-let unknown: undefined = undefined;
-
-// Arrays
-let numbers: number[] = [1, 2, 3];
-let names: Array<string> = ["Alice", "Bob"];
-
-// Objects
-let point: { x: number; y: number } = { x: 10, y: 20 };
-
-// Functions
-let add: (a: number, b: number) => number;
-add = (a, b) => a + b;
-
-// Union types (either/or)
-let id: string | number;
-id = "abc123";  // OK
-id = 42;        // OK
-id = true;      // ERROR
-
-// Any (escape hatch - avoid if possible)
-let anything: any = "hello";
-anything = 42;  // OK, but defeats purpose of TypeScript
+let countVal: number = 42;
+let nameStr: string = "Beefcake";
+let isEnabled: boolean = true;
 ```
 
 ### Interfaces (src-frontend/types.ts)
@@ -157,44 +134,29 @@ async function loadAnalysis(path: string): Promise<AnalysisResponse> {
 
 #### Handling Multiple Async Operations
 ```typescript
-async init() {
+async function init() {
   try {
     // Run in parallel
     const [config, version] = await Promise.all([
       api.loadAppConfig(),
       api.getAppVersion()
     ]);
-
-    this.state.config = config;
-    this.state.version = version;
+    // ...
   } catch (err) {
-    this.showToast('Initialization error: ' + err, 'error');
+    console.error('Initialization failed:', err);
   }
 }
 ```
 
 #### Sequential Operations (main.ts:198)
 ```typescript
-public async handleAnalysis(path: string) {
+async function handleAnalysis(path: string) {
   try {
-    // Show loading state
-    this.state.isLoading = true;
-    this.switchView('Analyser');
-
-    // Wait for analysis to complete
+    // ...
     const response = await api.analyseFile(path);
-    this.state.analysisResponse = response;
-
-    // Update UI
-    this.state.isLoading = false;
-    this.render();
-    this.showToast('Analysis complete', 'success');
-
-    // Start background task (don't await - runs in parallel)
-    this.createLifecycleDatasetAsync(response.file_name, path);
+    // ...
   } catch (err) {
-    this.state.isLoading = false;
-    this.showToast(`Analysis failed: ${err}`, 'error');
+    console.error(`Analysis failed: ${err}`);
   }
 }
 ```
@@ -202,13 +164,12 @@ public async handleAnalysis(path: string) {
 #### Fire-and-Forget Pattern
 ```typescript
 // Don't await - let it run in background
-private async createLifecycleDatasetAsync(fileName: string, path: string) {
+async function createLifecycleDatasetAsync(fileName: string, path: string) {
   try {
     const datasetId = await api.createDataset(fileName, path);
     // ...
-  } catch (lifecycleErr) {
-    console.error('Failed to create lifecycle dataset:', lifecycleErr);
-    // Not critical - main analysis still succeeded
+  } catch (err) {
+    console.error('Failed to create lifecycle dataset:', err);
   }
 }
 ```
@@ -217,7 +178,7 @@ private async createLifecycleDatasetAsync(fileName: string, path: string) {
 
 ```typescript
 // Wait for first to complete
-const result = await Promise.race([
+const raceResult = await Promise.race([
   loadFromCache(),
   loadFromNetwork()
 ]);
@@ -228,13 +189,12 @@ const results = await Promise.allSettled([
   operation2(),
   operation3()
 ]);
-// results = [{ status: 'fulfilled', value: ... }, { status: 'rejected', reason: ... }, ...]
 
 // Timeout pattern
-const timeoutPromise = new Promise((_, reject) =>
+const timeout = new Promise((_, reject) =>
   setTimeout(() => reject(new Error('Timeout')), 5000)
 );
-const result = await Promise.race([dataPromise, timeoutPromise]);
+const fastResult = await Promise.race([dataPromise, timeout]);
 ```
 
 ---
@@ -280,7 +240,7 @@ export async function runPython(
 }
 ```
 
-### Backend: #[tauri::command] (src/tauri_app.rs)
+### Backend: `#[tauri::command]` (src/tauri_app.rs)
 
 ```rust
 #[tauri::command]
@@ -291,15 +251,17 @@ async fn analyze_file(path: String) -> Result<AnalysisResponse, String> {
     Ok(response)
 }
 
-// Register commands in Tauri builder
-tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![
-        analyze_file,
-        run_python,
-        get_config,
-        // ... all commands
-    ])
-    .run(context)
+// Register commands in Tauri builder (Rust)
+fn main() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            analyze_file,
+            run_python,
+            get_config,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
 ```
 
 ### Type Safety Across the Bridge
@@ -314,7 +276,9 @@ export interface AnalysisResponse {
   correlation_matrix: CorrelationMatrix | null;
   health: FileHealth;
 }
+```
 
+```rust
 // Rust struct (automatically serialized to JSON)
 #[derive(Serialize)]
 pub struct AnalysisResponse {
@@ -499,19 +463,19 @@ this.render();
 
 ```typescript
 // Set for unique values
-expandedRows: Set<string> = new Set();
-this.state.expandedRows.add('row-123');
-this.state.expandedRows.has('row-123');  // true
-this.state.expandedRows.delete('row-123');
+const expandedRows: Set<string> = new Set();
+expandedRows.add('row-123');
+expandedRows.has('row-123');  // true
+expandedRows.delete('row-123');
 
 // Map for key-value pairs
-cleaningConfigs: Map<string, ColumnCleanConfig> = new Map();
-this.state.cleaningConfigs.set('age', config);
-this.state.cleaningConfigs.get('age');
+const cleaningConfigs: Map<string, ColumnCleanConfig> = new Map();
+cleaningConfigs.set('age', config);
+cleaningConfigs.get('age');
 
 // Plain object also works (more JSON-friendly)
-cleaningConfigs: Record<string, ColumnCleanConfig> = {};
-this.state.cleaningConfigs['age'] = config;
+const cleaningConfigsObj: Record<string, ColumnCleanConfig> = {};
+cleaningConfigsObj['age'] = config;
 ```
 
 ---
@@ -582,20 +546,20 @@ document.addEventListener('dataLoaded', (e: Event) => {
 
 ```typescript
 // Old way (verbose)
-const name = user && user.profile && user.profile.name;
+const oldName = user && user.profile && user.profile.name;
 
 // New way (optional chaining)
-const name = user?.profile?.name;
+const newName = user?.profile?.name;
 ```
 
 ### Nullish Coalescing
 
 ```typescript
 // Old way (falsy values are problematic)
-const count = value || 0;  // Problem: value=0 → 0, value="" → 0
+const oldCount = value || 0;  // Problem: value=0 → 0, value="" → 0
 
 // New way (only null/undefined trigger default)
-const count = value ?? 0;  // value=0 → 0, value=null → 0
+const newCount = value ?? 0;  // value=0 → 0, value=null → 0
 ```
 
 ### Type Guards
@@ -617,14 +581,14 @@ function processData(data: string | number) {
 
 ```typescript
 // Tell TypeScript "trust me, I know the type"
-const input = document.getElementById('name') as HTMLInputElement;
-input.value = 'text';  // OK, TS knows it's an input
+const inputElement = document.getElementById('name') as HTMLInputElement;
+inputElement.value = 'text';  // OK, TS knows it's an input
 
-// Alternative syntax
-const input = <HTMLInputElement>document.getElementById('name');
+// Alternative syntax (different element to avoid redeclaration)
+const emailInput = <HTMLInputElement>document.getElementById('email');
 
 // Be careful! Can cause runtime errors if wrong
-const wrong = "hello" as number;  // Compiles, but runtime error!
+const wrongValue = "hello" as unknown as number;  // Double cast often needed for incompatible types
 ```
 
 ### Generics
@@ -644,8 +608,14 @@ interface Response<T> {
   status: number;
 }
 
+// Example usage with User type
+interface User {
+  name: string;
+}
+
+const alice: User = { name: 'Alice' };
 const userResponse: Response<User> = {
-  data: { name: 'Alice' },
+  data: alice,
   status: 200
 };
 ```
@@ -657,12 +627,12 @@ const userResponse: Response<User> = {
 ### Debouncing (delay execution)
 
 ```typescript
-function debounce<T extends (...args: any[]) => any>(
-  fn: T,
+function debounce<T extends any[]>(
+  fn: (...args: T) => any,
   delay: number
-): (...args: Parameters<T>) => void {
+): (...args: T) => void {
   let timeoutId: number;
-  return (...args) => {
+  return (...args: T) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn(...args), delay);
   };

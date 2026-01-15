@@ -368,8 +368,7 @@ export class PipelineEditor {
             const cardElement = card as HTMLElement;
 
             cardElement.addEventListener('dragstart', (e: DragEvent) => {
-                const index = parseInt(cardElement.getAttribute('data-index') || '0');
-                this.draggedStepIndex = index;
+                this.draggedStepIndex = parseInt(cardElement.getAttribute('data-index') || '0');
                 cardElement.classList.add('dragging');
                 if (e.dataTransfer) {
                     e.dataTransfer.effectAllowed = 'move';

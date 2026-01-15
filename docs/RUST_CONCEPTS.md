@@ -26,30 +26,31 @@ Rust's memory safety comes from these rules:
 
 #### Moving Ownership (src/analyser/lifecycle.rs:56)
 ```rust
-pub fn create_dataset(&self, name: String, raw_data_path: PathBuf) -> Result<Uuid> {
+pub fn create_dataset(registry: &Registry, name: String, raw_data_path: PathBuf) -> Result<Uuid> {
     // `name` and `raw_data_path` are moved into Dataset::new()
     // After this call, we can't use them again in this function
-    let dataset = Dataset::new(name, raw_data_path, Arc::clone(&self.store))?;
+    let dataset = Dataset::new(name, raw_data_path, Arc::clone(&registry.store))?;
     // ...
+    Ok(dataset.id)
 }
 ```
 
 #### Immutable Borrowing (src/analyser/lifecycle.rs:67)
 ```rust
-pub fn get_dataset(&self, id: &Uuid) -> Result<Dataset> {
+pub fn get_dataset(registry: &Registry, id: &Uuid) -> Result<Dataset> {
     // &Uuid borrows the ID without taking ownership
     // Caller still owns the UUID after this function returns
-    let datasets = self.datasets.read()?;
-    datasets.get(id).cloned()
+    let datasets = registry.datasets.read()?;
+    datasets.get(id).cloned().ok_or_else(|| anyhow!("Not found"))
 }
 ```
 
 #### Mutable Borrowing (src/analyser/lifecycle.rs:82)
 ```rust
-pub fn apply_transforms(&self, dataset_id: &Uuid, /*...*/) -> Result<Uuid> {
-    let mut datasets = self.datasets.write()?;
+pub fn apply_transforms(registry: &Registry, dataset_id: &Uuid) -> Result<Uuid> {
+    let mut datasets = registry.datasets.write()?;
     // get_mut returns &mut Dataset - we can modify it
-    let dataset = datasets.get_mut(dataset_id)?;
+    let dataset = datasets.get_mut(dataset_id).ok_or_else(|| anyhow!("Not found"))?;
     dataset.apply_pipeline(pipeline, stage)  // Can modify dataset
 }
 ```
@@ -76,34 +77,34 @@ Rust has no exceptions. Functions that can fail return `Result<T, E>`:
 
 #### Returning Results (throughout codebase)
 ```rust
-pub fn create_dataset(&self, name: String, path: PathBuf) -> Result<Uuid> {
+pub fn create_dataset(name: String, path: PathBuf) -> Result<Uuid> {
     // Result is from anyhow crate: Result<T, anyhow::Error>
     if !path.exists() {
         return Err(anyhow::anyhow!("Path does not exist: {}", path.display()));
     }
+    let uuid = Uuid::new_v4();
     Ok(uuid)
 }
 ```
 
 #### The ? Operator (propagating errors)
 ```rust
-pub fn load_data(&self) -> Result<DataFrame> {
+pub fn load_data(path: &Path) -> Result<DataFrame> {
     // If read_csv fails, ? returns the error immediately
-    let df = polars::io::csv::CsvReader::read_csv(path)?;
+    let df = polars::io::csv::CsvReader::from_path(path)?.finish()?;
 
-    // If validate fails, its error is returned
-    self.validate(&df)?;
-
-    // If we get here, both succeeded
+    // If we get here, it succeeded
     Ok(df)
 }
 ```
 
 #### Pattern Matching Results
 ```rust
-match analyze_file(path) {
-    Ok(data) => println!("Success: {}", data),
-    Err(e) => eprintln!("Failed: {}", e),
+fn handle_result() {
+    match analyze_file(path) {
+        Ok(data) => println!("Success: {}", data),
+        Err(e) => eprintln!("Failed: {}", e),
+    }
 }
 ```
 
@@ -242,8 +243,10 @@ Types that act like pointers but have additional metadata and capabilities.
 
 #### `Box<T>` - Heap Allocation
 ```rust
-// Put large data on heap instead of stack
-let large_data: Box<DataFrame> = Box::new(df);
+fn heap_example(df: DataFrame) {
+    // Put large data on heap instead of stack
+    let _large_data: Box<DataFrame> = Box::new(df);
+}
 ```
 
 #### `Arc<T>` - Atomic Reference Counting (src/analyser/lifecycle.rs:42)
@@ -332,9 +335,12 @@ async fn analyze_data() -> Result<DataFrame> {
 
 #### Tokio Runtime (src/main.rs:20)
 ```rust
-// Create runtime manually
-let runtime = tokio::runtime::Runtime::new()?;
-runtime.block_on(async_function())?;  // Run async code to completion
+fn runtime_example() -> Result<()> {
+    // Create runtime manually
+    let runtime = tokio::runtime::Runtime::new()?;
+    runtime.block_on(async_function())?;  // Run async code to completion
+    Ok(())
+}
 ```
 
 #### Common Async Patterns
@@ -390,14 +396,16 @@ pub struct PipelineSpec {
 
 #### Function-like Macros
 ```rust
-// println! and format! are macros
-println!("Dataset: {} has {} rows", name, count);
+fn main() {
+    // println! and format! are macros
+    println!("Dataset: {} has {} rows", name, count);
 
-// vec! macro creates vectors
-let items = vec![1, 2, 3, 4, 5];
+    // vec! macro creates vectors
+    let items = vec![1, 2, 3, 4, 5];
 
-// anyhow! creates errors
-return Err(anyhow::anyhow!("Something went wrong: {}", msg));
+    // anyhow! creates errors
+    // return Err(anyhow::anyhow!("Something went wrong: {}", msg));
+}
 ```
 
 #### Attribute Macros (Tauri commands in src/tauri_app.rs)
@@ -478,11 +486,14 @@ use crate::analyser::logic::*;
 
 ### Builder Pattern
 ```rust
-let spec = PipelineSpec::builder()
-    .name("my-pipeline")
-    .add_step(Step::Clean { .. })
-    .add_step(Step::Transform { .. })
-    .build()?;
+fn example() -> Result<()> {
+    let spec = PipelineSpec::builder()
+        .name("my-pipeline")
+        .add_step(Step::Clean { .. })
+        .add_step(Step::Transform { .. })
+        .build()?;
+    Ok(())
+}
 ```
 
 ### Newtype Pattern
@@ -497,20 +508,27 @@ fn get_dataset(id: DatasetId) -> Dataset { }
 
 ### Option & Result Combinators
 ```rust
-// Instead of nested if/match
-let value = optional_value
-    .ok_or_else(|| anyhow::anyhow!("Missing value"))?
-    .trim()
-    .parse::<i32>()?;
+fn process_value(optional_value: Option<String>) -> Result<i32> {
+    // Instead of nested if/match
+    let value = optional_value
+        .ok_or_else(|| anyhow::anyhow!("Missing value"))?
+        .trim()
+        .parse::<i32>()?;
+    Ok(value)
+}
 
-// Map over Option
-let doubled = maybe_number.map(|n| n * 2);
+fn map_example(maybe_number: Option<i32>) {
+    // Map over Option
+    let doubled = maybe_number.map(|n| n * 2);
+}
 
-// Chain operations
-dataset
-    .get_version(&id)?
-    .get_data()?
-    .collect()?
+fn chain_example(dataset: Dataset, id: VersionId) -> Result<Vec<Data>> {
+    // Chain operations
+    dataset
+        .get_version(&id)?
+        .get_data()?
+        .collect()
+}
 ```
 
 ---

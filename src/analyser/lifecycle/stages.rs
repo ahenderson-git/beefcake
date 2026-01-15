@@ -69,8 +69,14 @@ impl LifecycleStage {
     pub fn can_transition_to(&self, target: Self) -> bool {
         match (self, target) {
             // Can always go forward or skip stages going forward
-            (Self::Raw, Self::Profiled | Self::Cleaned | Self::Advanced | Self::Validated | Self::Published)
-            | (Self::Profiled, Self::Cleaned | Self::Advanced | Self::Validated | Self::Published)
+            (
+                Self::Raw,
+                Self::Profiled | Self::Cleaned | Self::Advanced | Self::Validated | Self::Published,
+            )
+            | (
+                Self::Profiled,
+                Self::Cleaned | Self::Advanced | Self::Validated | Self::Published,
+            )
             | (Self::Cleaned, Self::Advanced | Self::Validated | Self::Published)
             | (Self::Advanced, Self::Validated | Self::Published)
             | (Self::Validated, Self::Published) => true,

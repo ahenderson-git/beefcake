@@ -18,13 +18,13 @@ impl PublishStageExecutor {
         Self { mode }
     }
 
-    pub fn as_view() -> Self {
+    pub fn new_view() -> Self {
         Self {
             mode: PublishMode::View,
         }
     }
 
-    pub fn as_snapshot() -> Self {
+    pub fn new_snapshot() -> Self {
         Self {
             mode: PublishMode::Snapshot,
         }
@@ -53,14 +53,14 @@ mod tests {
 
     #[test]
     fn test_publish_executor_view() {
-        let executor = PublishStageExecutor::as_view();
+        let executor = PublishStageExecutor::new_view();
         assert_eq!(executor.mode, PublishMode::View);
         assert_eq!(executor.stage(), LifecycleStage::Published);
     }
 
     #[test]
     fn test_publish_executor_snapshot() {
-        let executor = PublishStageExecutor::as_snapshot();
+        let executor = PublishStageExecutor::new_snapshot();
         assert_eq!(executor.mode, PublishMode::Snapshot);
         assert_eq!(executor.stage(), LifecycleStage::Published);
     }

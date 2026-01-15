@@ -33,7 +33,7 @@
 //! )?;
 //!
 //! // Apply transformations to create new version
-//! let pipeline = TransformPipeline { transforms: vec![] };
+//! let pipeline = TransformPipeline::new(vec![]);
 //! let new_version_id = registry.apply_transforms(&dataset_id, pipeline, LifecycleStage::Cleaned)?;
 //!
 //! // Set as active version

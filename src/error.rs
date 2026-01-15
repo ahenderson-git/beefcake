@@ -61,7 +61,7 @@
 //! ```no_run
 //! # use beefcake::error::{BeefcakeError, Result};
 //! // Tauri command signature
-//! fn analyze_file(path: String) -> Result<String, String> {
+//! fn analyze_file(path: String) -> std::result::Result<String, String> {
 //!     // BeefcakeError auto-converts to String
 //!     let result = process_file(&path)?;
 //!     Ok(result)

@@ -395,11 +395,13 @@ mod tests {
     fn test_from_clean_configs() {
         let mut configs = HashMap::new();
 
-        let mut config = ColumnCleanConfig::default();
-        config.active = true;
-        config.new_name = "customer_id".to_owned();
-        config.trim_whitespace = true;
-        config.advanced_cleaning = true;
+        let config = ColumnCleanConfig {
+            active: true,
+            new_name: "customer_id".to_owned(),
+            trim_whitespace: true,
+            advanced_cleaning: true,
+            ..Default::default()
+        };
 
         configs.insert("cust_id".to_owned(), config);
 

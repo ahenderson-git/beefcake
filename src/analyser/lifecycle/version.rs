@@ -225,7 +225,7 @@ impl Dataset {
         &mut self,
         pipeline: TransformPipeline,
         stage: LifecycleStage,
-        ) -> Result<Uuid> {
+    ) -> Result<Uuid> {
         // Get active version
         let active_version = self
             .versions
@@ -237,7 +237,7 @@ impl Dataset {
         // - Metadata-only stages like Profiled (empty pipeline)
         // - Cleaned -> Advanced with restricted:true (no data changes)
         let new_version_id = Uuid::new_v4();
-        let should_reuse_data = pipeline.is_empty() || Self::is_pipeline_no_op(&pipeline, active_version);
+        let should_reuse_data = pipeline.is_empty() || is_pipeline_no_op(&pipeline, active_version);
 
         let data_location = if should_reuse_data {
             crate::utils::log_event(
@@ -279,46 +279,6 @@ impl Dataset {
         self.active_version_id = new_version_id;
 
         Ok(new_version_id)
-    }
-
-    /// Check if a pipeline would result in a no-op (no data changes requiring file rewrite)
-    /// This detects metadata-only operations that don't require materializing and rewriting data
-    fn is_pipeline_no_op(pipeline: &TransformPipeline, active_version: &DatasetVersion) -> bool {
-        // Empty pipeline is always a no-op
-        if pipeline.is_empty() {
-            return true;
-        }
-
-        // Single transform optimizations
-        if pipeline.len() == 1 {
-            let transform_spec = pipeline.iter().next().unwrap();
-
-            // Case 1: Column selection is metadata-only for Parquet files
-            // Parquet supports native column projection, so we don't need to rewrite the file
-            // This optimization provides massive performance gains for large files
-            if transform_spec.transform_type == "select_columns" {
-                crate::utils::log_event(
-                    "Lifecycle",
-                    "Column selection detected - using metadata-only optimization"
-                );
-                return true;
-            }
-
-            // Case 2: Clean transform with restricted=true (Cleaned -> Advanced transition)
-            if transform_spec.transform_type == "clean" {
-                let restricted = transform_spec
-                    .parameters
-                    .get("restricted")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-
-                // If restricted=true and parent is Cleaned stage, this is a no-op
-                // because Cleaned -> Advanced with restricted=true doesn't actually transform data
-                return restricted && active_version.stage == LifecycleStage::Cleaned;
-            }
-        }
-
-        false
     }
 
     pub fn set_active_version(&mut self, version_id: &Uuid) -> Result<()> {
@@ -380,4 +340,44 @@ impl Dataset {
 
         Ok(published_id)
     }
+}
+
+/// Check if a pipeline would result in a no-op (no data changes requiring file rewrite)
+/// This detects metadata-only operations that don't require materializing and rewriting data
+fn is_pipeline_no_op(pipeline: &TransformPipeline, active_version: &DatasetVersion) -> bool {
+    // Empty pipeline is always a no-op
+    if pipeline.is_empty() {
+        return true;
+    }
+
+    // Single transform optimizations
+    if pipeline.len() == 1 {
+        let transform_spec = pipeline.iter().next().unwrap();
+
+        // Case 1: Column selection is metadata-only for Parquet files
+        // Parquet supports native column projection, so we don't need to rewrite the file
+        // This optimization provides massive performance gains for large files
+        if transform_spec.transform_type == "select_columns" {
+            crate::utils::log_event(
+                "Lifecycle",
+                "Column selection detected - using metadata-only optimization",
+            );
+            return true;
+        }
+
+        // Case 2: Clean transform with restricted=true (Cleaned -> Advanced transition)
+        if transform_spec.transform_type == "clean" {
+            let restricted = transform_spec
+                .parameters
+                .get("restricted")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            // If restricted=true and parent is Cleaned stage, this is a no-op
+            // because Cleaned -> Advanced with restricted=true doesn't actually transform data
+            return restricted && active_version.stage == LifecycleStage::Cleaned;
+        }
+    }
+
+    false
 }

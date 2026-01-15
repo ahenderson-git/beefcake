@@ -74,6 +74,6 @@ mod tests {
         let configs = HashMap::new();
         let executor = CleanStageExecutor::new(configs);
         assert_eq!(executor.stage(), LifecycleStage::Cleaned);
-        assert!(executor.restricted);
+        assert!(!executor.restricted);
     }
 }

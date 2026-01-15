@@ -97,8 +97,10 @@ mod tests {
     #[test]
     fn test_enable_ml_preprocessing() {
         let mut configs = HashMap::new();
-        let mut config = ColumnCleanConfig::default();
-        config.active = true;
+        let config = ColumnCleanConfig {
+            active: true,
+            ..Default::default()
+        };
         configs.insert("col1".to_owned(), config);
 
         enable_ml_preprocessing(&mut configs, true, true, true);

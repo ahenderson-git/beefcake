@@ -2,7 +2,11 @@
 //!
 //! Extracts and analyzes dataset characteristics to populate immutable technical metadata.
 
-use super::metadata::{DataDictionary, InputSource, TechnicalMetadata, DatasetMetadata, DatasetBusinessMetadata, ColumnMetadata, column_name_to_uuid, ColumnTechnicalMetadata, ColumnBusinessMetadata, QualitySummary};
+use super::metadata::{
+    ColumnBusinessMetadata, ColumnMetadata, ColumnTechnicalMetadata, DataDictionary,
+    DatasetBusinessMetadata, DatasetMetadata, InputSource, QualitySummary, TechnicalMetadata,
+    column_name_to_uuid,
+};
 use crate::analyser::logic::{AnalysisResponse, ColumnSummary, analyse_df_lazy};
 use anyhow::{Context as _, Result};
 use chrono::Utc;
@@ -36,7 +40,7 @@ pub fn create_snapshot(
     let export_timestamp = Utc::now();
 
     // Calculate output hash
-    let output_dataset_hash = calculate_dataframe_hash(df)?;
+    let output_dataset_hash = calculate_dataframe_hash(df);
 
     // Determine export format from output path
     let export_format = output_path
@@ -257,7 +261,7 @@ fn calculate_quality_summary(
 }
 
 /// Calculate hash of a `DataFrame`'s content for versioning.
-fn calculate_dataframe_hash(df: &DataFrame) -> Result<String> {
+fn calculate_dataframe_hash(df: &DataFrame) -> String {
     use sha2::{Digest as _, Sha256};
 
     let mut hasher = Sha256::new();
@@ -277,7 +281,7 @@ fn calculate_dataframe_hash(df: &DataFrame) -> Result<String> {
     }
 
     let hash = hasher.finalize();
-    Ok(format!("{hash:x}"))
+    format!("{hash:x}")
 }
 
 /// Calculate hash of a file's content.
@@ -306,7 +310,6 @@ fn calculate_file_hash(path: &Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_create_snapshot_basic() -> Result<()> {
