@@ -10,14 +10,16 @@
 //! use beefcake::analyser::logic;
 //!
 //! // Analyze a CSV file
-//! let response = logic::analyze_file("data.csv")?;
+//! # async fn example() -> anyhow::Result<()> {
+//! let response = logic::analyze_file_flow("data.csv".into()).await?;
 //! println!("Found {} columns", response.column_count);
 //!
 //! // Access column statistics
 //! for col in response.summary {
-//!     println!("{}: {} (type: {})", col.name, col.count, col.kind);
+//!     println!("{}: {} (type: {:?})", col.name, col.count, col.kind);
 //! }
-//! # Ok::<(), anyhow::Error>(())
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Core Modules
@@ -29,6 +31,7 @@
 //! - [`pipeline`]: Automation and transformation pipeline system
 //! - [`error`]: Error types and handling utilities
 //! - [`utils`]: Common utility functions
+//! - [`watcher`]: File system watcher service
 //!
 //! ## Key Concepts
 //!
@@ -40,7 +43,7 @@
 //! ```no_run
 //! use polars::prelude::*;
 //!
-//! let lf = LazyFrame::scan_csv("data.csv", Default::default())?
+//! let lf = LazyFrame::scan_parquet("data.parquet", Default::default())?
 //!     .select([col("age"), col("name")])
 //!     .filter(col("age").gt(18));
 //!

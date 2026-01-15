@@ -11,6 +11,13 @@
     "tauri": "tauri",
     "fix-locks": "node scripts/clean.js",
     "reset": "node -e \"require('fs').rmSync('node_modules', {recursive:true, force:true}); require('fs').rmSync('package-lock.json', {force:true})\" && npm install",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:rust": "cargo test",
+    "test:rust:integration": "cargo test --test '*'",
+    "test:all": "npm run test:rust && npm test -- --run && npm run test:e2e",
     "docs:ts": "typedoc",
     "docs:rust": "cargo doc --document-private-items --no-deps",
     "docs:rust:open": "cargo doc --document-private-items --no-deps --open",
@@ -27,9 +34,14 @@
     "monaco-editor": "^0.55.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@tauri-apps/cli": "^2.1.0",
+    "@vitest/coverage-v8": "^4.0.17",
+    "@vitest/ui": "^4.0.17",
+    "happy-dom": "^20.3.0",
+    "typedoc": "^0.25.0",
     "typescript": "^5.0.0",
     "vite": "^5.0.0",
-    "typedoc": "^0.25.0"
+    "vitest": "^4.0.17"
   }
 }

@@ -8,7 +8,7 @@ pub struct CorrelationMatrix {
     pub data: Vec<Vec<f64>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct AnalysisResponse {
     pub file_name: String,
     pub path: String,

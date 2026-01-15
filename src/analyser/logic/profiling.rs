@@ -496,7 +496,10 @@ pub fn check_special_characters(
             .as_materialized_series();
         if let Ok(ca) = names.str() {
             for val in ca.into_iter().flatten() {
-                if val.contains('\r') {
+                if val.contains('\r')
+                    || val.contains('\n')
+                    || val.chars().any(|c| (c.is_ascii_control() && c != '\t') || c == '\u{FFFD}')
+                {
                     return Ok(true);
                 }
             }

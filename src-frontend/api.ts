@@ -28,8 +28,8 @@
  * | number           | i32, u32, f64     |
  * | boolean          | bool              |
  * | object           | struct (Serialize)|
- * | Array<T>         | Vec<T>            |
- * | null/undefined   | Option<T>         |
+ * | Array&lt;T&gt;         | Vec&lt;T&gt;            |
+ * | null/undefined   | Option&lt;T&gt;         |
  *
  * ## Error Handling
  *

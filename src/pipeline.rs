@@ -18,21 +18,14 @@
 //! use beefcake::pipeline::{PipelineSpec, InputConfig, OutputConfig, run_pipeline};
 //! use std::path::PathBuf;
 //!
-//! let spec = PipelineSpec {
-//!     version: "0.1".to_string(),
-//!     name: "Data Cleaning".to_string(),
-//!     description: Some("Clean customer data".to_string()),
-//!     steps: vec![],  // Add your steps here
-//!     input: Some(InputConfig { format: Some("csv".to_string()), path: None }),
-//!     output: Some(OutputConfig {
-//!         format: Some("parquet".to_string()),
-//!         path: Some("output.parquet".to_string())
-//!     }),
-//! };
+//! # fn example() -> anyhow::Result<()> {
+//! let spec = PipelineSpec::new("Data Cleaning");
+//! // Add your steps here
 //!
-//! let report = run_pipeline(&spec, PathBuf::from("data.csv"), Some(PathBuf::from("output.parquet")))?;
+//! let report = run_pipeline(&spec, &PathBuf::from("data.csv"), Some(&PathBuf::from("output.parquet")))?;
 //! println!("Processed {} rows", report.rows_after);
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Pipeline Templates

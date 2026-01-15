@@ -31,7 +31,6 @@ export class PipelineEditor {
     private onSave?: (spec: PipelineSpec) => void;
     private onBack?: () => void;
     private onExecute?: (spec: PipelineSpec) => void;
-    private draggedStepIndex: number | null = null;
 
     constructor(container: HTMLElement, spec?: PipelineSpec) {
         this.container = container;
@@ -185,9 +184,13 @@ export class PipelineEditor {
             `;
         }
 
+        const stepCards = this.state.spec.steps.map((step, index) =>
+            this.renderStepCard(step, index)
+        ).join('');
+
         return `
             <div class="steps-list">
-                ${this.state.spec.steps.map((step, index) => this.renderStepCard(step, index)).join('')}
+                ${stepCards}
             </div>
         `;
     }
@@ -202,10 +205,8 @@ export class PipelineEditor {
 
         return `
             <div class="step-card ${isSelected ? 'selected' : ''}"
-                 data-index="${index}"
-                 draggable="true">
+                 data-index="${index}">
                 <div class="step-card-header">
-                    <span class="step-drag-handle" title="Drag to reorder">⋮⋮</span>
                     <span class="step-number">${index + 1}</span>
                     <span class="step-type">${this.escapeHtml(stepType)}</span>
                     <div class="step-card-actions">
@@ -362,51 +363,6 @@ export class PipelineEditor {
                 this.selectStep(index);
             });
         });
-
-        // Drag-and-drop event listeners
-        this.container.querySelectorAll('.step-card').forEach(card => {
-            const cardElement = card as HTMLElement;
-
-            cardElement.addEventListener('dragstart', (e: DragEvent) => {
-                this.draggedStepIndex = parseInt(cardElement.getAttribute('data-index') || '0');
-                cardElement.classList.add('dragging');
-                if (e.dataTransfer) {
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/html', cardElement.innerHTML);
-                }
-            });
-
-            cardElement.addEventListener('dragend', () => {
-                cardElement.classList.remove('dragging');
-                this.draggedStepIndex = null;
-                // Remove all drag-over classes
-                this.container.querySelectorAll('.step-card').forEach(c => {
-                    c.classList.remove('drag-over');
-                });
-            });
-
-            cardElement.addEventListener('dragover', (e: DragEvent) => {
-                e.preventDefault();
-                if (e.dataTransfer) {
-                    e.dataTransfer.dropEffect = 'move';
-                }
-                cardElement.classList.add('drag-over');
-            });
-
-            cardElement.addEventListener('dragleave', () => {
-                cardElement.classList.remove('drag-over');
-            });
-
-            cardElement.addEventListener('drop', (e: DragEvent) => {
-                e.preventDefault();
-                cardElement.classList.remove('drag-over');
-
-                const dropIndex = parseInt(cardElement.getAttribute('data-index') || '0');
-                if (this.draggedStepIndex !== null && this.draggedStepIndex !== dropIndex) {
-                    this.moveStepToIndex(this.draggedStepIndex, dropIndex);
-                }
-            });
-        });
     }
 
     /**
@@ -472,34 +428,6 @@ export class PipelineEditor {
             this.initializePalette();
             this.initializeConfigPanel();
         }
-    }
-
-    /**
-     * Move step from one index to another (used for drag-and-drop)
-     */
-    private moveStepToIndex(fromIndex: number, toIndex: number): void {
-        if (fromIndex === toIndex) return;
-
-        const steps = this.state.spec.steps;
-        const movedStep = steps[fromIndex];
-        if (!movedStep) return; // Safety check
-        steps.splice(fromIndex, 1);
-        steps.splice(toIndex, 0, movedStep);
-
-        // Update selected index if necessary
-        if (this.state.selectedStepIndex === fromIndex) {
-            this.state.selectedStepIndex = toIndex;
-        } else if (fromIndex < this.state.selectedStepIndex! && toIndex >= this.state.selectedStepIndex!) {
-            this.state.selectedStepIndex!--;
-        } else if (fromIndex > this.state.selectedStepIndex! && toIndex <= this.state.selectedStepIndex!) {
-            this.state.selectedStepIndex!++;
-        }
-
-        this.state.isDirty = true;
-        this.render();
-        this.attachEventListeners();
-        this.initializePalette();
-        this.initializeConfigPanel();
     }
 
     /**

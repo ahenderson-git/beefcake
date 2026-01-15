@@ -2,7 +2,7 @@ import { escapeHtml, fmtBytes } from "../utils";
 
 export function renderDashboardView(state: any): string {
   return `
-    <div class="dashboard">
+    <div class="dashboard" data-testid="dashboard-view">
       <div class="hero">
         <h1>beefcake <small>v${state.version}</small></h1>
         <p>Developed by Anthony Henderson</p>
@@ -41,7 +41,7 @@ export function renderDashboardView(state: any): string {
           <p><i class="ph ph-terminal-window"></i> <strong>Technical Foundation:</strong> High-performance processing powered by Rust & Polars DataFrames.</p>
         </div>
       </div>
-
+// (line 45 omitted for brevity in match)
       <div class="stats-grid">
         <div class="stat-card">
           <h3>Local Storage</h3>
@@ -60,7 +60,7 @@ export function renderDashboardView(state: any): string {
         </div>
       </div>
       <div class="actions">
-        <button id="btn-open-file" class="btn-primary">
+        <button id="btn-open-file" class="btn-primary" data-testid="dashboard-open-file-button">
           <i class="ph ph-cloud-arrow-up"></i> Analyze New Dataset
         </button>
         <button id="btn-powershell" class="btn-secondary">

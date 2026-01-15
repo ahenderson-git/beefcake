@@ -235,13 +235,13 @@ User Event → Component → Update State → Render → Update DOM
 
 ### 4. CLI Interface (`src/cli.rs`)
 
-```rust
+```text
 Commands:
-- analyze <file>              # Analyze CSV/JSON/Parquet
-- clean <file> <config>       # Apply cleaning config
-- pipeline execute <spec>     # Run pipeline
-- pipeline validate <spec>    # Check pipeline validity
-- db push <file> <conn-id>    # Upload to database
+- analyze [file]              # Analyze CSV/JSON/Parquet
+- clean [file] [config]       # Apply cleaning config
+- pipeline execute [spec]     # Run pipeline
+- pipeline validate [spec]    # Check pipeline validity
+- db push [file] [conn-id]    # Upload to database
 ```
 
 **Use Cases**:
@@ -267,7 +267,7 @@ Commands:
 
 ### Analysis Flow
 
-```
+```text
 1. User selects file
    ↓
 2. Frontend: api.analyseFile(path)
@@ -287,7 +287,7 @@ Commands:
 
 ### Lifecycle Flow
 
-```
+```text
 1. Create Dataset (Raw stage)
    ↓
 2. Profile (analyze, generate recommendations)
@@ -309,7 +309,7 @@ Each stage creates a new immutable version with:
 
 ### Pipeline Execution Flow
 
-```
+```text
 1. Load PipelineSpec from JSON
    ↓
 2. Validate spec (schema, column existence)
@@ -347,16 +347,13 @@ Benefits:
 ### 2. Immutable Versioning
 
 ```rust
-pub struct Dataset {
-    versions: VersionTree,
-    active_version: Uuid,
-}
-
-// Never mutates data, always creates new version
-pub fn apply_transforms(&mut self, pipeline: TransformPipeline) -> Result<Uuid> {
-    let new_version = self.create_version(pipeline)?;
-    self.versions.add(new_version);
-    Ok(new_version.id)
+impl Dataset {
+    // Never mutates data, always creates new version
+    pub fn apply_transforms(&mut self, pipeline: TransformPipeline) -> Result<Uuid> {
+        let new_version = self.create_version(pipeline)?;
+        self.versions.add(new_version);
+        Ok(new_version.id)
+    }
 }
 ```
 
@@ -368,15 +365,18 @@ Benefits:
 ### 3. Lazy Evaluation
 
 ```rust
-// Build query plan (no data loaded yet)
-let lf = LazyFrame::scan_csv(path)?
-    .select([col("age"), col("name")])
-    .filter(col("age").gt(18))
-    .groupby([col("country")])
-    .agg([col("age").mean()]);
+fn example() -> Result<()> {
+    // Build query plan (no data loaded yet)
+    let lf = LazyFrame::scan_csv(path)?
+        .select([col("age"), col("name")])
+        .filter(col("age").gt(18))
+        .groupby([col("country")])
+        .agg([col("age").mean()]);
 
-// Execute only when needed
-let df = lf.collect()?;  // Now data is processed
+    // Execute only when needed
+    let df = lf.collect()?;  // Now data is processed
+    Ok(())
+}
 ```
 
 Benefits:

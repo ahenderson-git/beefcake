@@ -776,11 +776,11 @@ export class PipelineLibrary {
 }
 
 .error {
-    color: var(--error-color);
+    color: #ff0000; /* var(--error-color) */
 }
 
 .btn-primary {
-    background: var(--primary-color);
+    background: #007bff; /* var(--primary-color) */
     color: white;
     border: none;
     padding: 0.5rem 1rem;
@@ -791,7 +791,7 @@ export class PipelineLibrary {
 }
 
 .btn-primary:hover {
-    background: var(--primary-color-dark);
+    background: #0056b3; /* var(--primary-color-dark) */
 }
 ```
 
@@ -1001,7 +1001,7 @@ class PipelineEditor {
 }
 
 .step-card.drag-over {
-  border: 2px dashed var(--primary);
+  border: 2px dashed #007bff; /* var(--primary-color) */
   background: rgba(52, 152, 219, 0.05);
   transform: scale(1.02);
 }
@@ -1016,7 +1016,7 @@ class PipelineEditor {
 
 .step-card:hover .step-drag-handle {
   opacity: 1;
-  color: var(--primary);
+  color: #007bff; /* var(--primary-color) */
 }
 ```
 

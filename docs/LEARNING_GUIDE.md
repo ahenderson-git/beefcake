@@ -38,7 +38,7 @@ beefcake/
 ### 1. **Result Type** - Error Handling
 ```rust
 fn analyze_file(path: &str) -> Result<DataFrame> {
-    // Result<T> means: returns T on success, Error on failure
+    // Result&lt;T&gt; means: returns T on success, Error on failure
     // No exceptions in Rust!
     let df = read_csv(path)?;  // ? propagates errors up
     Ok(df)
@@ -62,10 +62,12 @@ pub trait StageExecutor {
 
 ### 4. **Match Expressions** - Pattern Matching
 ```rust
-match column_type {
-    ColumnType::Numeric => process_numbers(),
-    ColumnType::Text => process_text(),
-    _ => default_handler(),
+fn handle_type(column_type: ColumnType) {
+    match column_type {
+        ColumnType::Numeric => process_numbers(),
+        ColumnType::Text => process_text(),
+        _ => default_handler(),
+    }
 }
 ```
 

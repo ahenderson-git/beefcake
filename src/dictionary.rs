@@ -14,25 +14,25 @@
 //! ## Usage
 //!
 //! ```no_run
-//! use beefcake::dictionary::create_snapshot;
+//! use beefcake::dictionary::{create_snapshot, storage::save_snapshot};
 //! use polars::prelude::*;
-//! use std::path::PathBuf;
+//! use std::path::Path;
 //!
 //! # fn example(df: &DataFrame) -> anyhow::Result<()> {
 //! let snapshot = create_snapshot(
 //!     "my_dataset",
 //!     df,
-//!     PathBuf::from("input.csv"),
-//!     PathBuf::from("output.parquet"),
-//!     Some("pipeline-json-here"),
+//!     Path::new("input.csv").to_path_buf(),
+//!     Path::new("output.parquet").to_path_buf(),
+//!     Some("pipeline-json-here".to_string()),
 //!     None, // No previous snapshot
 //! )?;
 //!
 //! // Save to disk
-//! snapshot.save_to_file(&PathBuf::from("data/dictionaries"))?;
+//! save_snapshot(&snapshot, Path::new("data/dictionaries"))?;
 //!
 //! // Export as Markdown
-//! let markdown = snapshot.render_markdown()?;
+//! let markdown = beefcake::dictionary::render_markdown(&snapshot)?;
 //! std::fs::write("dictionary.md", markdown)?;
 //! # Ok(())
 //! # }

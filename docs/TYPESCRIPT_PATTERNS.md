@@ -608,16 +608,16 @@ interface Response<T> {
   status: number;
 }
 
-// Example usage with User type
+// Example: Response<User> type
 interface User {
   name: string;
 }
 
-const alice: User = { name: 'Alice' };
-const userResponse: Response<User> = {
-  data: alice,
-  status: 200
-};
+// When you use Response<User>, TypeScript knows:
+// - response.data is of type User
+// - response.status is of type number
+type UserResponse = Response<User>;
+// This is equivalent to: { data: User; status: number }
 ```
 
 ---

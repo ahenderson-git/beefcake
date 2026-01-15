@@ -97,15 +97,15 @@ def generate_test_csv(
 
 if __name__ == "__main__":
     # Default: 5M rows × 100 columns (~2GB file)
-    rows = 5_000_000
-    cols = 100
+    num_rows = 5_000_000
+    num_cols = 100
     output = "test_5M_100cols.csv"
 
     # Parse command line args
     if len(sys.argv) > 1:
-        rows = int(sys.argv[1])
+        num_rows = int(sys.argv[1])
     if len(sys.argv) > 2:
-        cols = int(sys.argv[2])
+        num_cols = int(sys.argv[2])
     if len(sys.argv) > 3:
         output = sys.argv[3]
 
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("")
 
-    generate_test_csv(output, rows, cols)
+    generate_test_csv(output, num_rows, num_cols)
 
     print("")
     print(f"Ready to test! Run:")
