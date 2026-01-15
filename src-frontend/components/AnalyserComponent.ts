@@ -7,6 +7,7 @@ import { ExportModal } from "./ExportModal";
 
 export class AnalyserComponent extends Component {
   private charts: Map<string, Chart> = new Map();
+  private isTransitioning: boolean = false;
 
   private getCurrentStage(state: AppState): LifecycleStage | null {
     if (!state.currentDataset || !state.currentDataset.activeVersionId) {
@@ -54,15 +55,66 @@ export class AnalyserComponent extends Component {
       });
     }
 
-    container.innerHTML = renderers.renderAnalyser(
-      state.analysisResponse,
-      state.expandedRows,
-      state.cleaningConfigs,
-      currentStage,
-      isReadOnly,
-      state.selectedColumns,
-      state.useOriginalColumnNames
-    );
+    // Special rendering for Validated stage - show summary view
+    if (currentStage === 'Validated') {
+      const existingWrapper = container.querySelector('.analyser-wrapper');
+      if (!existingWrapper) {
+        container.innerHTML = `
+          <div class="analyser-wrapper">
+            <div id="lifecycle-rail-container"></div>
+            <div id="analyser-content-container" class="analyser-container">
+              ${renderers.renderValidatedSummary(state.analysisResponse, state.currentDataset)}
+            </div>
+          </div>
+        `;
+      } else {
+        const contentContainer = document.getElementById('analyser-content-container');
+        if (contentContainer) {
+          contentContainer.innerHTML = renderers.renderValidatedSummary(state.analysisResponse, state.currentDataset);
+        }
+      }
+      this.bindValidatedEvents(state);
+      return;
+    }
+
+    // Check if this is the first render (container is empty or doesn't have wrapper)
+    const existingWrapper = container.querySelector('.analyser-wrapper');
+    if (!existingWrapper) {
+      // First render: set entire HTML including wrapper structure
+      container.innerHTML = renderers.renderAnalyser(
+        state.analysisResponse,
+        state.expandedRows,
+        state.cleaningConfigs,
+        currentStage,
+        isReadOnly,
+        state.selectedColumns,
+        state.useOriginalColumnNames
+      );
+    } else {
+      // Subsequent renders: only update content container to preserve lifecycle rail
+      const contentContainer = document.getElementById('analyser-content-container');
+      if (contentContainer) {
+        // Temporarily store the content HTML by re-generating it
+        const fullHTML = renderers.renderAnalyser(
+          state.analysisResponse,
+          state.expandedRows,
+          state.cleaningConfigs,
+          currentStage,
+          isReadOnly,
+          state.selectedColumns,
+          state.useOriginalColumnNames
+        );
+
+        // Extract just the content container portion from the generated HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = fullHTML;
+        const newContentContainer = tempDiv.querySelector('#analyser-content-container');
+
+        if (newContentContainer) {
+          contentContainer.innerHTML = newContentContainer.innerHTML;
+        }
+      }
+    }
 
     const header = document.getElementById('analyser-header-container');
     if (header) {
@@ -229,12 +281,73 @@ export class AnalyserComponent extends Component {
       this.handleExport(state);
     });
 
-    document.getElementById('btn-begin-cleaning')?.addEventListener('click', async () => {
-      await this.handleBeginCleaning(state);
+    const btnBeginCleaning = document.getElementById('btn-begin-cleaning') as HTMLButtonElement;
+    btnBeginCleaning?.addEventListener('click', async () => {
+      if (this.isTransitioning) return;
+      btnBeginCleaning.disabled = true;
+
+      // Start timer
+      const startTime = Date.now();
+      const updateTimer = () => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        btnBeginCleaning.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
+      };
+      updateTimer();
+      const timerInterval = setInterval(updateTimer, 1000);
+
+      try {
+        await this.handleBeginCleaning(state);
+      } finally {
+        clearInterval(timerInterval);
+        btnBeginCleaning.disabled = false;
+        btnBeginCleaning.innerHTML = '<i class="ph ph-broom"></i> Begin Cleaning';
+      }
     });
 
-    document.getElementById('btn-continue-advanced')?.addEventListener('click', async () => {
-      await this.handleContinueToAdvanced(state);
+    const btnContinueAdvanced = document.getElementById('btn-continue-advanced') as HTMLButtonElement;
+    btnContinueAdvanced?.addEventListener('click', async () => {
+      if (this.isTransitioning) return;
+      btnContinueAdvanced.disabled = true;
+
+      // Start timer
+      const startTime = Date.now();
+      const updateTimer = () => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        btnContinueAdvanced.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
+      };
+      updateTimer();
+      const timerInterval = setInterval(updateTimer, 1000);
+
+      try {
+        await this.handleContinueToAdvanced(state);
+      } finally {
+        clearInterval(timerInterval);
+        btnContinueAdvanced.disabled = false;
+        btnContinueAdvanced.innerHTML = '<i class="ph ph-arrow-right"></i> Continue to Advanced';
+      }
+    });
+
+    const btnMoveToValidated = document.getElementById('btn-move-to-validated') as HTMLButtonElement;
+    btnMoveToValidated?.addEventListener('click', async () => {
+      if (this.isTransitioning) return;
+      btnMoveToValidated.disabled = true;
+
+      // Start timer
+      const startTime = Date.now();
+      const updateTimer = () => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        btnMoveToValidated.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
+      };
+      updateTimer();
+      const timerInterval = setInterval(updateTimer, 1000);
+
+      try {
+        await this.handleMoveToValidated(state);
+      } finally {
+        clearInterval(timerInterval);
+        btnMoveToValidated.disabled = false;
+        btnMoveToValidated.innerHTML = '<i class="ph ph-check-circle"></i> Move to Validated';
+      }
     });
 
     // Cleaning info box toggle
@@ -275,6 +388,7 @@ export class AnalyserComponent extends Component {
       return;
     }
 
+    this.isTransitioning = true;
     try {
       this.actions.showToast('Transitioning to Cleaning stage...', 'info');
 
@@ -317,6 +431,8 @@ export class AnalyserComponent extends Component {
       this.actions.showToast('Cleaning stage unlocked', 'success');
     } catch (err) {
       this.actions.showToast(`Failed to transition: ${err}`, 'error');
+    } finally {
+      this.isTransitioning = false;
     }
   }
 
@@ -326,6 +442,7 @@ export class AnalyserComponent extends Component {
       return;
     }
 
+    this.isTransitioning = true;
     try {
       this.actions.showToast('Transitioning to Advanced stage...', 'info');
 
@@ -368,7 +485,94 @@ export class AnalyserComponent extends Component {
       this.actions.showToast('Advanced stage unlocked - ML preprocessing now available', 'success');
     } catch (err) {
       this.actions.showToast(`Failed to transition: ${err}`, 'error');
+    } finally {
+      this.isTransitioning = false;
     }
+  }
+
+  private async handleMoveToValidated(state: AppState) {
+    if (!state.currentDataset) {
+      this.actions.showToast('No dataset loaded', 'error');
+      return;
+    }
+
+    this.isTransitioning = true;
+    try {
+      this.actions.showToast('Transitioning to Validated stage...', 'info');
+
+      // Build empty pipeline - validation is non-mutating
+      const pipeline: { transforms: any[] } = { transforms: [] };
+      const pipelineJson = JSON.stringify(pipeline);
+
+      // Apply transforms (creates new version in Validated stage)
+      const newVersionId = await api.applyTransforms(
+        state.currentDataset.id,
+        pipelineJson,
+        'Validated'
+      );
+
+      // Refresh versions
+      const versionsJson = await api.listVersions(state.currentDataset.id);
+
+      // Update state
+      state.currentDataset.versions = JSON.parse(versionsJson);
+      state.currentDataset.activeVersionId = newVersionId;
+
+      // Re-render to show validation summary
+      this.actions.onStateChange();
+      this.actions.showToast('Validated stage unlocked - ready for publishing', 'success');
+    } catch (err) {
+      this.actions.showToast(`Failed to transition: ${err}`, 'error');
+    } finally {
+      this.isTransitioning = false;
+    }
+  }
+
+  private bindValidatedEvents(state: AppState) {
+    // Back to Advanced button
+    const btnBackToAdvanced = document.getElementById('btn-back-to-advanced');
+    btnBackToAdvanced?.addEventListener('click', async () => {
+      if (!state.currentDataset) return;
+
+      // Find the Advanced stage version
+      const advancedVersion = state.currentDataset.versions.find(v => v.stage === 'Advanced');
+      if (!advancedVersion) {
+        this.actions.showToast('Advanced version not found', 'error');
+        return;
+      }
+
+      try {
+        // Set active version back to Advanced
+        await api.setActiveVersion(state.currentDataset.id, advancedVersion.id);
+        state.currentDataset.activeVersionId = advancedVersion.id;
+
+        // Re-render
+        this.actions.onStateChange();
+        this.actions.showToast('Returned to Advanced stage', 'success');
+      } catch (err) {
+        this.actions.showToast(`Failed to switch version: ${err}`, 'error');
+      }
+    });
+
+    // Publish Dataset button
+    const btnPublish = document.getElementById('btn-publish-dataset');
+    btnPublish?.addEventListener('click', async () => {
+      if (!state.currentDataset || !state.analysisResponse) return;
+
+      // Open export modal
+      const modal = new ExportModal(
+        'modal-container',
+        this.actions,
+        {
+          type: 'Analyser',
+          path: state.analysisResponse.path
+        }
+      );
+
+      document.getElementById('modal-container')?.classList.add('active');
+      await modal.show(state);
+      document.getElementById('modal-container')?.classList.remove('active');
+    });
   }
 
   private initCharts(state: AppState) {

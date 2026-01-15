@@ -56,7 +56,15 @@ pub fn run_full_analysis(
     trim_pct: f64,
     start_time: std::time::Instant,
 ) -> Result<AnalysisResponse> {
-    run_full_analysis_streaming(lf, path, file_size, total_row_count, sampled_row_count, trim_pct, start_time)
+    run_full_analysis_streaming(
+        lf,
+        path,
+        file_size,
+        total_row_count,
+        sampled_row_count,
+        trim_pct,
+        start_time,
+    )
 }
 
 pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
@@ -160,14 +168,15 @@ fn check_special_characters_streaming(col_lf: LazyFrame, name: &str) -> bool {
     if let Ok(df) = col_lf
         .select([col(name).str().contains(lit(r"\r"), false).any(false)])
         .collect()
-        && let Ok(col) = df.column(name) {
-            return col
-                .as_materialized_series()
-                .bool()
-                .ok()
-                .and_then(|ca| ca.get(0))
-                .unwrap_or(false);
-        }
+        && let Ok(col) = df.column(name)
+    {
+        return col
+            .as_materialized_series()
+            .bool()
+            .ok()
+            .and_then(|ca| ca.get(0))
+            .unwrap_or(false);
+    }
     false
 }
 
@@ -416,7 +425,11 @@ pub fn compute_numeric_stats(
             col(name).sum().alias("sum"),
             col(name).eq(lit(0)).sum().alias("zero_count"),
             col(name).lt(lit(0)).sum().alias("negative_count"),
-            col(name).floor().eq(col(name)).all(false).alias("is_integer"),
+            col(name)
+                .floor()
+                .eq(col(name))
+                .all(false)
+                .alias("is_integer"),
             len().alias("count"),
         ])
         .with_streaming(true)
@@ -442,8 +455,7 @@ pub fn compute_numeric_stats(
             .ok()
             .and_then(|col| {
                 let s = col.as_materialized_series();
-                let sc = s.cast(&DataType::UInt64)
-                    .ok()?;
+                let sc = s.cast(&DataType::UInt64).ok()?;
                 let ca = sc.u64().ok()?;
                 ca.get(0)
             })
@@ -624,8 +636,7 @@ pub fn compute_boolean_stats(lf: LazyFrame, name: &str) -> Result<(ColumnKind, C
             .ok()
             .and_then(|col| {
                 let s = col.as_materialized_series();
-                let sc = s.cast(&DataType::UInt64)
-                    .ok()?;
+                let sc = s.cast(&DataType::UInt64).ok()?;
                 let ca = sc.u64().ok()?;
                 ca.get(0)
             })
@@ -635,7 +646,9 @@ pub fn compute_boolean_stats(lf: LazyFrame, name: &str) -> Result<(ColumnKind, C
     let true_count = get_usize("true_count");
     let null_count = get_usize("null_count");
     let total_count = get_usize("total_count");
-    let false_count = total_count.saturating_sub(null_count).saturating_sub(true_count);
+    let false_count = total_count
+        .saturating_sub(null_count)
+        .saturating_sub(true_count);
 
     Ok((
         ColumnKind::Boolean,
@@ -666,11 +679,11 @@ pub fn calculate_correlation_matrix_lazy(mut lf: LazyFrame) -> Result<Option<Cor
     // Limit columns for correlation to avoid OOM and massive matrices
     // Use adaptive limits: fewer columns for wide datasets to control memory
     let max_cols = if numeric_cols.len() > 100 {
-        15  // Very wide: limit to 15 cols
+        15 // Very wide: limit to 15 cols
     } else if numeric_cols.len() > 50 {
-        20  // Wide: limit to 20 cols
+        20 // Wide: limit to 20 cols
     } else {
-        30  // Normal: limit to 30 cols
+        30 // Normal: limit to 30 cols
     };
 
     if numeric_cols.len() > max_cols {
@@ -692,7 +705,7 @@ pub fn calculate_correlation_matrix_lazy(mut lf: LazyFrame) -> Result<Option<Cor
         .unwrap_or(0) as usize;
 
     let sample_size = if total_rows > 10_000 {
-        10_000  // Reduced from 100k to 10k (10x memory reduction)
+        10_000 // Reduced from 100k to 10k (10x memory reduction)
     } else {
         total_rows
     };
@@ -705,8 +718,7 @@ pub fn calculate_correlation_matrix_lazy(mut lf: LazyFrame) -> Result<Option<Cor
             let name_i = &numeric_cols[i];
             let name_j = &numeric_cols[j];
             exprs.push(
-                polars::prelude::pearson_corr(col(name_i), col(name_j))
-                    .alias(format!("{i}_{j}")),
+                polars::prelude::pearson_corr(col(name_i), col(name_j)).alias(format!("{i}_{j}")),
             );
         }
     }

@@ -201,9 +201,10 @@ impl ColumnSummary {
         if self.kind == ColumnKind::Numeric && !is_likely_id {
             advice.push("Recommend Z-Score or Min-Max Normalization if other numeric features have different scales.".to_owned());
             if let ColumnStats::Numeric(s) = &self.stats
-                && s.zero_count as f64 / self.count as f64 > 0.3 {
-                    advice.push("High proportion of zeros detected. Consider if 'Zero-Inflated' model techniques are needed.".to_owned());
-                }
+                && s.zero_count as f64 / self.count as f64 > 0.3
+            {
+                advice.push("High proportion of zeros detected. Consider if 'Zero-Inflated' model techniques are needed.".to_owned());
+            }
         }
     }
 
@@ -301,9 +302,13 @@ impl ColumnSummary {
             if mean.abs() > 1e-9 {
                 let cv = std_dev / mean.abs();
                 if cv > 1.0 {
-                    signals.push("High relative variability (CV > 1); spread exceeds average magnitude.");
+                    signals.push(
+                        "High relative variability (CV > 1); spread exceeds average magnitude.",
+                    );
                 } else if cv < 0.1 {
-                    signals.push("Low relative variability; values are tightly clustered around average.");
+                    signals.push(
+                        "Low relative variability; values are tightly clustered around average.",
+                    );
                 }
             }
         }
@@ -379,7 +384,9 @@ impl ColumnSummary {
         if !s.histogram.is_empty() && s.histogram.len() > 5 {
             let peaks = Self::count_histogram_peaks(&s.histogram);
             if peaks >= 2 {
-                signals.push("Distribution shows multiple peaks, suggesting distinct subgroups in the data.");
+                signals.push(
+                    "Distribution shows multiple peaks, suggesting distinct subgroups in the data.",
+                );
             }
         }
     }
@@ -437,10 +444,7 @@ impl ColumnSummary {
 
         // Check for regular intervals (e.g., daily, hourly data)
         if s.distinct_count > 10 && s.histogram.len() > 2 {
-            let intervals: Vec<f64> = s.histogram
-                .windows(2)
-                .map(|w| w[1].0 - w[0].0)
-                .collect();
+            let intervals: Vec<f64> = s.histogram.windows(2).map(|w| w[1].0 - w[0].0).collect();
 
             if !intervals.is_empty() {
                 let avg_interval = intervals.iter().sum::<f64>() / intervals.len() as f64;
@@ -582,7 +586,9 @@ impl ColumnSummary {
             if let (Some(p05), Some(p95)) = (s.p05, s.p95) {
                 if min >= 0.0 && max <= 100.0 && p05 >= 0.0 && p95 <= 100.0 {
                     // Likely percentage/score data
-                    insights.push("90% of values fall within a typical performance or completion range.");
+                    insights.push(
+                        "90% of values fall within a typical performance or completion range.",
+                    );
                 } else {
                     insights.push("The central 90% of values provides a reliable range for typical cases, excluding extreme outliers.");
                 }
@@ -602,7 +608,8 @@ impl ColumnSummary {
         // Check for unique identifier pattern
         let all_unique = freq.values().all(|&count| count == 1);
         if all_unique {
-            insights.push("This appears to be a unique tracking number or identifier for each record.");
+            insights
+                .push("This appears to be a unique tracking number or identifier for each record.");
             return;
         }
 
@@ -659,7 +666,9 @@ impl ColumnSummary {
             return false;
         }
         // Check for empty bins (count == 0) that aren't at the edges
-        histogram[1..histogram.len()-1].iter().any(|&(_, count)| count == 0)
+        histogram[1..histogram.len() - 1]
+            .iter()
+            .any(|&(_, count)| count == 0)
     }
 
     fn count_histogram_peaks(histogram: &[(f64, usize)]) -> usize {
@@ -667,10 +676,10 @@ impl ColumnSummary {
             return 0;
         }
         let mut peaks = 0;
-        for i in 1..histogram.len()-1 {
-            if histogram[i].1 > histogram[i-1].1 && histogram[i].1 > histogram[i+1].1 {
+        for i in 1..histogram.len() - 1 {
+            if histogram[i].1 > histogram[i - 1].1 && histogram[i].1 > histogram[i + 1].1 {
                 // Only count significant peaks (not tiny bumps)
-                let avg = (histogram[i-1].1 + histogram[i].1 + histogram[i+1].1) as f64 / 3.0;
+                let avg = (histogram[i - 1].1 + histogram[i].1 + histogram[i + 1].1) as f64 / 3.0;
                 if histogram[i].1 as f64 > avg * 1.2 {
                     peaks += 1;
                 }

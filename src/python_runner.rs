@@ -1,5 +1,5 @@
-use crate::error::{BeefcakeError, Result, ResultExt as _};
 use beefcake::analyser::logic::ColumnCleanConfig;
+use beefcake::error::{BeefcakeError, Result, ResultExt as _};
 use std::collections::HashMap;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,8 @@ import sys
 pl.Config.set_tbl_cols(-1)  # Show all columns
 pl.Config.set_tbl_rows(100)  # Show up to 100 rows
 pl.Config.set_tbl_width_chars(10000)  # Allow wide tables
-"#.to_owned()
+"#
+    .to_owned()
 }
 
 pub fn python_load_snippet(data_path: &str, lf_var: &str) -> String {
@@ -86,22 +87,18 @@ pub async fn execute_python_with_env(
     cmd.env("NO_COLOR", ""); // Set but empty to allow FORCE_COLOR to work
 
     if let Some(path) = &data_path
-        && !path.is_empty() {
-            beefcake::utils::log_event(
-                log_tag,
-                &format!("Setting BEEFCAKE_DATA_PATH to: {path}"),
-            );
-            cmd.env("BEEFCAKE_DATA_PATH", path);
-        }
+        && !path.is_empty()
+    {
+        beefcake::utils::log_event(log_tag, &format!("Setting BEEFCAKE_DATA_PATH to: {path}"));
+        cmd.env("BEEFCAKE_DATA_PATH", path);
+    }
 
     if let Some(query) = &sql_query
-        && !query.is_empty() {
-            beefcake::utils::log_event(
-                log_tag,
-                "Setting BEEFCAKE_SQL_QUERY environment variable",
-            );
-            cmd.env("BEEFCAKE_SQL_QUERY", query);
-        }
+        && !query.is_empty()
+    {
+        beefcake::utils::log_event(log_tag, "Setting BEEFCAKE_SQL_QUERY environment variable");
+        cmd.env("BEEFCAKE_SQL_QUERY", query);
+    }
 
     beefcake::utils::log_event(log_tag, "Spawning Python process...");
 
@@ -112,7 +109,9 @@ pub async fn execute_python_with_env(
         .spawn()
         .with_context(|| format!("Failed to spawn python for {log_tag}"))?;
 
-    let mut stdin = child.stdin.take()
+    let mut stdin = child
+        .stdin
+        .take()
         .ok_or_else(|| BeefcakeError::Python("Failed to open stdin".to_owned()))?;
     stdin
         .write_all(script.as_bytes())
@@ -125,7 +124,13 @@ pub async fn execute_python_with_env(
         .wait_with_output()
         .context("Failed to wait for python process")?;
 
-    beefcake::utils::log_event(log_tag, &format!("Python process completed with exit code: {:?}", out.status.code()));
+    beefcake::utils::log_event(
+        log_tag,
+        &format!(
+            "Python process completed with exit code: {:?}",
+            out.status.code()
+        ),
+    );
 
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();

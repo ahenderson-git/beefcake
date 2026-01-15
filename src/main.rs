@@ -65,12 +65,11 @@
 //! The `?` operator propagates errors to the caller (Rust runtime).
 
 #![warn(clippy::all, rust_2018_idioms)]
-#![expect(clippy::print_stdout)]  // Allow println! in main binary
+#![expect(clippy::print_stdout)] // Allow println! in main binary
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 // Private modules - only accessible within this binary
 mod cli;
-mod error;
 mod export;
 mod python_runner;
 mod system;
@@ -117,8 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         //
         // We need a Tokio runtime because some operations are async
         // (database queries, HTTP requests, etc.)
-        tokio::runtime::Runtime::new()?
-            .block_on(cli::run_command(command))?;
+        tokio::runtime::Runtime::new()?.block_on(cli::run_command(command))?;
         return Ok(());
     }
 

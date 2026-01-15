@@ -68,9 +68,7 @@ pub async fn analyze_file(path: String) -> Result<AnalysisResponse, String> {
 
     beefcake::utils::reset_abort_signal();
 
-    analyze_file_flow(path_buf)
-        .await
-        .map_err(|e| e.to_string())
+    analyze_file_flow(path_buf).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -153,7 +151,10 @@ pub async fn export_data(options: export::ExportOptions) -> Result<(), String> {
     }
 
     if high_mem_ops > 0 {
-        if matches!(options.source.source_type, export::ExportSourceType::Analyser) {
+        if matches!(
+            options.source.source_type,
+            export::ExportSourceType::Analyser
+        ) {
             if let Some(path) = &options.source.path {
                 if let Ok(meta) = std::fs::metadata(path) {
                     if meta.len() > 50 * 1024 * 1024 {
@@ -193,12 +194,14 @@ pub async fn run_python(
 ) -> Result<String, String> {
     beefcake::utils::log_event("Python", "Executing Python script.");
 
-    let (actual_data_path, _temp_guard) =
-        python_runner::prepare_data(data_path, configs, "Python").await.map_err(String::from)?;
-    
+    let (actual_data_path, _temp_guard) = python_runner::prepare_data(data_path, configs, "Python")
+        .await
+        .map_err(String::from)?;
 
     // _temp_guard will automatically clean up the temp file when dropped
-    python_runner::execute_python(&script, actual_data_path, "Python").await.map_err(String::from)
+    python_runner::execute_python(&script, actual_data_path, "Python")
+        .await
+        .map_err(String::from)
 }
 
 #[tauri::command]
@@ -209,13 +212,21 @@ pub async fn run_sql(
 ) -> Result<String, String> {
     beefcake::utils::log_event("Sql", "Executing Sql query.");
 
-    let (actual_data_path, _temp_guard) = python_runner::prepare_data(data_path, configs, "Sql").await.map_err(String::from)?;
+    let (actual_data_path, _temp_guard) = python_runner::prepare_data(data_path, configs, "Sql")
+        .await
+        .map_err(String::from)?;
 
     // Generate the load snippet and indent it properly for the try block
     let load_snippet = python_runner::python_load_snippet("data_path", "df");
     let indented_load = load_snippet
         .lines()
-        .map(|line| if line.is_empty() { line.to_owned() } else { format!("    {line}") })
+        .map(|line| {
+            if line.is_empty() {
+                line.to_owned()
+            } else {
+                format!("    {line}")
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -251,10 +262,10 @@ except Exception as e:
         indented_load
     );
 
-    
-
     // _temp_guard will automatically clean up the temp file when dropped
-    python_runner::execute_python_with_env(&python_script, actual_data_path, Some(query), "Sql").await.map_err(String::from)
+    python_runner::execute_python_with_env(&python_script, actual_data_path, Some(query), "Sql")
+        .await
+        .map_err(String::from)
 }
 
 #[tauri::command]
@@ -272,7 +283,8 @@ pub async fn push_to_db_internal(
     let mut config = load_app_config();
     let (conn_name, table_name, schema_name) = {
         let conn = config
-            .settings.connections
+            .settings
+            .connections
             .iter()
             .find(|c| c.id == connection_id)
             .ok_or_else(|| "Connection not found".to_owned())?;
@@ -291,7 +303,8 @@ pub async fn push_to_db_internal(
     let _ = save_app_config(&config).ok();
 
     let conn = config
-        .settings.connections
+        .settings
+        .connections
         .iter()
         .find(|c| c.id == connection_id)
         .ok_or_else(|| "Connection not found".to_owned())?;
@@ -377,7 +390,8 @@ static LIFECYCLE_REGISTRY: LazyLock<Arc<RwLock<Option<Arc<DatasetRegistry>>>>> =
 fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
     // First, try to get the existing registry with a read lock (non-blocking for concurrent access)
     {
-        let reg_guard = LIFECYCLE_REGISTRY.read()
+        let reg_guard = LIFECYCLE_REGISTRY
+            .read()
             .map_err(|e| format!("Lock poisoned: {e}"))?;
 
         if let Some(registry) = reg_guard.as_ref() {
@@ -386,7 +400,8 @@ fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
     }
 
     // If not initialised, acquire a write lock to initialise
-    let mut reg_guard = LIFECYCLE_REGISTRY.write()
+    let mut reg_guard = LIFECYCLE_REGISTRY
+        .write()
         .map_err(|e| format!("Lock poisoned: {e}"))?;
 
     // Double-check in case another thread initialised while we waited
@@ -399,14 +414,14 @@ fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
         .join("beefcake")
         .join("datasets");
 
-    let registry = Arc::new(DatasetRegistry::new(data_dir)
-        .map_err(|e| format!("Failed to create registry: {e}"))?);
+    let registry = Arc::new(
+        DatasetRegistry::new(data_dir).map_err(|e| format!("Failed to create registry: {e}"))?,
+    );
 
     *reg_guard = Some(Arc::clone(&registry));
 
     Ok(registry)
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateDatasetRequest {
@@ -421,7 +436,8 @@ pub async fn lifecycle_create_dataset(request: CreateDatasetRequest) -> Result<S
     let registry = get_or_create_registry()?;
     let path_buf = PathBuf::from(&request.path);
 
-    let dataset_id = registry.create_dataset(request.name, path_buf)
+    let dataset_id = registry
+        .create_dataset(request.name, path_buf)
         .map_err(|e| format!("Failed to create dataset: {e}"))?;
 
     Ok(dataset_id.to_string())
@@ -439,16 +455,17 @@ pub async fn lifecycle_apply_transforms(request: ApplyTransformsRequest) -> Resu
     beefcake::utils::log_event("Lifecycle", "Applying transforms");
 
     let registry = get_or_create_registry()?;
-    let dataset_id = Uuid::parse_str(&request.dataset_id)
-        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let dataset_id =
+        Uuid::parse_str(&request.dataset_id).map_err(|e| format!("Invalid dataset ID: {e}"))?;
 
     let pipeline = TransformPipeline::from_json(&request.pipeline_json)
         .map_err(|e| format!("Failed to parse pipeline: {e}"))?;
 
-    let stage = LifecycleStage::from_str(&request.stage)
+    let stage = LifecycleStage::parse_stage(&request.stage)
         .ok_or_else(|| format!("Invalid stage: {}", request.stage))?;
 
-    let version_id = registry.apply_transforms(&dataset_id, pipeline, stage)
+    let version_id = registry
+        .apply_transforms(&dataset_id, pipeline, stage)
         .map_err(|e| format!("Failed to apply transforms: {e}"))?;
 
     Ok(version_id.to_string())
@@ -465,12 +482,13 @@ pub async fn lifecycle_set_active_version(request: SetActiveVersionRequest) -> R
     beefcake::utils::log_event("Lifecycle", "Setting active version");
 
     let registry = get_or_create_registry()?;
-    let dataset_id = Uuid::parse_str(&request.dataset_id)
-        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
-    let version_id = Uuid::parse_str(&request.version_id)
-        .map_err(|e| format!("Invalid version ID: {e}"))?;
+    let dataset_id =
+        Uuid::parse_str(&request.dataset_id).map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let version_id =
+        Uuid::parse_str(&request.version_id).map_err(|e| format!("Invalid version ID: {e}"))?;
 
-    registry.set_active_version(&dataset_id, &version_id)
+    registry
+        .set_active_version(&dataset_id, &version_id)
         .map_err(|e| format!("Failed to set active version: {e}"))
 }
 
@@ -483,13 +501,16 @@ pub struct PublishVersionRequest {
 
 #[tauri::command]
 pub async fn lifecycle_publish_version(request: PublishVersionRequest) -> Result<String, String> {
-    beefcake::utils::log_event("Lifecycle", &format!("Publishing version as {}", request.mode));
+    beefcake::utils::log_event(
+        "Lifecycle",
+        &format!("Publishing version as {}", request.mode),
+    );
 
     let registry = get_or_create_registry()?;
-    let dataset_id = Uuid::parse_str(&request.dataset_id)
-        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
-    let version_id = Uuid::parse_str(&request.version_id)
-        .map_err(|e| format!("Invalid version ID: {e}"))?;
+    let dataset_id =
+        Uuid::parse_str(&request.dataset_id).map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let version_id =
+        Uuid::parse_str(&request.version_id).map_err(|e| format!("Invalid version ID: {e}"))?;
 
     let mode = match request.mode.to_lowercase().as_str() {
         "view" => PublishMode::View,
@@ -497,7 +518,8 @@ pub async fn lifecycle_publish_version(request: PublishVersionRequest) -> Result
         _ => return Err(format!("Invalid publish mode: {}", request.mode)),
     };
 
-    let published_id = registry.publish_version(&dataset_id, &version_id, mode)
+    let published_id = registry
+        .publish_version(&dataset_id, &version_id, mode)
         .map_err(|e| format!("Failed to publish version: {e}"))?;
 
     Ok(published_id.to_string())
@@ -511,18 +533,21 @@ pub struct GetVersionDiffRequest {
 }
 
 #[tauri::command]
-pub async fn lifecycle_get_version_diff(request: GetVersionDiffRequest) -> Result<DiffSummary, String> {
+pub async fn lifecycle_get_version_diff(
+    request: GetVersionDiffRequest,
+) -> Result<DiffSummary, String> {
     beefcake::utils::log_event("Lifecycle", "Computing version diff");
 
     let registry = get_or_create_registry()?;
-    let dataset_id = Uuid::parse_str(&request.dataset_id)
-        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
-    let version1_id = Uuid::parse_str(&request.version1_id)
-        .map_err(|e| format!("Invalid version1 ID: {e}"))?;
-    let version2_id = Uuid::parse_str(&request.version2_id)
-        .map_err(|e| format!("Invalid version2 ID: {e}"))?;
+    let dataset_id =
+        Uuid::parse_str(&request.dataset_id).map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let version1_id =
+        Uuid::parse_str(&request.version1_id).map_err(|e| format!("Invalid version1 ID: {e}"))?;
+    let version2_id =
+        Uuid::parse_str(&request.version2_id).map_err(|e| format!("Invalid version2 ID: {e}"))?;
 
-    registry.compute_diff(&dataset_id, &version1_id, &version2_id)
+    registry
+        .compute_diff(&dataset_id, &version1_id, &version2_id)
         .map_err(|e| format!("Failed to compute diff: {e}"))
 }
 
@@ -534,10 +559,11 @@ pub struct ListVersionsRequest {
 #[tauri::command]
 pub async fn lifecycle_list_versions(request: ListVersionsRequest) -> Result<String, String> {
     let registry = get_or_create_registry()?;
-    let dataset_id = Uuid::parse_str(&request.dataset_id)
-        .map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let dataset_id =
+        Uuid::parse_str(&request.dataset_id).map_err(|e| format!("Invalid dataset ID: {e}"))?;
 
-    let versions = registry.list_versions(&dataset_id)
+    let versions = registry
+        .list_versions(&dataset_id)
         .map_err(|e| format!("Failed to list versions: {e}"))?;
 
     serde_json::to_string_pretty(&versions)
@@ -555,14 +581,13 @@ pub async fn save_pipeline_spec(spec_json: String, path: String) -> Result<(), S
     beefcake::utils::log_event("Pipeline", &format!("Saving spec to: {path}"));
 
     // Parse spec to validate
-    let spec = PipelineSpec::from_json(&spec_json)
-        .map_err(|e| format!("Invalid pipeline spec: {e}"))?;
+    let spec =
+        PipelineSpec::from_json(&spec_json).map_err(|e| format!("Invalid pipeline spec: {e}"))?;
 
     // Ensure directory exists
     let path_buf = PathBuf::from(&path);
     if let Some(parent) = path_buf.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {e}"))?;
     }
 
     // Write to a file
@@ -576,17 +601,20 @@ pub async fn load_pipeline_spec(path: String) -> Result<String, String> {
 
     beefcake::utils::log_event("Pipeline", &format!("Loading spec from: {path}"));
 
-    let spec = PipelineSpec::from_file(&path)
-        .map_err(|e| format!("Failed to load pipeline spec: {e}"))?;
+    let spec =
+        PipelineSpec::from_file(&path).map_err(|e| format!("Failed to load pipeline spec: {e}"))?;
 
     spec.to_json()
         .map_err(|e| format!("Failed to serialize pipeline spec: {e}"))
 }
 
 #[tauri::command]
-pub async fn validate_pipeline_spec(spec_json: String, input_path: String) -> Result<Vec<String>, String> {
-    use beefcake::pipeline::{PipelineSpec, validate_pipeline};
+pub async fn validate_pipeline_spec(
+    spec_json: String,
+    input_path: String,
+) -> Result<Vec<String>, String> {
     use beefcake::analyser::logic::load_df_lazy;
+    use beefcake::pipeline::{PipelineSpec, validate_pipeline};
 
     beefcake::utils::log_event("Pipeline", "Validating pipeline spec");
 
@@ -598,12 +626,12 @@ pub async fn validate_pipeline_spec(spec_json: String, input_path: String) -> Re
     let mut lf = load_df_lazy(std::path::Path::new(&input_path))
         .map_err(|e| format!("Failed to load input file: {e}"))?;
 
-    let schema = lf.collect_schema()
+    let schema = lf
+        .collect_schema()
         .map_err(|e| format!("Failed to collect schema: {e}"))?;
 
     // Validate
-    let errors = validate_pipeline(&spec, &schema)
-        .map_err(|e| format!("Validation error: {e}"))?;
+    let errors = validate_pipeline(&spec, &schema).map_err(|e| format!("Validation error: {e}"))?;
 
     Ok(errors.iter().map(|e| e.to_string()).collect())
 }
@@ -612,11 +640,14 @@ pub async fn validate_pipeline_spec(spec_json: String, input_path: String) -> Re
 pub async fn generate_powershell(spec_json: String, output_path: String) -> Result<String, String> {
     use beefcake::pipeline::{PipelineSpec, generate_powershell_script};
 
-    beefcake::utils::log_event("Pipeline", &format!("Generating PowerShell to: {output_path}"));
+    beefcake::utils::log_event(
+        "Pipeline",
+        &format!("Generating PowerShell to: {output_path}"),
+    );
 
     // Parse spec
-    let spec = PipelineSpec::from_json(&spec_json)
-        .map_err(|e| format!("Invalid pipeline spec: {e}"))?;
+    let spec =
+        PipelineSpec::from_json(&spec_json).map_err(|e| format!("Invalid pipeline spec: {e}"))?;
 
     // Determine a spec path (adjacent to ps1 file)
     let ps1_path = PathBuf::from(&output_path);
@@ -627,8 +658,7 @@ pub async fn generate_powershell(spec_json: String, output_path: String) -> Resu
 
     // Ensure directory exists
     if let Some(parent) = ps1_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {e}"))?;
     }
 
     // Write a script file
@@ -639,7 +669,11 @@ pub async fn generate_powershell(spec_json: String, output_path: String) -> Resu
     spec.to_file(&spec_path)
         .map_err(|e| format!("Failed to write spec file: {e}"))?;
 
-    Ok(format!("Generated:\n  - {}\n  - {}", ps1_path.display(), spec_path.display()))
+    Ok(format!(
+        "Generated:\n  - {}\n  - {}",
+        ps1_path.display(),
+        spec_path.display()
+    ))
 }
 
 #[tauri::command]
@@ -649,15 +683,18 @@ pub async fn pipeline_from_configs(
     input_format: String,
     output_path: String,
 ) -> Result<String, String> {
-    use beefcake::pipeline::PipelineSpec;
     use beefcake::analyser::logic::types::ColumnCleanConfig;
+    use beefcake::pipeline::PipelineSpec;
     use std::collections::HashMap;
 
-    beefcake::utils::log_event("Pipeline", &format!("Creating pipeline from configs: {name}"));
+    beefcake::utils::log_event(
+        "Pipeline",
+        &format!("Creating pipeline from configs: {name}"),
+    );
 
     // Parse configs
-    let configs: HashMap<String, ColumnCleanConfig> = serde_json::from_str(&configs_json)
-        .map_err(|e| format!("Failed to parse configs: {e}"))?;
+    let configs: HashMap<String, ColumnCleanConfig> =
+        serde_json::from_str(&configs_json).map_err(|e| format!("Failed to parse configs: {e}"))?;
 
     // Generate pipeline spec
     let spec = PipelineSpec::from_clean_configs(name, &configs, &input_format, &output_path);
@@ -678,8 +715,8 @@ pub async fn execute_pipeline_spec(
     beefcake::utils::log_event("Pipeline", &format!("Executing pipeline on: {input_path}"));
 
     // Parse spec
-    let spec = PipelineSpec::from_json(&spec_json)
-        .map_err(|e| format!("Invalid pipeline spec: {e}"))?;
+    let spec =
+        PipelineSpec::from_json(&spec_json).map_err(|e| format!("Invalid pipeline spec: {e}"))?;
 
     // Execute pipeline
     let report = run_pipeline(&spec, &input_path, output_path.as_deref())
@@ -698,8 +735,7 @@ pub async fn execute_pipeline_spec(
         "summary": report.summary()
     });
 
-    serde_json::to_string(&result)
-        .map_err(|e| format!("Failed to serialize result: {e}"))
+    serde_json::to_string(&result).map_err(|e| format!("Failed to serialize result: {e}"))
 }
 
 #[tauri::command]
@@ -750,8 +786,7 @@ pub async fn list_pipeline_specs() -> Result<String, String> {
         }
     }
 
-    serde_json::to_string(&pipelines)
-        .map_err(|e| format!("Failed to serialize pipeline list: {e}"))
+    serde_json::to_string(&pipelines).map_err(|e| format!("Failed to serialize pipeline list: {e}"))
 }
 
 #[tauri::command]
@@ -803,8 +838,7 @@ pub async fn list_pipeline_templates() -> Result<String, String> {
         }
     }
 
-    serde_json::to_string(&templates)
-        .map_err(|e| format!("Failed to serialize templates: {e}"))
+    serde_json::to_string(&templates).map_err(|e| format!("Failed to serialize templates: {e}"))
 }
 
 #[tauri::command]
@@ -815,7 +849,10 @@ pub async fn load_pipeline_template(template_name: String) -> Result<String, Str
     let template_path = PathBuf::from("data")
         .join("pipelines")
         .join("templates")
-        .join(format!("{}.json", template_name.to_lowercase().replace(' ', "-")));
+        .join(format!(
+            "{}.json",
+            template_name.to_lowercase().replace(' ', "-")
+        ));
 
     // Load template
     let spec = beefcake::pipeline::PipelineSpec::from_file(&template_path)
@@ -836,8 +873,8 @@ use beefcake::dictionary::{DataDictionary, storage::SnapshotMetadata};
 pub async fn dictionary_load_snapshot(snapshot_id: String) -> Result<DataDictionary, String> {
     beefcake::utils::log_event("Dictionary", &format!("Loading snapshot: {snapshot_id}"));
 
-    let snapshot_uuid = Uuid::parse_str(&snapshot_id)
-        .map_err(|e| format!("Invalid snapshot ID: {e}"))?;
+    let snapshot_uuid =
+        Uuid::parse_str(&snapshot_id).map_err(|e| format!("Invalid snapshot ID: {e}"))?;
 
     let base_path = PathBuf::from("data");
 
@@ -846,7 +883,9 @@ pub async fn dictionary_load_snapshot(snapshot_id: String) -> Result<DataDiction
 }
 
 #[tauri::command]
-pub async fn dictionary_list_snapshots(dataset_hash: Option<String>) -> Result<Vec<SnapshotMetadata>, String> {
+pub async fn dictionary_list_snapshots(
+    dataset_hash: Option<String>,
+) -> Result<Vec<SnapshotMetadata>, String> {
     beefcake::utils::log_event("Dictionary", "Listing snapshots");
 
     let base_path = PathBuf::from("data");
@@ -859,7 +898,8 @@ pub async fn dictionary_list_snapshots(dataset_hash: Option<String>) -> Result<V
 pub struct UpdateBusinessMetadataRequest {
     pub snapshot_id: String,
     pub dataset_business: Option<beefcake::dictionary::DatasetBusinessMetadata>,
-    pub column_business_updates: Option<HashMap<String, beefcake::dictionary::ColumnBusinessMetadata>>,
+    pub column_business_updates:
+        Option<HashMap<String, beefcake::dictionary::ColumnBusinessMetadata>>,
 }
 
 #[tauri::command]
@@ -868,8 +908,8 @@ pub async fn dictionary_update_business_metadata(
 ) -> Result<String, String> {
     beefcake::utils::log_event("Dictionary", "Updating business metadata");
 
-    let snapshot_uuid = Uuid::parse_str(&request.snapshot_id)
-        .map_err(|e| format!("Invalid snapshot ID: {e}"))?;
+    let snapshot_uuid =
+        Uuid::parse_str(&request.snapshot_id).map_err(|e| format!("Invalid snapshot ID: {e}"))?;
 
     let base_path = PathBuf::from("data");
 
@@ -885,11 +925,14 @@ pub async fn dictionary_update_business_metadata(
 }
 
 #[tauri::command]
-pub async fn dictionary_export_markdown(snapshot_id: String, output_path: String) -> Result<(), String> {
+pub async fn dictionary_export_markdown(
+    snapshot_id: String,
+    output_path: String,
+) -> Result<(), String> {
     beefcake::utils::log_event("Dictionary", &format!("Exporting markdown: {snapshot_id}"));
 
-    let snapshot_uuid = Uuid::parse_str(&snapshot_id)
-        .map_err(|e| format!("Invalid snapshot ID: {e}"))?;
+    let snapshot_uuid =
+        Uuid::parse_str(&snapshot_id).map_err(|e| format!("Invalid snapshot ID: {e}"))?;
 
     let base_path = PathBuf::from("data");
 
@@ -905,48 +948,47 @@ pub async fn dictionary_export_markdown(snapshot_id: String, output_path: String
     std::fs::write(&output_path, markdown)
         .map_err(|e| format!("Failed to write markdown file: {e}"))?;
 
-    beefcake::utils::log_event("Dictionary", &format!("Markdown exported to: {output_path}"));
+    beefcake::utils::log_event(
+        "Dictionary",
+        &format!("Markdown exported to: {output_path}"),
+    );
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn watcher_get_state() -> Result<beefcake::watcher::WatcherStatusPayload, String> {
-    beefcake::watcher::get_state()
-        .map_err(|e| e.to_string())
+    beefcake::watcher::get_state().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn watcher_start(folder: String) -> Result<beefcake::watcher::WatcherStatusPayload, String> {
+pub async fn watcher_start(
+    folder: String,
+) -> Result<beefcake::watcher::WatcherStatusPayload, String> {
     let path = PathBuf::from(folder);
-    beefcake::watcher::start(path)
-        .map_err(|e| e.to_string())?;
-    beefcake::watcher::get_state()
-        .map_err(|e| e.to_string())
+    beefcake::watcher::start(path).map_err(|e| e.to_string())?;
+    beefcake::watcher::get_state().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn watcher_stop() -> Result<beefcake::watcher::WatcherStatusPayload, String> {
-    beefcake::watcher::stop()
-        .map_err(|e| e.to_string())?;
-    beefcake::watcher::get_state()
-        .map_err(|e| e.to_string())
+    beefcake::watcher::stop().map_err(|e| e.to_string())?;
+    beefcake::watcher::get_state().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn watcher_set_folder(folder: String) -> Result<beefcake::watcher::WatcherStatusPayload, String> {
+pub async fn watcher_set_folder(
+    folder: String,
+) -> Result<beefcake::watcher::WatcherStatusPayload, String> {
     let path = PathBuf::from(folder);
-    beefcake::watcher::set_folder(path)
-        .map_err(|e| e.to_string())?;
-    beefcake::watcher::get_state()
-        .map_err(|e| e.to_string())
+    beefcake::watcher::set_folder(path).map_err(|e| e.to_string())?;
+    beefcake::watcher::get_state().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn watcher_ingest_now(path: String) -> Result<(), String> {
     let path_buf = PathBuf::from(path);
-    beefcake::watcher::ingest_now(path_buf)
-        .map_err(|e| e.to_string())
+    beefcake::watcher::ingest_now(path_buf).map_err(|e| e.to_string())
 }
 
 pub fn run() {

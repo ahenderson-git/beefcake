@@ -4,7 +4,7 @@ use secrecy::SecretString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, LazyLock};
+use std::sync::{Arc, LazyLock, Mutex};
 
 pub const DATA_INPUT_DIR: &str = "data/input";
 pub const DATA_PROCESSED_DIR: &str = "data/processed";
@@ -69,7 +69,9 @@ pub struct AuditLog {
 impl AuditLog {
     /// Create a new empty audit log.
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     /// Add an entry to the audit log.
@@ -189,7 +191,6 @@ impl AppConfig {
     }
 }
 
-
 /// Helper to push a new entry to an audit log.
 /// This is a convenience function that uses the new `AppConfig::log_event` method.
 pub fn push_audit_log(config: &mut AppConfig, action: &str, details: &str) {
@@ -218,7 +219,8 @@ pub fn log_event(action: &str, details: &str) {
 /// This should be called periodically or before app shutdown.
 pub fn flush_pending_audit_entries() {
     if let Ok(mut pending) = PENDING_AUDIT_ENTRIES.lock()
-        && !pending.is_empty() {
+        && !pending.is_empty()
+    {
         flush_pending_audit_entries_internal(&mut pending);
     }
 }
@@ -257,10 +259,12 @@ pub fn load_app_config() -> AppConfig {
     } else {
         // Try fallback to old path if it exists
         if let Some(old_path) = dirs::home_dir().map(|p| p.join(".beefcake_config.json"))
-            && old_path.exists() && old_path != path
-                && let Ok(content) = fs::read_to_string(old_path) {
-                    return serde_json::from_str(&content).unwrap_or_default();
-                }
+            && old_path.exists()
+            && old_path != path
+            && let Ok(content) = fs::read_to_string(old_path)
+        {
+            return serde_json::from_str(&content).unwrap_or_default();
+        }
         AppConfig::default()
     }
 }
@@ -423,9 +427,10 @@ impl TempFileGuard {
 impl Drop for TempFileGuard {
     fn drop(&mut self) {
         if let Some(path) = &self.path
-            && path.exists() {
-                let _ = fs::remove_file(path);
-            }
+            && path.exists()
+        {
+            let _ = fs::remove_file(path);
+        }
     }
 }
 

@@ -50,8 +50,7 @@ pub async fn push_to_db_flow(
 }
 
 pub fn generate_auto_clean_configs(lf: LazyFrame) -> Result<HashMap<String, ColumnCleanConfig>> {
-    let summaries =
-        analyse_df_lazy(lf, 0.0).context("Failed to analyse for auto-cleaning")?;
+    let summaries = analyse_df_lazy(lf, 0.0).context("Failed to analyse for auto-cleaning")?;
 
     let mut configs = HashMap::new();
     for summary in summaries {
@@ -70,7 +69,9 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
 
     let lf = load_df_lazy(&path).context("Failed to probe file")?;
     let mut lf_for_schema = lf.clone();
-    let schema = lf_for_schema.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
+    let schema = lf_for_schema
+        .collect_schema()
+        .map_err(|e| anyhow::anyhow!(e))?;
     let col_count = schema.len();
 
     // Use file size to determine sampling (avoid expensive row counting that materializes data)
@@ -78,7 +79,12 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
     let should_sample = file_size > 20 * 1024 * 1024 || col_count > 50;
 
     // Count true total rows from original LazyFrame (streaming, doesn't materialize)
-    let true_total_rows = match lf.clone().select([polars::prelude::len()]).with_streaming(true).collect() {
+    let true_total_rows = match lf
+        .clone()
+        .select([polars::prelude::len()])
+        .with_streaming(true)
+        .collect()
+    {
         Ok(df) => {
             let col = df.column("len")?.as_materialized_series();
             if let Ok(ca) = col.u32() {
@@ -101,7 +107,9 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
         };
         crate::utils::log_event(
             "Analyser",
-            &format!("Large dataset detected, using random sampling ({sample_rows} rows) for representative analysis..."),
+            &format!(
+                "Large dataset detected, using random sampling ({sample_rows} rows) for representative analysis..."
+            ),
         );
         // Use random sampling for better representativeness
         // Note: We need to collect, sample, and convert back to lazy for random sampling
@@ -134,12 +142,11 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
         start,
     )?;
 
-    if is_sampled
-        && let Some(first_col) = response.summary.get_mut(0) {
-            first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of {} rows due to large dataset size ({})",
+    if is_sampled && let Some(first_col) = response.summary.get_mut(0) {
+        first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of {} rows due to large dataset size ({})",
                 crate::utils::fmt_count(sampled_rows_count as usize),
                 crate::utils::fmt_bytes(file_size)));
-        }
+    }
 
     Ok(response)
 }

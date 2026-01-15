@@ -64,13 +64,12 @@ export function renderAnalyserHeader(
     : `${response.row_count.toLocaleString()} rows`;
 
   return `
-    <div id="lifecycle-rail-container"></div>
     ${isReadOnly ? `
       <div class="stage-banner stage-banner-readonly">
         <i class="ph ph-lock-key"></i>
         <div>
           <strong>Read-Only Analysis Mode</strong>
-          <span>Review statistics and data quality. No modifications available in ${currentStage || 'current'} stage.</span>
+          <span>Review statistics and data quality – remove unnecessary columns. No modifications available in ${currentStage || 'current'} stage.</span>
         </div>
       </div>
     ` : ''}
@@ -97,6 +96,10 @@ export function renderAnalyserHeader(
           <button id="btn-continue-advanced" class="btn-primary btn-small">
             <i class="ph ph-arrow-right"></i> Continue to Advanced
           </button>
+        ` : currentStage === 'Advanced' ? `
+          <button id="btn-move-to-validated" class="btn-primary btn-small">
+            <i class="ph ph-check-circle"></i> Move to Validated
+          </button>
         ` : `
           <button id="btn-export" class="btn-primary btn-small">
             <i class="ph ph-export"></i> Export / ETL
@@ -106,26 +109,28 @@ export function renderAnalyserHeader(
     </div>
     ${!isReadOnly ? `
       <div class="bulk-actions">
-        <div class="bulk-group">
-          <label><input type="checkbox" class="header-action" data-action="active-all" ${cleanAllActive ? 'checked' : ''}> Clean All</label>
-        </div>
-        <div class="bulk-group">
-          <label><input type="checkbox" class="header-action" data-action="use-original-names" id="toggle-original-names" ${useOriginalColumnNames ? 'checked' : ''}> Original Names</label>
-        </div>
+        ${currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw' ? `
+          <div class="bulk-group">
+            <label><input type="checkbox" name="clean-all" class="header-action" data-action="active-all" ${cleanAllActive ? 'checked' : ''}> Clean All</label>
+          </div>
+          <div class="bulk-group">
+            <label><input type="checkbox" name="use-original-names" class="header-action" data-action="use-original-names" id="toggle-original-names" ${useOriginalColumnNames ? 'checked' : ''}> Original Names</label>
+          </div>
+        ` : ''}
         ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
           <div class="bulk-group">
             <label>Impute All:</label>
             ${renderSelect(IMPUTE_OPTIONS, 'None', 'header-action', { action: 'impute-all' }, 'Mixed')}
           </div>
-        ` : ''}
-        <div class="bulk-group">
-          <label>Round All:</label>
-          ${renderSelect(ROUND_OPTIONS, 'none', 'header-action', { action: 'round-all' }, 'Mixed')}
-        </div>
-        ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
           <div class="bulk-group">
             <label>Norm All:</label>
             ${renderSelect(NORM_OPTIONS, 'None', 'header-action', { action: 'norm-all' }, 'Mixed')}
+          </div>
+        ` : ''}
+        ${currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw' ? `
+          <div class="bulk-group">
+            <label>Round All:</label>
+            ${renderSelect(ROUND_OPTIONS, 'none', 'header-action', { action: 'round-all' }, 'Mixed')}
           </div>
         ` : ''}
       </div>
@@ -239,6 +244,189 @@ function renderDatasetOverview(response: AnalysisResponse): string {
   `;
 }
 
+export function renderValidatedSummary(
+  response: AnalysisResponse,
+  dataset: any
+): string {
+  // Calculate transformation summary
+  const versions = dataset?.versions || [];
+  const rawVersion = versions.find((v: any) => v.stage === 'Raw');
+
+  const initialColumns = rawVersion?.metadata?.column_count || response.column_count;
+  const currentColumns = response.column_count;
+  const columnDelta = currentColumns - initialColumns;
+  const columnDeltaSign = columnDelta >= 0 ? '+' : '';
+
+  const initialRows = rawVersion?.metadata?.row_count || response.total_row_count;
+  const currentRows = response.total_row_count;
+  const rowDelta = currentRows - initialRows;
+  const rowDeltaSign = rowDelta >= 0 ? '+' : '';
+
+  // Calculate quality metrics
+  const nullColumns = response.summary.filter(col => {
+    const nullPct = (col.nulls / col.count) * 100;
+    return nullPct > 0;
+  });
+  const avgNullPct = nullColumns.length > 0
+    ? (nullColumns.reduce((sum, col) => sum + (col.nulls / col.count) * 100, 0) / nullColumns.length)
+    : 0;
+
+  // Build transformation timeline
+  const sortedVersions = [...versions].sort((a: any, b: any) =>
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+
+  const timelineHTML = sortedVersions.map((v: any) => {
+    const isActive = v.id === dataset?.activeVersionId;
+    const stageIcon = v.stage === 'Raw' ? 'ph-file' :
+                     v.stage === 'Profiled' ? 'ph-chart-line' :
+                     v.stage === 'Cleaned' ? 'ph-broom' :
+                     v.stage === 'Advanced' ? 'ph-gear-six' :
+                     v.stage === 'Validated' ? 'ph-check-circle' : 'ph-rocket-launch';
+
+    const transformSummary = v.pipeline?.transforms?.length > 0
+      ? v.pipeline.transforms.map((t: any) => {
+          if (t.transform_type === 'select_columns') {
+            return `Selected ${t.parameters.columns?.length || 0} columns`;
+          }
+          if (t.transform_type === 'clean') {
+            return 'Applied cleaning transformations';
+          }
+          return t.transform_type;
+        }).join(', ')
+      : 'No transformations';
+
+    return `
+      <div class="timeline-item ${isActive ? 'timeline-item-active' : ''}">
+        <div class="timeline-marker">
+          <i class="ph ${stageIcon}"></i>
+        </div>
+        <div class="timeline-content">
+          <strong>${v.stage}</strong>
+          ${isActive ? '<span class="timeline-badge">Current</span>' : ''}
+          <div class="timeline-details">${transformSummary}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="validated-summary">
+      <div class="validation-status-banner validation-passed">
+        <i class="ph ph-check-circle"></i>
+        <div>
+          <h3>Dataset Ready for Publication</h3>
+          <p>Review the transformation summary below and publish when ready.</p>
+        </div>
+      </div>
+
+      <div class="metrics-dashboard">
+        <div class="metric-card">
+          <h4><i class="ph ph-git-branch"></i> Transformation Journey</h4>
+          <div class="metric-stats">
+            <div class="metric-row">
+              <span>Versions:</span>
+              <span class="metric-value">${versions.length}</span>
+            </div>
+            <div class="metric-row">
+              <span>Columns:</span>
+              <span class="metric-value">${initialColumns} → ${currentColumns} <small>(${columnDeltaSign}${columnDelta})</small></span>
+            </div>
+            <div class="metric-row">
+              <span>Rows:</span>
+              <span class="metric-value">${currentRows.toLocaleString()} <small>(${rowDeltaSign}${rowDelta})</small></span>
+            </div>
+            <div class="metric-row">
+              <span>Size:</span>
+              <span class="metric-value">${fmtBytes(response.file_size)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <h4><i class="ph ph-shield-check"></i> Quality Metrics</h4>
+          <div class="metric-stats">
+            <div class="metric-row metric-check">
+              <i class="ph ph-check-circle"></i>
+              <span>Schema validated</span>
+            </div>
+            <div class="metric-row metric-check">
+              <i class="ph ph-check-circle"></i>
+              <span>Avg nulls: ${avgNullPct.toFixed(1)}%</span>
+            </div>
+            <div class="metric-row metric-check">
+              <i class="ph ph-check-circle"></i>
+              <span>Row count: ${currentRows.toLocaleString()}</span>
+            </div>
+            <div class="metric-row metric-check">
+              <i class="ph ph-check-circle"></i>
+              <span>${response.column_count} columns</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="transformation-timeline">
+        <h4><i class="ph ph-list-checks"></i> Applied Transformations</h4>
+        <div class="timeline">
+          ${timelineHTML}
+        </div>
+      </div>
+
+      <div class="final-dataset-preview">
+        <h4><i class="ph ph-table"></i> Final Dataset Overview</h4>
+        <p class="preview-description">Read-only preview of your dataset. All transformations have been applied.</p>
+        <div class="dataset-overview-compact">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th>Column</th>
+                <th>Type</th>
+                <th>Quality</th>
+                <th>Mean/Mode</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${response.summary.map(col => {
+                const nullPct = (col.nulls / col.count) * 100;
+                const qualityClass = nullPct > 20 ? 'quality-poor' : nullPct > 5 ? 'quality-warn' : 'quality-good';
+                const typeIcon = col.kind === 'Numeric' ? 'ph-hash' : col.kind === 'Text' ? 'ph-text-t' : col.kind === 'Temporal' ? 'ph-calendar' : 'ph-check-square';
+                const meanOrMode = col.stats.Numeric?.mean?.toFixed(2) ||
+                                  (col.stats.Text?.top_value ? col.stats.Text.top_value[0] : null) ||
+                                  col.stats.Boolean?.true_count?.toString() ||
+                                  '-';
+
+                return `
+                  <tr>
+                    <td><i class="ph ${typeIcon}"></i> ${escapeHtml(col.name)}</td>
+                    <td>${col.kind}</td>
+                    <td>
+                      <div class="quality-bar-container">
+                        <div class="quality-bar ${qualityClass}" style="width: ${Math.max(5, 100 - nullPct)}%"></div>
+                        <span class="quality-text">${(100 - nullPct).toFixed(0)}%</span>
+                      </div>
+                    </td>
+                    <td class="mono">${escapeHtml(meanOrMode)}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="validated-actions">
+        <button id="btn-back-to-advanced" class="btn-secondary">
+          <i class="ph ph-arrow-left"></i> Back to Advanced
+        </button>
+        <button id="btn-publish-dataset" class="btn-primary">
+          <i class="ph ph-rocket-launch"></i> Publish Dataset
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 export function renderAnalyser(
   response: AnalysisResponse,
   expandedRows: Set<string>,
@@ -252,10 +440,12 @@ export function renderAnalyser(
   const healthClass = healthScore > 80 ? 'health-good' : healthScore > 50 ? 'health-warn' : 'health-poor';
 
   return `
-    <div class="analyser-container">
-      <div id="analyser-header-container"></div>
+    <div class="analyser-wrapper">
+      <div id="lifecycle-rail-container"></div>
+      <div id="analyser-content-container" class="analyser-container">
+        <div id="analyser-header-container"></div>
 
-      <div class="health-banner ${healthClass}">
+        <div class="health-banner ${healthClass}">
         <div class="health-score">
           <span class="score-label">Health Score</span>
           <span class="score-value">${healthScore}%</span>
@@ -295,6 +485,7 @@ export function renderAnalyser(
           )).join('')}
         </tbody>
       </table>
+      </div>
     </div>
   `;
 }
@@ -476,7 +667,7 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
       <td>
         <div class="col-name-box">
           ${isReadOnly ? `
-            <input type="checkbox" class="col-select-checkbox" data-col="${escapeHtml(col.name)}" ${isSelected ? 'checked' : ''} title="Include in cleaning">
+            <input type="checkbox" name="select-col-${escapeHtml(col.name)}" class="col-select-checkbox" data-col="${escapeHtml(col.name)}" ${isSelected ? 'checked' : ''} title="Include in cleaning">
           ` : ''}
           <div class="col-name-display">
             <span class="col-name">${escapeHtml(proposedName)}</span>
@@ -528,7 +719,14 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
                   <h4>Cleaning Pipeline</h4>
                   <div class="cleaning-controls">
                     <div class="control-group">
-                      <label><input type="checkbox" class="row-action" data-prop="active" ${config?.active ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Enable Cleaning</label>
+                      ${currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw' ? `
+                        <label><input type="checkbox" name="enable-cleaning-${escapeHtml(col.name)}" class="row-action" data-prop="active" ${config?.active ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Enable Cleaning</label>
+                      ` : `
+                        <div class="cleaning-status-indicator">
+                          <i class="ph ${config?.active ? 'ph-check-circle' : 'ph-x-circle'}"></i>
+                          <span>Cleaning is ${config?.active ? 'enabled' : 'disabled'} (change in Cleaning stage)</span>
+                        </div>
+                      `}
                     </div>
 
                     <div class="control-grid">
@@ -542,24 +740,26 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
                           ${renderSelect(NORM_OPTIONS, config?.normalisation || 'None', 'row-action', { col: col.name, prop: 'normalisation' })}
                         </div>
                       ` : ''}
-                      ${col.kind === 'Text' ? `
-                        <div class="control-item">
-                          <label>Text Case</label>
-                          ${renderSelect(CASE_OPTIONS, config?.text_case || 'None', 'row-action', { col: col.name, prop: 'text_case' })}
-                        </div>
-                      ` : ''}
-                      ${col.kind === 'Numeric' ? `
-                        <div class="control-item">
-                          <label>Rounding</label>
-                          ${renderSelect(ROUND_OPTIONS, config?.rounding?.toString() || 'none', 'row-action', { col: col.name, prop: 'rounding' })}
-                        </div>
+                      ${currentStage !== 'Advanced' && currentStage !== 'Validated' && currentStage !== 'Published' ? `
+                        ${col.kind === 'Text' ? `
+                          <div class="control-item">
+                            <label>Text Case</label>
+                            ${renderSelect(CASE_OPTIONS, config?.text_case || 'None', 'row-action', { col: col.name, prop: 'text_case' })}
+                          </div>
+                        ` : ''}
+                        ${col.kind === 'Numeric' ? `
+                          <div class="control-item">
+                            <label>Rounding</label>
+                            ${renderSelect(ROUND_OPTIONS, config?.rounding?.toString() || 'none', 'row-action', { col: col.name, prop: 'rounding' })}
+                          </div>
+                        ` : ''}
                       ` : ''}
                     </div>
 
                     ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
                       <div class="control-advanced">
-                        <label title="Automatic outlier handling and normalization"><input type="checkbox" class="row-action" data-prop="ml_preprocessing" ${config?.ml_preprocessing ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> ML Preprocessing</label>
-                        <label title="Clip values to 3x std dev"><input type="checkbox" class="row-action" data-prop="clip_outliers" ${config?.clip_outliers ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Clip Outliers</label>
+                        <label title="Automatic outlier handling and normalization"><input type="checkbox" name="ml-preprocessing-${escapeHtml(col.name)}" class="row-action" data-prop="ml_preprocessing" ${config?.ml_preprocessing ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> ML Preprocessing</label>
+                        <label title="Clip values to 3x std dev"><input type="checkbox" name="clip-outliers-${escapeHtml(col.name)}" class="row-action" data-prop="clip_outliers" ${config?.clip_outliers ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Clip Outliers</label>
                       </div>
                     ` : ''}
                   </div>

@@ -1,9 +1,12 @@
-#![expect(
+#![allow(
     clippy::unwrap_used,
-    clippy::panic,
     clippy::expect_used,
-    clippy::indexing_slicing
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::too_many_lines,
+    clippy::too_many_arguments
 )]
+
 use super::*;
 use crate::analyser::logic::naming::sanitize_column_names;
 use anyhow::Result;
@@ -111,13 +114,11 @@ fn test_interpretation_generation() -> Result<()> {
     let s = Series::new("id".into(), vec!["1", "2", "3"]);
     let df = DataFrame::new(vec![Column::from(s)])?;
     let summaries = analyse_df(&df, 0.0)?;
-    let interpretation_text = summaries
-        .first()
-        .unwrap()
-        .interpretation
-        .join(" ");
+    let interpretation_text = summaries.first().unwrap().interpretation.join(" ");
     assert!(
-        interpretation_text.to_lowercase().contains("unique identifier"),
+        interpretation_text
+            .to_lowercase()
+            .contains("unique identifier"),
         "Should detect unique identifier. Got: {interpretation_text}"
     );
 
@@ -969,7 +970,7 @@ fn test_restricted_cleaning() -> Result<()> {
     configs.insert(
         "to_skip".to_owned(),
         ColumnCleanConfig {
-            new_name: "renamed".to_owned(),            // Should be skipped
+            new_name: "renamed".to_owned(),             // Should be skipped
             impute_mode: ImputeMode::Zero,              // Should be skipped
             rounding: Some(0),                          // Should be skipped
             normalisation: NormalisationMethod::MinMax, // Should be skipped

@@ -42,9 +42,10 @@ pub fn try_parse_temporal_columns(df: DataFrame) -> Result<DataFrame> {
         if let Ok(s) = df.column(name) {
             let s = s.as_materialized_series();
             if let Ok(casted) = s.cast(&DataType::Datetime(TimeUnit::Milliseconds, None))
-                && casted.null_count() < s.len() / 2 {
-                    let _ = df.replace(name, casted);
-                }
+                && casted.null_count() < s.len() / 2
+            {
+                let _ = df.replace(name, casted);
+            }
         }
     }
     Ok(df)
@@ -86,9 +87,10 @@ pub fn get_parquet_write_options(lf: &LazyFrame) -> Result<ParquetWriteOptions> 
 
     // Allow environment variable override for emergency debugging
     if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE")
-        && let Ok(parsed) = env_val.parse::<usize>() {
-            row_group_size = parsed;
-        }
+        && let Ok(parsed) = env_val.parse::<usize>()
+    {
+        row_group_size = parsed;
+    }
 
     Ok(ParquetWriteOptions {
         maintain_order: false,

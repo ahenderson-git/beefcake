@@ -1,6 +1,8 @@
 use anyhow::{Context as _, Result};
 use beefcake::analyser::logic::types::ColumnCleanConfig;
-use beefcake::analyser::logic::{load_df_lazy, flows, clean_df_lazy, get_parquet_write_options, save_df};
+use beefcake::analyser::logic::{
+    clean_df_lazy, flows, get_parquet_write_options, load_df_lazy, save_df,
+};
 use clap::{Parser, Subcommand};
 use polars::prelude::*;
 use sqlx::postgres::PgConnectOptions;
@@ -28,14 +30,20 @@ impl CliContext {
     }
 
     /// Resolve database URL from explicit parameter or config.
-    fn resolve_db_url(&self, explicit_url: Option<String>, config_id: Option<String>) -> Result<String> {
+    fn resolve_db_url(
+        &self,
+        explicit_url: Option<String>,
+        config_id: Option<String>,
+    ) -> Result<String> {
         if let Some(url) = explicit_url {
             return Ok(url);
         }
 
         if let Some(id) = config_id {
-            return self.app_config
-                .settings.connections
+            return self
+                .app_config
+                .settings
+                .connections
                 .iter()
                 .find(|c| c.id == id)
                 .map(|c| c.settings.connection_string(&c.id))
@@ -201,8 +209,10 @@ async fn handle_import(
     let lf = load_df_lazy(&file).context("Failed to load dataframe lazily")?;
     let configs = resolve_cleaning_config(config_path, clean, lf.clone())?;
 
-    let effective_url = ctx.resolve_db_url(db_url, ctx.app_config.settings.active_import_id.clone())?;
-    let opts = PgConnectOptions::from_str(&effective_url).context("Failed to parse database URL")?;
+    let effective_url =
+        ctx.resolve_db_url(db_url, ctx.app_config.settings.active_import_id.clone())?;
+    let opts =
+        PgConnectOptions::from_str(&effective_url).context("Failed to parse database URL")?;
 
     flows::push_to_db_flow(file.clone(), opts, schema, table, configs).await?;
 
@@ -219,13 +229,16 @@ async fn handle_export(
     clean: bool,
     config_path: Option<PathBuf>,
 ) -> Result<()> {
-    let input_path = input.map(PathBuf::from).unwrap_or(get_default_input_file()?);
+    let input_path = input
+        .map(PathBuf::from)
+        .unwrap_or(get_default_input_file()?);
 
     if !input_path.exists() {
         anyhow::bail!("Input file not found. Table export from DB is not yet implemented.");
     }
 
-    let output_path = output.unwrap_or_else(|| get_default_output_path(&input_path, "exported", "parquet"));
+    let output_path =
+        output.unwrap_or_else(|| get_default_output_path(&input_path, "exported", "parquet"));
 
     println!(
         "Converting {0} to {1} (lazily)...",
@@ -252,7 +265,8 @@ async fn handle_clean(
     config_path: Option<PathBuf>,
 ) -> Result<()> {
     let input_file = file.unwrap_or(get_default_input_file()?);
-    let output_file = output.unwrap_or_else(|| get_default_output_path(&input_file, "cleaned", "parquet"));
+    let output_file =
+        output.unwrap_or_else(|| get_default_output_path(&input_file, "cleaned", "parquet"));
 
     println!(
         "Cleaning {0} and saving to {1} (lazily)...",
@@ -380,13 +394,15 @@ async fn handle_run(
     log_path: Option<PathBuf>,
     fail_on_warnings: bool,
 ) -> Result<()> {
-    use beefcake::pipeline::{run_pipeline, PipelineSpec};
+    use beefcake::pipeline::{PipelineSpec, run_pipeline};
 
     println!("Loading pipeline spec from {}...", spec_path.display());
 
     // Load pipeline spec
-    let spec = PipelineSpec::from_file(&spec_path)
-        .context(format!("Failed to load pipeline spec: {}", spec_path.display()))?;
+    let spec = PipelineSpec::from_file(&spec_path).context(format!(
+        "Failed to load pipeline spec: {}",
+        spec_path.display()
+    ))?;
 
     println!("Pipeline: {}", spec.name);
     println!("Version: {}", spec.version);
@@ -436,8 +452,10 @@ async fn handle_run(
 
         // Ensure log directory exists
         if let Some(parent) = log_path.parent() {
-            std::fs::create_dir_all(parent)
-                .context(format!("Failed to create log directory: {}", parent.display()))?;
+            std::fs::create_dir_all(parent).context(format!(
+                "Failed to create log directory: {}",
+                parent.display()
+            ))?;
         }
 
         std::fs::write(&log_path, log_content)

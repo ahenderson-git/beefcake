@@ -145,17 +145,18 @@ pub fn calculate_skew(
     std_dev: Option<f64>,
 ) -> Option<f64> {
     if let (Some(m), Some(med), Some(s)) = (mean, median, std_dev)
-        && s > 0.0 {
-            let pearson_skew = 3.0 * (m - med) / s;
-            if let (Some(v1), Some(v3)) = (q1, q3) {
-                let iqr = v3 - v1;
-                if iqr > 0.0 {
-                    let bowley_skew = (v3 + v1 - 2.0 * med) / iqr;
-                    return Some(f64::midpoint(pearson_skew, bowley_skew));
-                }
+        && s > 0.0
+    {
+        let pearson_skew = 3.0 * (m - med) / s;
+        if let (Some(v1), Some(v3)) = (q1, q3) {
+            let iqr = v3 - v1;
+            if iqr > 0.0 {
+                let bowley_skew = (v3 + v1 - 2.0 * med) / iqr;
+                return Some(f64::midpoint(pearson_skew, bowley_skew));
             }
-            return Some(pearson_skew);
         }
+        return Some(pearson_skew);
+    }
     None
 }
 
@@ -328,22 +329,23 @@ pub fn analyse_temporal(col: &Column) -> Result<(ColumnKind, ColumnStats)> {
 
     let mut timeline = Vec::new();
     if let (Some(min_v), Some(max_v)) = (ca.min(), ca.max())
-        && min_v < max_v {
-            let range = max_v - min_v;
-            let interval = range / 20;
-            if interval > 0 {
-                for i in 0..20 {
-                    let start = min_v + i * interval;
-                    let end = min_v + (i + 1) * interval;
-                    let count = ca
-                        .into_iter()
-                        .flatten()
-                        .filter(|&v| v >= start && v < end)
-                        .count();
-                    timeline.push((start.to_string(), count));
-                }
+        && min_v < max_v
+    {
+        let range = max_v - min_v;
+        let interval = range / 20;
+        if interval > 0 {
+            for i in 0..20 {
+                let start = min_v + i * interval;
+                let end = min_v + (i + 1) * interval;
+                let count = ca
+                    .into_iter()
+                    .flatten()
+                    .filter(|&v| v >= start && v < end)
+                    .count();
+                timeline.push((start.to_string(), count));
             }
         }
+    }
 
     Ok((
         ColumnKind::Temporal,
@@ -380,11 +382,21 @@ pub fn analyse_text_or_fallback(
     let has_special = check_special_characters(name, dtype, &value_counts_df)?;
 
     let top_value = if let Some(vc) = value_counts_df.as_ref() {
-        let names = vc.column(series.name()).expect("Column should exist").as_materialized_series();
-        let counts = vc.column("counts").expect("Counts column should exist").as_materialized_series();
+        let names = vc
+            .column(series.name())
+            .expect("Column should exist")
+            .as_materialized_series();
+        let counts = vc
+            .column("counts")
+            .expect("Counts column should exist")
+            .as_materialized_series();
         if vc.height() > 0 {
             let val = names.get(0).expect("Non-empty").to_string();
-            let count = counts.get(0).expect("Non-empty").try_extract::<u32>().unwrap_or(0) as usize;
+            let count = counts
+                .get(0)
+                .expect("Non-empty")
+                .try_extract::<u32>()
+                .unwrap_or(0) as usize;
             Some((val, count))
         } else {
             None
@@ -403,8 +415,14 @@ pub fn analyse_text_or_fallback(
     if is_categorical {
         let mut freq = std::collections::HashMap::new();
         if let Some(vc) = value_counts_df.as_ref() {
-            let names = vc.column(series.name()).expect("Column should exist").as_materialized_series();
-            let counts = vc.column("counts").expect("Counts column should exist").as_materialized_series();
+            let names = vc
+                .column(series.name())
+                .expect("Column should exist")
+                .as_materialized_series();
+            let counts = vc
+                .column("counts")
+                .expect("Counts column should exist")
+                .as_materialized_series();
             for i in 0..vc.height() {
                 let val_av = names.get(i).expect("Index in range");
                 let val = if let Some(s) = val_av.get_str() {
@@ -412,7 +430,11 @@ pub fn analyse_text_or_fallback(
                 } else {
                     val_av.to_string()
                 };
-                let count = counts.get(i).expect("Index in range").try_extract::<u32>().unwrap_or(0) as usize;
+                let count = counts
+                    .get(i)
+                    .expect("Index in range")
+                    .try_extract::<u32>()
+                    .unwrap_or(0) as usize;
                 freq.insert(val, count);
             }
         }

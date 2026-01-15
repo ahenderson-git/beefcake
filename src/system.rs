@@ -93,7 +93,11 @@ pub fn check_python_environment() -> Result<String> {
                 return Err(anyhow!("Python not found or not working properly"));
             }
         }
-        Err(_) => return Err(anyhow!("Python executable not found. Please install Python 3.8+")),
+        Err(_) => {
+            return Err(anyhow!(
+                "Python executable not found. Please install Python 3.8+"
+            ));
+        }
     };
 
     // Check if Polars is installed

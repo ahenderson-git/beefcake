@@ -1,283 +1,1067 @@
-warning: in the working copy of 'src-frontend/renderers.ts', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/tauri_app.rs', LF will be replaced by CRLF the next time Git touches it
-diff --git a/capabilities/default.json b/capabilities/default.json
-index b5351a6..6d3cf66 100644
---- a/capabilities/default.json
-+++ b/capabilities/default.json
-@@ -44,6 +44,15 @@
-     "allow-generate-powershell",
-     "allow-pipeline-from-configs",
-     "allow-list-pipeline-templates",
--    "allow-load-pipeline-template"
-+    "allow-load-pipeline-template",
-+    "allow-dictionary-load-snapshot",
-+    "allow-dictionary-list-snapshots",
-+    "allow-dictionary-update-business-metadata",
-+    "allow-dictionary-export-markdown",
-+    "allow-watcher-get-state",
-+    "allow-watcher-start",
-+    "allow-watcher-stop",
-+    "allow-watcher-set-folder",
-+    "allow-watcher-ingest-now"
-   ]
- }
-diff --git a/src-frontend/components/AnalyserComponent.ts b/src-frontend/components/AnalyserComponent.ts
-index a087790..5baff0c 100644
---- a/src-frontend/components/AnalyserComponent.ts
-+++ b/src-frontend/components/AnalyserComponent.ts
-@@ -236,6 +236,24 @@ export class AnalyserComponent extends Component {
-     document.getElementById('btn-continue-advanced')?.addEventListener('click', async () => {
-       await this.handleContinueToAdvanced(state);
-     });
-+
-+    // Cleaning info box toggle
-+    const cleaningInfoHeader = document.querySelector('.cleaning-info-header');
-+    if (cleaningInfoHeader) {
-+      cleaningInfoHeader.addEventListener('click', () => {
-+        const infoBox = document.querySelector('.cleaning-info-box');
-+        infoBox?.classList.toggle('collapsed');
-+      });
-+    }
-+
-+    // Handle link to reference page in cleaning info box
-+    const cleaningInfoLink = document.querySelector('.cleaning-info-link');
-+    if (cleaningInfoLink) {
-+      cleaningInfoLink.addEventListener('click', (e) => {
-+        e.preventDefault();
-+        this.actions.navigate('reference');
-+      });
-+    }
-   }
-
-   private async handleExport(state: AppState) {
-diff --git a/src-frontend/main.ts b/src-frontend/main.ts
-index d6b3e12..af73b40 100644
---- a/src-frontend/main.ts
-+++ b/src-frontend/main.ts
-@@ -74,6 +74,7 @@ import { LifecycleComponent } from './components/LifecycleComponent';
- import { LifecycleRailComponent } from './components/LifecycleRailComponent';
- import { PipelineComponent } from './components/PipelineComponent';
- import { WatcherComponent } from './components/WatcherComponent';
-+import { DictionaryComponent } from './components/DictionaryComponent';
-
- /**
-  * Main application controller for Beefcake frontend.
-@@ -246,7 +247,8 @@ class BeefcakeApp {
-       'Reference': new ReferenceComponent('view-container', actions),
-       'Lifecycle': new LifecycleComponent('view-container', actions),
-       'Pipeline': new PipelineComponent('view-container', actions),
--      'Watcher': new WatcherComponent('view-container', actions)
-+      'Watcher': new WatcherComponent('view-container', actions),
-+      'Dictionary': new DictionaryComponent('view-container', actions)
-     };
-
-     // Initialize lifecycle rail component
-@@ -262,10 +264,10 @@ class BeefcakeApp {
-     });
-   }
-
--  private switchView(view: View) {
-+  private async switchView(view: View) {
-     this.state.currentView = view;
-     this.state.isAddingConnection = false;
--
-+
-     document.querySelectorAll('.nav-item').forEach(item => {
-       item.classList.toggle('active', (item as HTMLElement).dataset.view === view);
-     });
-@@ -278,9 +280,18 @@ class BeefcakeApp {
-       else if (view === 'SQL') title.innerText = 'SQL IDE';
-       else if (view === 'Reference') title.innerText = 'Reference Material';
-       else if (view === 'Lifecycle') title.innerText = 'Dataset Lifecycle';
-+      else if (view === 'Dictionary') title.innerText = 'Data Dictionary';
-       else title.innerText = view;
-     }
-
-+    // Load snapshots when switching to Dictionary view
-+    if (view === 'Dictionary') {
-+      const dictionaryComponent = this.components['Dictionary'] as DictionaryComponent;
-+      if (dictionaryComponent) {
-+        await dictionaryComponent.loadSnapshots();
-+      }
-+    }
-+
-     this.render();
-   }
-
-diff --git a/src-frontend/renderers.ts b/src-frontend/renderers.ts
-index c3fac6d..120e2ad 100644
---- a/src-frontend/renderers.ts
-+++ b/src-frontend/renderers.ts
-@@ -9,3 +9,4 @@ export * from './renderers/reference';
- export * from './renderers/layout';
- export * from './renderers/cli';
- export * from './renderers/lifecycle';
-+export * from './renderers/dictionary';
-diff --git a/src-frontend/renderers/analyser.ts b/src-frontend/renderers/analyser.ts
-index eacfcb4..f65b73c 100644
---- a/src-frontend/renderers/analyser.ts
-+++ b/src-frontend/renderers/analyser.ts
-@@ -2,6 +2,55 @@ import { AnalysisResponse, ColumnCleanConfig, ColumnSummary, LifecycleStage } fr
- import { escapeHtml, fmtBytes, fmtDuration } from "../utils";
- import { CASE_OPTIONS, IMPUTE_OPTIONS, NORM_OPTIONS, renderSelect, ROUND_OPTIONS } from "./common";
-
-+function renderCleaningInfoBox(): string {
-+  return `
-+    <div class="cleaning-info-box">
-+      <div class="cleaning-info-header">
-+        <i class="ph ph-info"></i>
-+        <h4>What does cleaning include?</h4>
-+        <button class="cleaning-info-toggle" aria-label="Toggle info">
-+          <i class="ph ph-caret-up"></i>
-+        </button>
-+      </div>
-+      <div class="cleaning-info-content">
-+        <p class="cleaning-info-intro">The Cleaning stage applies <strong>reversible text and type transformations</strong> to prepare your data:</p>
-+        <div class="cleaning-info-grid">
-+          <div class="cleaning-info-section">
-+            <strong><i class="ph ph-text-t"></i> Text Cleaning:</strong>
-+            <ul>
-+              <li>Trim whitespace</li>
-+              <li>Convert case (lower/upper/title)</li>
-+              <li>Remove special characters</li>
-+              <li>Standardize null representations</li>
-+            </ul>
-+          </div>
-+          <div class="cleaning-info-section">
-+            <strong><i class="ph ph-swap"></i> Type Casting:</strong>
-+            <ul>
-+              <li>Convert to Numeric, Text, Boolean</li>
-+              <li>Parse Temporal (dates/times)</li>
-+              <li>Detect Categorical patterns</li>
-+            </ul>
-+          </div>
-+          <div class="cleaning-info-section">
-+            <strong><i class="ph ph-tag"></i> Column Renaming:</strong>
-+            <ul>
-+              <li>Standardize column names</li>
-+              <li>Apply custom naming conventions</li>
-+            </ul>
-+          </div>
-+        </div>
-+        <p class="cleaning-info-note">
-+          <i class="ph ph-arrow-counter-clockwise"></i>
-+          <strong>Note:</strong> All cleaning operations in this stage are reversible.
-+          Advanced operations (imputation, normalization, encoding) are available in the <strong>Advanced</strong> stage.
-+          <a href="#" class="cleaning-info-link" data-view="reference">View full documentation →</a>
-+        </p>
-+      </div>
-+    </div>
-+  `;
-+}
-+
- export function renderAnalyserHeader(
-   response: AnalysisResponse,
-   currentStage: LifecycleStage | null = null,
-@@ -25,6 +74,7 @@ export function renderAnalyserHeader(
-         </div>
-       </div>
-     ` : ''}
-+    ${currentStage === 'Cleaned' && !isReadOnly ? renderCleaningInfoBox() : ''}
-     <div class="analyser-header">
-       <div class="header-main">
-         <h2>${escapeHtml(response.file_name)} <small>(${fmtBytes(response.file_size)})</small></h2>
-diff --git a/src-frontend/renderers/layout.ts b/src-frontend/renderers/layout.ts
-index 32211f5..31eafba 100644
---- a/src-frontend/renderers/layout.ts
-+++ b/src-frontend/renderers/layout.ts
-@@ -22,6 +22,9 @@ export function renderLayout(): string {
-           <button class="nav-item" data-view="Watcher">
-             <i class="ph ph-eye"></i> Watcher
-           </button>
-+          <button class="nav-item" data-view="Dictionary">
-+            <i class="ph ph-book-open"></i> Dictionary
-+          </button>
-           <button class="nav-item" data-view="PowerShell">
-             <i class="ph ph-terminal"></i> PowerShell
-           </button>
-diff --git a/src-frontend/types.ts b/src-frontend/types.ts
-index 48958ef..588eee1 100644
---- a/src-frontend/types.ts
-+++ b/src-frontend/types.ts
-@@ -116,7 +116,7 @@ export interface AuditEntry {
-   details: string;
- }
-
--export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle" | "Pipeline" | "Watcher";
-+export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle" | "Pipeline" | "Watcher" | "Dictionary";
-
- // Dataset Lifecycle Types
- export type LifecycleStage = "Raw" | "Profiled" | "Cleaned" | "Advanced" | "Validated" | "Published";
-diff --git a/src/tauri_app.rs b/src/tauri_app.rs
-index 923cfe9..f9ce7ee 100644
---- a/src/tauri_app.rs
-+++ b/src/tauri_app.rs
-@@ -763,8 +763,14 @@ pub async fn list_pipeline_templates() -> Result<String, String> {
-     // Get templates directory
-     let templates_dir = PathBuf::from("data").join("pipelines").join("templates");
-
-+    // Debug: log the path we're looking for
-+    eprintln!("[DEBUG] Looking for templates in: {:?}", templates_dir);
-+    eprintln!("[DEBUG] Absolute path: {:?}", templates_dir.canonicalize());
-+    eprintln!("[DEBUG] Templates directory exists: {}", templates_dir.exists());
-+
-     // Create directory if it doesn't exist
-     if !templates_dir.exists() {
-+        eprintln!("[DEBUG] Creating templates directory");
-         fs::create_dir_all(&templates_dir)
-             .map_err(|e| format!("Failed to create templates directory: {e}"))?;
-     }
-@@ -773,22 +779,52 @@ pub async fn list_pipeline_templates() -> Result<String, String> {
-     let mut templates = Vec::new();
-
-     if let Ok(entries) = fs::read_dir(&templates_dir) {
-+        eprintln!("[DEBUG] Successfully opened templates directory");
-         for entry in entries.flatten() {
-             let path = entry.path();
-+            eprintln!("[DEBUG] Found file: {:?}", path);
-             if path.extension().and_then(|s| s.to_str()) == Some("json") {
-+                eprintln!("[DEBUG] File is JSON, attempting to load: {:?}", path);
-                 // Try to load template to get metadata
--                if let Ok(spec) = beefcake::pipeline::PipelineSpec::from_file(&path) {
-+                match beefcake::pipeline::PipelineSpec::from_file(&path) {
-+                    Ok(spec) => {
-+                        eprintln!("[DEBUG] Successfully loaded spec: {}", spec.name);
-+                    let metadata = entry.metadata().ok();
-+                    let created = metadata
-+                        .as_ref()
-+                        .and_then(|m| m.created().ok())
-+                        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
-+                        .unwrap_or_default();
-+                    let modified = metadata
-+                        .as_ref()
-+                        .and_then(|m| m.modified().ok())
-+                        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
-+                        .unwrap_or_default();
-+
-                     let info = serde_json::json!({
-                         "name": spec.name,
-                         "path": path.to_string_lossy(),
-+                        "created": created,
-+                        "modified": modified,
-                         "step_count": spec.steps.len(),
-                     });
-                     templates.push(info);
-+                    }
-+                    Err(e) => {
-+                        eprintln!("[DEBUG] Failed to load spec: {:?}", e);
-+                        eprintln!("[DEBUG] Full error chain:");
-+                        for cause in e.chain() {
-+                            eprintln!("[DEBUG]   - {}", cause);
-+                        }
-+                    }
-                 }
-             }
-         }
-+    } else {
-+        eprintln!("[DEBUG] Failed to read templates directory");
-     }
-
-+    eprintln!("[DEBUG] Found {} templates", templates.len());
-     serde_json::to_string(&templates)
-         .map_err(|e| format!("Failed to serialize templates: {e}"))
- }
+    Checking beefcake v0.2.0 (C:\Users\antho\OneDrive\beefcake\beefcake)
+error: this function has too many lines (144/100)
+  --> src\analyser\lifecycle\stages\validate.rs:66:5
+   |
+66 |     fn validate_rule(rule: &ValidationRule, lf: &mut LazyFrame) -> Result<ValidationResult> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+   = note: `-D clippy::too-many-lines` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+error: this argument is passed by value, but not consumed in the function body
+   --> src\analyser\lifecycle\version.rs:200:45
+    |
+200 |     pub fn new(name: String, raw_data_path: PathBuf, store: Arc<Versio...
+    |                                             ^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+    = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+    |
+200 |     pub fn new(name: String, raw_data_path: &PathBuf, store: Arc<VersionStore>) -> Result<Self> {
+    |                                             +
+error: unused `self` argument
+   --> src\analyser\lifecycle\version.rs:286:26
+    |
+286 |     fn is_pipeline_no_op(&self, pipeline: &TransformPipeline, active_v...
+    |                          ^^^^^
+    |
+    = help: consider refactoring to an associated function
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unused_self
+    = note: `-D clippy::unused-self` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unused_self)]`
+error: used `unwrap()` on an `Option` value
+   --> src\analyser\lifecycle\version.rs:294:34
+    |
+294 |             let transform_spec = pipeline.iter().next().unwrap();
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is `None`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+    = note: `-D clippy::unwrap-used` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unwrap_used)]`
+error: this function has too many lines (142/100)
+   --> src\analyser\logic\analysis.rs:397:1
+    |
+397 | / pub fn compute_numeric_stats(
+398 | |     lf: LazyFrame,
+399 | |     name: &str,
+400 | |     trim_pct: f64,
+401 | |     adaptive_sample_size: usize,
+402 | | ) -> Result<(ColumnKind, ColumnStats)> {
+    | |______________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+error: field assignment outside of initializer for an instance created with Default::default()
+  --> src\analyser\logic\flows.rs:58:9
+   |
+58 |         config.new_name = summary.standardised_name.clone();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { new_name: summary.standardised_name.clone(), ..Default::default() }` and removing relevant reassignments
+  --> src\analyser\logic\flows.rs:57:9
+   |
+57 |         let mut config = ColumnCleanConfig::default();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+   = note: `-D clippy::field-reassign-with-default` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::field_reassign_with_default)]`
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:447:70
+    |
+447 | ...   let intervals: Vec<f64> = s.histogram.windows(2).map(|w| w[1].0 ...
+    |                                                                ^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+    = note: `-D clippy::indexing-slicing` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::indexing_slicing)]`
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:447:79
+    |
+447 | ...am.windows(2).map(|w| w[1].0 - w[0].0).collect();
+    |                                   ^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\lifecycle\diff.rs:352:20
+    |
+352 |         assert_eq!(changes.type_changes[0].column, "col1");
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+    = note: `-D clippy::indexing-slicing` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::indexing_slicing)]`
+error: slicing may panic
+   --> src\analyser\logic\interpretation.rs:669:9
+    |
+669 |         histogram[1..histogram.len() - 1]
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:680:16
+    |
+680 | ...   if histogram[i].1 > histogram[i - 1].1 && histogram[i].1 > histo...
+    |          ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:680:33
+    |
+680 | ...   if histogram[i].1 > histogram[i - 1].1 && histogram[i].1 > histo...
+    |                           ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:680:55
+    |
+680 | ...   if histogram[i].1 > histogram[i - 1].1 && histogram[i].1 > histo...
+    |                                                 ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:680:72
+    |
+680 | ...1].1 && histogram[i].1 > histogram[i + 1].1 {
+    |                             ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:682:28
+    |
+682 | ...   let avg = (histogram[i - 1].1 + histogram[i].1 + histogram[i + 1...
+    |                  ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:682:49
+    |
+682 | ...   let avg = (histogram[i - 1].1 + histogram[i].1 + histogram[i + 1...
+    |                                       ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:682:66
+    |
+682 | ... 1].1 + histogram[i].1 + histogram[i + 1].1) as f64 / 3.0;
+    |                             ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:683:20
+    |
+683 |                 if histogram[i].1 as f64 > avg * 1.2 {
+    |                    ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: non-binding `let` on an expression with `#[must_use]` type
+  --> src\analyser\logic\io.rs:47:17
+   |
+47 |                 let _ = df.replace(name, casted);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider explicitly using expression value
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+   = note: `-D clippy::let-underscore-must-use` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::let_underscore_must_use)]`
+error: non-binding `let` without a type annotation
+  --> src\analyser\logic\io.rs:47:17
+   |
+47 |                 let _ = df.replace(name, casted);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: consider adding a type annotation
+  --> src\analyser\logic\io.rs:47:22
+   |
+47 |                 let _ = df.replace(name, casted);
+   |                      ^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+   = note: `-D clippy::let-underscore-untyped` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::let_underscore_untyped)]`
+error: `if _ { .. } else { .. }` is an expression
+  --> src\analyser\logic\io.rs:86:5
+   |
+86 | /     let mut row_group_size = if col_count >= 100 { 16_384 } else { 32...
+87 | |
+88 | |     // Allow environment variable override for emergency debugging
+89 | |     if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SI...
+...  |
+92 | |         row_group_size = parsed;
+93 | |     }
+   | |_____^
+   |
+   = note: you might not need `mut` at all
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#useless_let_if_seq
+   = note: `-D clippy::useless-let-if-seq` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::useless_let_if_seq)]`
+help: it is more idiomatic to write
+   |
+86 ~     let <mut> row_group_size = if let Ok(env_val) = std::env::var("BEEFCAKE_PARQUET_ROW_GROUP_SIZE")
+87 +         && let Ok(parsed) = env_val.parse::<usize>() { parsed } else { if col_count >= 100 { 16_384 } else { 32_768 } };
+   |
+error: field assignment outside of initializer for an instance created with Default::default()
+   --> src\analyser\lifecycle\stages\advanced.rs:101:9
+    |
+101 |         config.active = true;
+    |         ^^^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { active: true, ..Default::default() }` and removing relevant reassignments
+   --> src\analyser\lifecycle\stages\advanced.rs:100:9
+    |
+100 |         let mut config = ColumnCleanConfig::default();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+    = note: `-D clippy::field-reassign-with-default` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::field_reassign_with_default)]`
+error: indexing may panic
+   --> src\analyser\lifecycle\stages\advanced.rs:106:23
+    |
+106 |         let config = &configs["col1"];
+    |                       ^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\profiling.rs:226:21
+    |
+226 |                     bins[bin_idx] += 1;
+    |                     ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\profiling.rs:228:21
+    |
+228 |                     bins[num_bins - 1] += 1;
+    |                     ^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: this function has too many arguments (8/7)
+   --> src\analyser\logic\profiling.rs:240:1
+    |
+240 | / pub fn build_histogram_streaming(
+241 | |     lf: LazyFrame,
+242 | |     name: &str,
+243 | |     min: Option<f64>,
+...   |
+248 | |     null_count: usize,
+249 | | ) -> Result<(f64, Vec<(f64, usize)>)> {
+    | |_____________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+    = note: `-D clippy::too-many-arguments` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_arguments)]`
+error: this argument is passed by value, but not consumed in the function body
+   --> src\analyser\logic\profiling.rs:241:9
+    |
+241 |     lf: LazyFrame,
+    |         ^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+    |
+241 |     lf: &LazyFrame,
+    |         +
+error: indexing may panic
+   --> src\analyser\logic\profiling.rs:303:21
+    |
+303 |                     bins[bin_idx] += 1;
+    |                     ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\profiling.rs:305:21
+    |
+305 |                     bins[num_bins - 1] += 1;
+    |                     ^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: indexing may panic
+   --> src\analyser\logic\profiling.rs:494:21
+    |
+494 |             .column(vc.get_column_names()[0])?
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: field assignment outside of initializer for an instance created with Default::default()
+  --> src\analyser\logic\flows.rs:58:9
+   |
+58 |         config.new_name = summary.standardised_name.clone();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { new_name: summary.standardised_name.clone(), ..Default::default() }` and removing relevant reassignments
+  --> src\analyser\logic\flows.rs:57:9
+   |
+57 |         let mut config = ColumnCleanConfig::default();
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+error: indexing may panic
+   --> src\analyser\logic\interpretation.rs:447:70
+    |
+447 | ...   let intervals: Vec<f64> = s.histogram.windows(2).map(|w| w[1].0 ...
+    |                                                                ^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: slicing may panic
+   --> src\dictionary\metadata.rs:276:28
+    |
+276 |     bytes.copy_from_slice(&hash[..16]);
+    |                            ^^^^^^^^^^
+    |
+    = help: consider using `.get(..n)`or `.get_mut(..n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: this argument is passed by value, but not consumed in the function body
+  --> src\dictionary\profiler.rs:30:17
+   |
+30 |     input_path: PathBuf,
+   |                 ^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+   |
+30 |     input_path: &PathBuf,
+   |                 +
+error: this argument is passed by value, but not consumed in the function body
+  --> src\dictionary\profiler.rs:31:18
+   |
+31 |     output_path: PathBuf,
+   |                  ^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+   |
+31 |     output_path: &PathBuf,
+   |                  +
+error: this function's return value is unnecessarily wrapped by `Result`
+   --> src\dictionary\profiler.rs:260:1
+    |
+260 | fn calculate_dataframe_hash(df: &DataFrame) -> Result<String> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_wraps
+    = note: `-D clippy::unnecessary-wraps` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unnecessary_wraps)]`
+help: remove `Result` from the return type...
+    |
+260 - fn calculate_dataframe_hash(df: &DataFrame) -> Result<String> {
+260 + fn calculate_dataframe_hash(df: &DataFrame) -> std::string::String {
+    |
+help: ...and then remove the surrounding `Ok()` from returning expressions
+    |
+280 -     Ok(format!("{hash:x}"))
+280 +     format!("{hash:x}")
+    |
+error: slicing may panic
+   --> src\dictionary\profiler.rs:299:24
+    |
+299 |         hasher.update(&buffer[..bytes_read]);
+    |                        ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(..n)`or `.get_mut(..n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: this function has too many lines (205/100)
+   --> src\pipeline\executor.rs:153:1
+    |
+153 | fn apply_step(step: &Step, mut lf: LazyFrame) -> Result<LazyFrame> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+error: this function has too many lines (147/100)
+  --> src\pipeline\powershell.rs:10:1
+   |
+10 | pub fn generate_powershell_script(spec: &PipelineSpec, spec_path: &Path) -> String {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+error: this function has too many lines (130/100)
+   --> src\pipeline\validation.rs:111:1
+    |
+111 | / fn validate_step(
+112 | |     step: &Step,
+113 | |     idx: usize,
+114 | |     columns: &mut HashSet<String>,
+115 | |     errors: &mut Vec<ValidationError>,
+116 | | ) {
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_lines
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\utils.rs:432:13
+    |
+432 |             let _ = fs::remove_file(path);
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\utils.rs:432:13
+    |
+432 |             let _ = fs::remove_file(path);
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\utils.rs:432:18
+    |
+432 |             let _ = fs::remove_file(path);
+    |                  ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1043:5
+     |
+1043 |     let _ = std::fs::remove_file(csv_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1043:5
+     |
+1043 |     let _ = std::fs::remove_file(csv_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1043:10
+     |
+1043 |     let _ = std::fs::remove_file(csv_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1049:5
+     |
+1049 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1049:5
+     |
+1049 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1049:10
+     |
+1049 |     let _ = std::fs::remove_file(parquet_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: unnecessary `Debug` formatting in `format!` args
+  --> src\watcher\config.rs:47:75
+   |
+47 | ...ed to read watcher config from {path:?}"))?;
+   |                                    ^^^^
+   |
+   = help: use `Display` formatting and change this to `path.display()`
+   = note: switching to `Display` formatting will change how the value is shown; escaped characters will no longer be escaped and surrounding quotes will be removed
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_debug_formatting
+   = note: `-D clippy::unnecessary-debug-formatting` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::unnecessary_debug_formatting)]`
+error: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1055:5
+     |
+1055 |     let _ = std::fs::remove_file(json_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1055:5
+     |
+1055 |     let _ = std::fs::remove_file(json_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1055:10
+     |
+1055 |     let _ = std::fs::remove_file(json_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: unnecessary `Debug` formatting in `format!` args
+  --> src\watcher\config.rs:62:79
+   |
+62 | ...d to create config directory: {parent:?}"))?;
+   |                                   ^^^^^^
+   |
+   = help: use `Display` formatting and change this to `parent.display()`
+   = note: switching to `Display` formatting will change how the value is shown; escaped characters will no longer be escaped and surrounding quotes will be removed
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_debug_formatting
+error: unnecessary `Debug` formatting in `format!` args
+  --> src\watcher\config.rs:69:74
+   |
+69 | ...led to write watcher config to {path:?}"))?;
+   |                                    ^^^^
+   |
+   = help: use `Display` formatting and change this to `path.display()`
+   = note: switching to `Display` formatting will change how the value is shown; escaped characters will no longer be escaped and surrounding quotes will be removed
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_debug_formatting
+error: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1090:5
+     |
+1090 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1090:5
+     |
+1090 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1090:10
+     |
+1090 |     let _ = std::fs::remove_file(parquet_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+    --> src\analyser\logic\tests.rs:1134:5
+     |
+1134 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider explicitly using expression value
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+    --> src\analyser\logic\tests.rs:1134:5
+     |
+1134 |     let _ = std::fs::remove_file(parquet_path);
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: consider adding a type annotation
+    --> src\analyser\logic\tests.rs:1134:10
+     |
+1134 |     let _ = std::fs::remove_file(parquet_path);
+     |          ^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: unnecessary `Debug` formatting in `format!` args
+  --> src\watcher\service.rs:73:76
+   |
+73 | ...o read file metadata: {:?}", self.path))?;
+   |                                 ^^^^^^^^^
+   |
+   = help: use `Display` formatting and change this to `self.path.display()`
+   = note: switching to `Display` formatting will change how the value is shown; escaped characters will no longer be escaped and surrounding quotes will be removed
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_debug_formatting
+error: this argument is passed by value, but not consumed in the function body
+  --> src\watcher\service.rs:99:21
+   |
+99 |     pub fn new(app: AppHandle, config: WatcherConfig) -> Result<Self> {
+   |                     ^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+   |
+99 |     pub fn new(app: &AppHandle, config: WatcherConfig) -> Result<Self> {
+   |                     +
+error: this argument is passed by value, but not consumed in the function body
+   --> src\watcher\service.rs:130:14
+    |
+130 |         app: AppHandle,
+    |              ^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+    |
+130 |         app: &AppHandle,
+    |              +
+error: this argument is passed by value, but not consumed in the function body
+   --> src\watcher\service.rs:131:17
+    |
+131 |         config: Arc<Mutex<WatcherConfig>>,
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+    |
+131 |         config: &Arc<Mutex<WatcherConfig>>,
+    |                 +
+error: this argument is passed by value, but not consumed in the function body
+   --> src\watcher\service.rs:132:16
+    |
+132 |         state: Arc<Mutex<WatcherServiceState>>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+    |
+132 |         state: &Arc<Mutex<WatcherServiceState>>,
+    |                +
+error: this argument is passed by value, but not consumed in the function body
+   --> src\watcher\service.rs:133:21
+    |
+133 |         command_rx: Receiver<WatcherMessage>,
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+    |
+133 |         command_rx: &Receiver<WatcherMessage>,
+    |                     +
+error: infinite loop detected
+   --> src\watcher\service.rs:139:9
+    |
+139 | /         loop {
+140 | |             // Check for commands (non-blocking)
+141 | |             if let Ok(msg) = command_rx.try_recv() {
+142 | |                 match msg {
+...   |
+205 | |             std::thread::sleep(Duration::from_millis(100));
+206 | |         }
+    | |_________^
+    |
+    = help: if this is not intended, try adding a `break` or `return` condition in the loop
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#infinite_loop
+    = note: `-D clippy::infinite-loop` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::infinite_loop)]`
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\watcher\service.rs:152:37
+    |
+152 | ...                   let _ = file_tx.send(event);
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\watcher\service.rs:152:37
+    |
+152 | ...                   let _ = file_tx.send(event);
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\watcher\service.rs:152:42
+    |
+152 | ...                   let _ = file_tx.send(event);
+    |                            ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\watcher\service.rs:233:9
+    |
+233 | /         let _ = app.emit(
+234 | |             "watcher:file_detected",
+235 | |             FileDetectedPayload {
+236 | |                 path: path.display().to_string(),
+...   |
+239 | |             },
+240 | |         );
+    | |__________^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\watcher\service.rs:233:9
+    |
+233 | /         let _ = app.emit(
+234 | |             "watcher:file_detected",
+235 | |             FileDetectedPayload {
+236 | |                 path: path.display().to_string(),
+...   |
+239 | |             },
+240 | |         );
+    | |__________^
+    |
+help: consider adding a type annotation
+   --> src\watcher\service.rs:233:14
+    |
+233 |         let _ = app.emit(
+    |              ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: this argument is passed by value, but not consumed in the function body
+   --> src\watcher\service.rs:260:15
+    |
+260 |         path: PathBuf,
+    |               ^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+    |
+260 |         path: &PathBuf,
+    |               +
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\watcher\service.rs:274:25
+    |
+274 | /                         let _ = app_clone.emit(
+275 | |                             "watcher:file_ready",
+276 | |                             FileReadyPayload {
+277 | |                                 path: path_clone.display().to_string(),
+278 | |                                 stable_at: Local::now().to_rfc3339(),
+279 | |                             },
+280 | |                         );
+    | |__________________________^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\watcher\service.rs:274:25
+    |
+274 | /                         let _ = app_clone.emit(
+275 | |                             "watcher:file_ready",
+276 | |                             FileReadyPayload {
+277 | |                                 path: path_clone.display().to_string(),
+278 | |                                 stable_at: Local::now().to_rfc3339(),
+279 | |                             },
+280 | |                         );
+    | |__________________________^
+    |
+help: consider adding a type annotation
+   --> src\watcher\service.rs:274:30
+    |
+274 |                         let _ = app_clone.emit(
+    |                              ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\watcher\service.rs:289:25
+    |
+289 | /                         let _ = app_clone.emit(
+290 | |                             "watcher:ingest_failed",
+291 | |                             IngestFailedPayload {
+292 | |                                 path: path_clone.display().to_string(),
+293 | |                                 error: format!("Stability check fail...
+294 | |                             },
+295 | |                         );
+    | |__________________________^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\watcher\service.rs:289:25
+    |
+289 | /                         let _ = app_clone.emit(
+290 | |                             "watcher:ingest_failed",
+291 | |                             IngestFailedPayload {
+292 | |                                 path: path_clone.display().to_string(),
+293 | |                                 error: format!("Stability check fail...
+294 | |                             },
+295 | |                         );
+    | |__________________________^
+    |
+help: consider adding a type annotation
+   --> src\watcher\service.rs:289:30
+    |
+289 |                         let _ = app_clone.emit(
+    |                              ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\watcher\service.rs:305:13
+    |
+305 | /             let _ = app_clone.emit(
+306 | |                 "watcher:ingest_started",
+307 | |                 IngestStartedPayload {
+308 | |                     path: path_clone.display().to_string(),
+309 | |                 },
+310 | |             );
+    | |______________^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\watcher\service.rs:305:13
+    |
+305 | /             let _ = app_clone.emit(
+306 | |                 "watcher:ingest_started",
+307 | |                 IngestStartedPayload {
+308 | |                     path: path_clone.display().to_string(),
+309 | |                 },
+310 | |             );
+    | |______________^
+    |
+help: consider adding a type annotation
+   --> src\watcher\service.rs:305:18
+    |
+305 |             let _ = app_clone.emit(
+    |                  ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\watcher\service.rs:320:21
+    |
+320 | /                     let _ = app_clone.emit(
+321 | |                         "watcher:ingest_succeeded",
+322 | |                         IngestSucceededPayload {
+323 | |                             path: path_clone.display().to_string(),
+...   |
+327 | |                         },
+328 | |                     );
+    | |______________________^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\watcher\service.rs:320:21
+    |
+320 | /                     let _ = app_clone.emit(
+321 | |                         "watcher:ingest_succeeded",
+322 | |                         IngestSucceededPayload {
+323 | |                             path: path_clone.display().to_string(),
+...   |
+327 | |                         },
+328 | |                     );
+    | |______________________^
+    |
+help: consider adding a type annotation
+   --> src\watcher\service.rs:320:26
+    |
+320 |                     let _ = app_clone.emit(
+    |                          ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\watcher\service.rs:342:21
+    |
+342 | /                     let _ = app_clone.emit(
+343 | |                         "watcher:ingest_failed",
+344 | |                         IngestFailedPayload {
+345 | |                             path: path_clone.display().to_string(),
+346 | |                             error: format!("Ingestion failed: {e}"),
+347 | |                         },
+348 | |                     );
+    | |______________________^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\watcher\service.rs:342:21
+    |
+342 | /                     let _ = app_clone.emit(
+343 | |                         "watcher:ingest_failed",
+344 | |                         IngestFailedPayload {
+345 | |                             path: path_clone.display().to_string(),
+346 | |                             error: format!("Ingestion failed: {e}"),
+347 | |                         },
+348 | |                     );
+    | |______________________^
+    |
+help: consider adding a type annotation
+   --> src\watcher\service.rs:342:26
+    |
+342 |                     let _ = app_clone.emit(
+    |                          ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: non-binding `let` on an expression with `#[must_use]` type
+   --> src\watcher\service.rs:411:9
+    |
+411 | /         let _ = app.emit(
+412 | |             "watcher:status",
+413 | |             WatcherStatusPayload {
+414 | |                 enabled: config.enabled,
+...   |
+418 | |             },
+419 | |         );
+    | |__________^
+    |
+    = help: consider explicitly using expression value
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_must_use
+error: non-binding `let` without a type annotation
+   --> src\watcher\service.rs:411:9
+    |
+411 | /         let _ = app.emit(
+412 | |             "watcher:status",
+413 | |             WatcherStatusPayload {
+414 | |                 enabled: config.enabled,
+...   |
+418 | |             },
+419 | |         );
+    | |__________^
+    |
+help: consider adding a type annotation
+   --> src\watcher\service.rs:411:14
+    |
+411 |         let _ = app.emit(
+    |              ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: used `unwrap()` on a `Result` value
+  --> src\watcher.rs:94:6
+   |
+94 |     *WATCHER_SERVICE.lock().unwrap() = Some(service);
+   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: if this value is an `Err`, it will panic
+   = help: consider using `expect()` to provide a better panic message
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: used `unwrap()` on a `Result` value
+   --> src\watcher.rs:106:19
+    |
+106 |     let service = WATCHER_SERVICE.lock().unwrap();
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: used `unwrap()` on a `Result` value
+   --> src\watcher.rs:121:19
+    |
+121 |     let service = WATCHER_SERVICE.lock().unwrap();
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: used `unwrap()` on a `Result` value
+   --> src\watcher.rs:142:23
+    |
+142 |         let service = WATCHER_SERVICE.lock().unwrap();
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: used `unwrap()` on a `Result` value
+   --> src\watcher.rs:154:19
+    |
+154 |     let service = WATCHER_SERVICE.lock().unwrap();
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: used `unwrap()` on a `Result` value
+   --> src\watcher.rs:165:23
+    |
+165 |         let service = WATCHER_SERVICE.lock().unwrap();
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: used `unwrap()` on a `Result` value
+   --> src\dictionary\renderer.rs:336:24
+    |
+336 |         let markdown = render_markdown(&dict).unwrap();
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: indexing may panic
+   --> src\dictionary\storage.rs:275:20
+    |
+275 |         assert_eq!(filtered[0].dataset_name, "dataset_0");
+    |                    ^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: used `unwrap_err()` on a `Result` value
+   --> src\error.rs:227:13
+    |
+227 | /             result
+228 | |                 .unwrap_err()
+    | |_____________________________^
+    |
+    = note: if this value is an `Ok`, it will panic
+    = help: consider using `expect_err()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: could not compile `beefcake` (lib) due to 70 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: field assignment outside of initializer for an instance created with Default::default()
+   --> src\pipeline\spec.rs:399:9
+    |
+399 |         config.active = true;
+    |         ^^^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `analyser::logic::types::ColumnCleanConfig { active: true, new_name: "customer_id".to_owned(), trim_whitespace: true, advanced_cleaning: true, ..Default::default() }` and removing relevant reassignments
+   --> src\pipeline\spec.rs:398:9
+    |
+398 |         let mut config = ColumnCleanConfig::default();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+error: used `unwrap()` on a `Result` value
+   --> src\pipeline\validation.rs:324:22
+    |
+324 |         let errors = validate_pipeline(&spec, &schema).unwrap();
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: indexing may panic
+   --> src\pipeline\validation.rs:327:17
+    |
+327 |         assert!(errors[0].message.contains("nonexistent"));
+    |                 ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: used `unwrap()` on a `Result` value
+   --> src\pipeline\validation.rs:345:22
+    |
+345 |         let errors = validate_pipeline(&spec, &schema).unwrap();
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: indexing may panic
+   --> src\pipeline\validation.rs:348:17
+    |
+348 |         assert!(errors[0].message.contains("target already exists"));
+    |                 ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#indexing_slicing
+error: used `unwrap()` on a `Result` value
+   --> src\pipeline\validation.rs:366:22
+    |
+366 |         let errors = validate_pipeline(&spec, &schema).unwrap();
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: used `unwrap()` on a `Result` value
+   --> src\pipeline\validation.rs:393:22
+    |
+393 |         let errors = validate_pipeline(&spec, &schema).unwrap();
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: if this value is an `Err`, it will panic
+    = help: consider using `expect()` to provide a better panic message
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unwrap_used
+error: non-binding `let` without a type annotation
+   --> src\utils.rs:500:13
+    |
+500 |             let _ = guard.keep();
+    |             ^^^^^^^^^^^^^^^^^^^^^
+    |
+help: consider adding a type annotation
+   --> src\utils.rs:500:18
+    |
+500 |             let _ = guard.keep();
+    |                  ^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_underscore_untyped
+error: this lint expectation is unfulfilled
+ --> src\analyser\logic\tests.rs:2:5
+  |
+2 |     clippy::unwrap_used,
+  |     ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `-D unfulfilled-lint-expectations` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unfulfilled_lint_expectations)]`
+error: this lint expectation is unfulfilled
+ --> src\analyser\logic\tests.rs:3:5
+  |
+3 |     clippy::panic,
+  |     ^^^^^^^^^^^^^
+error: this lint expectation is unfulfilled
+ --> src\analyser\logic\tests.rs:5:5
+  |
+5 |     clippy::indexing_slicing
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+error: could not compile `beefcake` (lib test) due to 97 previous errors
+0

@@ -1,15 +1,15 @@
-use crate::error::{BeefcakeError, Result, ResultExt as _};
 use crate::python_runner::{
     execute_python, python_adaptive_sink_snippet, python_load_snippet, python_preamble,
 };
 use beefcake::analyser::logic::ColumnCleanConfig;
+use beefcake::error::{BeefcakeError, Result, ResultExt as _};
 use polars::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::str::FromStr as _;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
-use std::str::FromStr as _;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -61,22 +61,19 @@ pub async fn prepare_export_source(
 ) -> Result<LazyFrame> {
     match source.source_type {
         ExportSourceType::Analyser => {
-            let path = source
-                .path
-                .as_ref()
-                .ok_or_else(|| BeefcakeError::InvalidPath("No path provided for Analyser source".to_owned()))?;
+            let path = source.path.as_ref().ok_or_else(|| {
+                BeefcakeError::InvalidPath("No path provided for Analyser source".to_owned())
+            })?;
             beefcake::analyser::logic::load_df_lazy(&PathBuf::from(path))
                 .context("Failed to load data")
         }
         ExportSourceType::Sql => {
-            let query = source
-                .content
-                .as_ref()
-                .ok_or_else(|| BeefcakeError::Config("No query provided for Sql source".to_owned()))?;
-            let path = source
-                .path
-                .as_ref()
-                .ok_or_else(|| BeefcakeError::InvalidPath("No data path provided for Sql source".to_owned()))?;
+            let query = source.content.as_ref().ok_or_else(|| {
+                BeefcakeError::Config("No query provided for Sql source".to_owned())
+            })?;
+            let path = source.path.as_ref().ok_or_else(|| {
+                BeefcakeError::InvalidPath("No data path provided for Sql source".to_owned())
+            })?;
 
             let temp_dir = std::env::temp_dir();
             let temp_output =
@@ -112,10 +109,9 @@ except Exception as e:
                 .context("Failed to scan Sql result")
         }
         ExportSourceType::Python => {
-            let script = source
-                .content
-                .as_ref()
-                .ok_or_else(|| BeefcakeError::Config("No script provided for Python source".to_owned()))?;
+            let script = source.content.as_ref().ok_or_else(|| {
+                BeefcakeError::Config("No script provided for Python source".to_owned())
+            })?;
             let path = source.path.as_ref();
 
             let temp_dir = std::env::temp_dir();
@@ -217,9 +213,7 @@ pub async fn execute_export_destination(
                         .context("CSV export failed")?;
                 }
                 _ => {
-                    let mut df = lf
-                        .collect()
-                        .context("Export failed (collect)")?;
+                    let mut df = lf.collect().context("Export failed (collect)")?;
                     beefcake::analyser::logic::save_df(&mut df, &temp_path)
                         .context("Failed to save file")?;
                 }
@@ -256,7 +250,8 @@ pub async fn execute_export_destination(
             // Resolve connection and call flow
             let config = beefcake::utils::load_app_config();
             let conn = config
-                .settings.connections
+                .settings
+                .connections
                 .iter()
                 .find(|c| c.id == connection_id)
                 .ok_or_else(|| BeefcakeError::Database("Connection not found".to_owned()))?;
@@ -320,15 +315,15 @@ pub async fn export_data_execution(
     }
 
     // 4. Create data dictionary snapshot if requested and destination is a file
-    if options.create_dictionary && matches!(options.destination.dest_type, ExportDestinationType::File) {
-        if let Err(e) = create_dictionary_snapshot(&options).await {
+    if options.create_dictionary
+        && matches!(options.destination.dest_type, ExportDestinationType::File)
+        && let Err(e) = create_dictionary_snapshot(&options).await {
             beefcake::utils::log_event(
                 "Export",
-                &format!("Warning: Failed to create data dictionary: {}", e),
+                &format!("Warning: Failed to create data dictionary: {e}"),
             );
             // Don't fail the export if dictionary creation fails
         }
-    }
 
     Ok(())
 }
@@ -353,7 +348,7 @@ async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
         Err(e) => {
             beefcake::utils::log_event(
                 "Export",
-                &format!("Could not load exported file for dictionary: {}", e),
+                &format!("Could not load exported file for dictionary: {e}"),
             );
             return Ok(());
         }
@@ -363,8 +358,7 @@ async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
     let dataset_name = output_path
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or("exported_dataset")
-        .to_string();
+        .unwrap_or("exported_dataset").to_owned();
 
     // Create snapshot
     let snapshot = beefcake::dictionary::create_snapshot(

@@ -108,9 +108,11 @@ pub fn clean_df_lazy(
 pub fn auto_clean_df(df: DataFrame, restricted: bool) -> Result<DataFrame> {
     let mut configs = HashMap::new();
     for col_name in df.get_column_names() {
-        let mut config = ColumnCleanConfig::default();
-        config.active = true;
-        config.trim_whitespace = true;
+        let config = ColumnCleanConfig {
+            active: true,
+            trim_whitespace: true,
+            ..Default::default()
+        };
         configs.insert(col_name.to_string(), config);
     }
     clean_df(df, &configs, restricted)
@@ -127,8 +129,7 @@ pub fn apply_text_cleaning(expr: Expr, config: &ColumnCleanConfig, _restricted: 
         match config.text_case {
             TextCase::Lowercase => expr = expr.str().to_lowercase(),
             TextCase::Uppercase => expr = expr.str().to_uppercase(),
-            TextCase::TitleCase => {}
-            TextCase::None => {}
+            TextCase::TitleCase | TextCase::None => {}
         }
 
         if config.remove_special_chars {
@@ -263,14 +264,21 @@ pub fn apply_one_hot_encoding_lazy(lf: LazyFrame, one_hot_cols: Vec<String>) -> 
 
     for col_name in one_hot_cols {
         // Get the column and collect to get unique values
-        let df_temp = result_lf.clone().select([col(&col_name)]).collect()
-            .context(format!("Failed to collect column {col_name} for one-hot encoding"))?;
+        let df_temp = result_lf
+            .clone()
+            .select([col(&col_name)])
+            .collect()
+            .context(format!(
+                "Failed to collect column {col_name} for one-hot encoding"
+            ))?;
 
-        let series = df_temp.column(&col_name)
+        let series = df_temp
+            .column(&col_name)
             .context(format!("Column {col_name} not found"))?;
 
         // Get unique values (excluding nulls)
-        let unique_vals = series.unique()
+        let unique_vals = series
+            .unique()
             .context(format!("Failed to get unique values from {col_name}"))?
             .drop_nulls();
 
@@ -301,7 +309,7 @@ pub fn apply_one_hot_encoding_lazy(lf: LazyFrame, one_hot_cols: Vec<String>) -> 
                 when(col(&col_name).eq(lit(val.as_str())))
                     .then(lit(1i32))
                     .otherwise(lit(0i32))
-                    .alias(&new_col_name)
+                    .alias(&new_col_name),
             );
         }
 

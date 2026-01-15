@@ -1,0 +1,204 @@
+[[permission]]
+identifier = "allow-get-app-version"
+description = "Allows the get_app_version command"
+commands.allow = ["get_app_version"]
+
+[[permission]]
+identifier = "allow-get-config"
+description = "Allows the get_config command"
+commands.allow = ["get_config"]
+
+[[permission]]
+identifier = "allow-analyze-file"
+description = "Allows the analyze_file command"
+commands.allow = ["analyze_file"]
+
+[[permission]]
+identifier = "allow-run-powershell"
+description = "Allows the run_powershell command"
+commands.allow = ["run_powershell"]
+
+[[permission]]
+identifier = "allow-run-python"
+description = "Allows the run_python command"
+commands.allow = ["run_python"]
+
+[[permission]]
+identifier = "allow-read-text-file"
+description = "Allows the read_text_file command"
+commands.allow = ["read_text_file"]
+
+[[permission]]
+identifier = "allow-write-text-file"
+description = "Allows the write_text_file command"
+commands.allow = ["write_text_file"]
+
+[[permission]]
+identifier = "allow-save-config"
+description = "Allows the save_config command"
+commands.allow = ["save_config"]
+
+[[permission]]
+identifier = "allow-push-to-db"
+description = "Allows the push_to_db command"
+commands.allow = ["push_to_db"]
+
+[[permission]]
+identifier = "allow-test-connection"
+description = "Allows the test_connection command"
+commands.allow = ["test_connection"]
+
+[[permission]]
+identifier = "allow-delete-connection"
+description = "Allows the delete_connection command"
+commands.allow = ["delete_connection"]
+
+[[permission]]
+identifier = "allow-install-python-package"
+description = "Allows the install_python_package command"
+commands.allow = ["install_python_package"]
+
+[[permission]]
+identifier = "allow-run-sql"
+description = "Allows the run_sql command"
+commands.allow = ["run_sql"]
+
+[[permission]]
+identifier = "allow-sanitize-headers"
+description = "Allows the sanitize_headers command"
+commands.allow = ["sanitize_headers"]
+
+[[permission]]
+identifier = "allow-export-data"
+description = "Allows the export_data command"
+commands.allow = ["export_data"]
+
+[[permission]]
+identifier = "allow-abort-processing"
+description = "Allows the abort_processing command"
+commands.allow = ["abort_processing"]
+
+[[permission]]
+identifier = "allow-reset-abort-signal"
+description = "Allows the reset_abort_signal command"
+commands.allow = ["reset_abort_signal"]
+
+[[permission]]
+identifier = "allow-lifecycle-create-dataset"
+description = "Allows the lifecycle_create_dataset command"
+commands.allow = ["lifecycle_create_dataset"]
+
+[[permission]]
+identifier = "allow-lifecycle-apply-transforms"
+description = "Allows the lifecycle_apply_transforms command"
+commands.allow = ["lifecycle_apply_transforms"]
+
+[[permission]]
+identifier = "allow-lifecycle-set-active-version"
+description = "Allows the lifecycle_set_active_version command"
+commands.allow = ["lifecycle_set_active_version"]
+
+[[permission]]
+identifier = "allow-lifecycle-publish-version"
+description = "Allows the lifecycle_publish_version command"
+commands.allow = ["lifecycle_publish_version"]
+
+[[permission]]
+identifier = "allow-lifecycle-get-version-diff"
+description = "Allows the lifecycle_get_version_diff command"
+commands.allow = ["lifecycle_get_version_diff"]
+
+[[permission]]
+identifier = "allow-lifecycle-list-versions"
+description = "Allows the lifecycle_list_versions command"
+commands.allow = ["lifecycle_list_versions"]
+
+[[permission]]
+identifier = "allow-list-pipeline-specs"
+description = "Allows the list_pipeline_specs command"
+commands.allow = ["list_pipeline_specs"]
+
+[[permission]]
+identifier = "allow-load-pipeline-spec"
+description = "Allows the load_pipeline_spec command"
+commands.allow = ["load_pipeline_spec"]
+
+[[permission]]
+identifier = "allow-save-pipeline-spec"
+description = "Allows the save_pipeline_spec command"
+commands.allow = ["save_pipeline_spec"]
+
+[[permission]]
+identifier = "allow-validate-pipeline-spec"
+description = "Allows the validate_pipeline_spec command"
+commands.allow = ["validate_pipeline_spec"]
+
+[[permission]]
+identifier = "allow-execute-pipeline-spec"
+description = "Allows the execute_pipeline_spec command"
+commands.allow = ["execute_pipeline_spec"]
+
+[[permission]]
+identifier = "allow-generate-powershell"
+description = "Allows the generate_powershell command"
+commands.allow = ["generate_powershell"]
+
+[[permission]]
+identifier = "allow-pipeline-from-configs"
+description = "Allows the pipeline_from_configs command"
+commands.allow = ["pipeline_from_configs"]
+
+[[permission]]
+identifier = "allow-list-pipeline-templates"
+description = "Allows the list_pipeline_templates command"
+commands.allow = ["list_pipeline_templates"]
+
+[[permission]]
+identifier = "allow-load-pipeline-template"
+description = "Allows the load_pipeline_template command"
+commands.allow = ["load_pipeline_template"]
+
+[[permission]]
+identifier = "allow-dictionary-load-snapshot"
+description = "Allows the dictionary_load_snapshot command"
+commands.allow = ["dictionary_load_snapshot"]
+
+[[permission]]
+identifier = "allow-dictionary-list-snapshots"
+description = "Allows the dictionary_list_snapshots command"
+commands.allow = ["dictionary_list_snapshots"]
+
+[[permission]]
+identifier = "allow-dictionary-update-business-metadata"
+description = "Allows the dictionary_update_business_metadata command"
+commands.allow = ["dictionary_update_business_metadata"]
+
+[[permission]]
+identifier = "allow-dictionary-export-markdown"
+description = "Allows the dictionary_export_markdown command"
+commands.allow = ["dictionary_export_markdown"]
+
+[[permission]]
+identifier = "allow-watcher-get-state"
+description = "Allows the watcher_get_state command"
+commands.allow = ["watcher_get_state"]
+
+[[permission]]
+identifier = "allow-watcher-start"
+description = "Allows the watcher_start command"
+commands.allow = ["watcher_start"]
+
+[[permission]]
+identifier = "allow-watcher-stop"
+description = "Allows the watcher_stop command"
+commands.allow = ["watcher_stop"]
+
+[[permission]]
+identifier = "allow-watcher-set-folder"
+description = "Allows the watcher_set_folder command"
+commands.allow = ["watcher_set_folder"]
+
+[[permission]]
+identifier = "allow-watcher-ingest-now"
+description = "Allows the watcher_ingest_now command"
+commands.allow = ["watcher_ingest_now"]
