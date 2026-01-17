@@ -524,3 +524,221 @@ fn parse_type_string(type_str: &str) -> Result<DataType> {
         _ => Err(anyhow::anyhow!("Unknown type string: {type_str}")),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use polars::prelude::*;
+    use std::fs;
+
+    fn create_test_dataframe() -> DataFrame {
+        df!(
+            "id" => [1, 2, 3, 4, 5],
+            "name" => ["Alice", "Bob", "Charlie", "David", "Eve"],
+            "age" => [25, 30, 35, 40, 45],
+            "salary" => [50000.0, 60000.0, 70000.0, 80000.0, 90000.0],
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_parse_type_string_valid_types() {
+        assert!(matches!(parse_type_string("i64"), Ok(DataType::Int64)));
+        assert!(matches!(
+            parse_type_string("Numeric"),
+            Ok(DataType::Int64)
+        ));
+        assert!(matches!(parse_type_string("f64"), Ok(DataType::Float64)));
+        assert!(matches!(parse_type_string("String"), Ok(DataType::String)));
+        assert!(matches!(parse_type_string("Text"), Ok(DataType::String)));
+        assert!(matches!(
+            parse_type_string("Boolean"),
+            Ok(DataType::Boolean)
+        ));
+    }
+
+    #[test]
+    fn test_parse_type_string_invalid_type() {
+        assert!(parse_type_string("InvalidType").is_err());
+        assert!(parse_type_string("").is_err());
+        assert!(parse_type_string("unknown").is_err());
+    }
+
+    #[test]
+    fn test_expand_path_template_basic() {
+        let template = "output/data_{date}.csv";
+        let result = expand_path_template(template);
+
+        // Should contain output/data_ and .csv
+        assert!(result.to_string_lossy().contains("output/data_"));
+        assert!(result.to_string_lossy().ends_with(".csv"));
+    }
+
+    #[test]
+    fn test_expand_path_template_with_timestamp() {
+        let template = "output/report_{timestamp}.parquet";
+        let result = expand_path_template(template);
+
+        // Should replace {timestamp} with actual timestamp
+        assert!(result.to_string_lossy().contains("output/report_"));
+        assert!(result.to_string_lossy().ends_with(".parquet"));
+        assert!(!result.to_string_lossy().contains("{timestamp}"));
+    }
+
+    #[test]
+    fn test_count_rows() {
+        let df = create_test_dataframe();
+        let lf = df.lazy();
+
+        let count = count_rows(&lf).unwrap();
+        assert_eq!(count, 5, "Should count 5 rows");
+    }
+
+    #[test]
+    fn test_apply_step_select_columns() {
+        let df = create_test_dataframe();
+        let lf = df.lazy();
+
+        let step = Step::SelectColumns {
+            columns: vec!["id".to_string(), "name".to_string()],
+        };
+
+        let result_lf = apply_step(&step, lf).unwrap();
+        let result_df = result_lf.collect().unwrap();
+
+        assert_eq!(result_df.width(), 2, "Should have 2 columns");
+        assert!(result_df.column("id").is_ok());
+        assert!(result_df.column("name").is_ok());
+        assert!(result_df.column("age").is_err());
+    }
+
+    #[test]
+    fn test_apply_step_drop_columns() {
+        let df = create_test_dataframe();
+        let lf = df.lazy();
+
+        let step = Step::DropColumns {
+            columns: vec!["age".to_string()],
+        };
+
+        let result_lf = apply_step(&step, lf).unwrap();
+        let result_df = result_lf.collect().unwrap();
+
+        assert_eq!(result_df.width(), 3, "Should have 3 columns remaining");
+        assert!(result_df.column("age").is_err());
+        assert!(result_df.column("id").is_ok());
+    }
+
+    #[test]
+    fn test_apply_step_rename_column() {
+        let df = create_test_dataframe();
+        let lf = df.lazy();
+
+        let step = Step::RenameColumn {
+            old_name: "name".to_string(),
+            new_name: "full_name".to_string(),
+        };
+
+        let result_lf = apply_step(&step, lf).unwrap();
+        let result_df = result_lf.collect().unwrap();
+
+        assert!(result_df.column("full_name").is_ok());
+        assert!(result_df.column("name").is_err());
+    }
+
+    #[test]
+    fn test_apply_step_filter_rows() {
+        let df = create_test_dataframe();
+        let lf = df.lazy();
+
+        let step = Step::FilterRows {
+            condition: "age > 30".to_string(),
+        };
+
+        let result_lf = apply_step(&step, lf).unwrap();
+        let result_df = result_lf.collect().unwrap();
+
+        // Should have 3 rows with age > 30 (35, 40, 45)
+        assert_eq!(result_df.height(), 3, "Should have 3 rows after filter");
+    }
+
+    #[test]
+    fn test_run_report_summary() {
+        let report = RunReport {
+            rows_before: 100,
+            rows_after: 80,
+            columns_before: 10,
+            columns_after: 8,
+            steps_applied: 5,
+            warnings: vec![],
+            duration: std::time::Duration::from_secs(2),
+        };
+
+        let summary = report.summary();
+        assert!(summary.contains("removed"));
+        assert!(summary.contains("100 → 80"));
+        assert!(summary.contains("10 → 8"));
+        assert!(summary.contains("5 steps"));
+    }
+
+    #[test]
+    fn test_run_report_summary_unchanged() {
+        let report = RunReport {
+            rows_before: 100,
+            rows_after: 100,
+            columns_before: 10,
+            columns_after: 10,
+            steps_applied: 3,
+            warnings: vec![],
+            duration: std::time::Duration::from_millis(500),
+        };
+
+        let summary = report.summary();
+        assert!(summary.contains("unchanged"));
+    }
+
+    #[test]
+    fn test_apply_step_impute_mean() {
+        // Create dataframe with null values
+        let df = df!(
+            "value" => [Some(1.0), None, Some(3.0), None, Some(5.0)],
+        )
+        .unwrap();
+        let lf = df.lazy();
+
+        let step = Step::ImputeNulls {
+            column: "value".to_string(),
+            strategy: ImputeStrategy::Mean,
+        };
+
+        let result_lf = apply_step(&step, lf).unwrap();
+        let result_df = result_lf.collect().unwrap();
+        let col = result_df.column("value").unwrap();
+
+        // Mean of [1, 3, 5] = 3.0, so nulls should be replaced
+        assert_eq!(col.null_count(), 0, "Should have no nulls after imputation");
+    }
+
+    #[test]
+    fn test_apply_step_normalise_minmax() {
+        let df = create_test_dataframe();
+        let lf = df.lazy();
+
+        let step = Step::NormaliseColumn {
+            column: "age".to_string(),
+            method: NormalisationMethod::MinMax,
+        };
+
+        let result_lf = apply_step(&step, lf).unwrap();
+        let result_df = result_lf.collect().unwrap();
+
+        // Verify the column exists after normalization
+        assert!(
+            result_df.column("age").is_ok(),
+            "Normalized column should exist"
+        );
+
+        // Verify the dataframe still has correct dimensions
+        assert_eq!(result_df.height(), 5, "Should maintain 5 rows");
+    }
+}
