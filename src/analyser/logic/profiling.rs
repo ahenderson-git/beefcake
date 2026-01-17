@@ -19,6 +19,18 @@ use super::types::{BooleanStats, ColumnKind, ColumnStats, NumericStats, Temporal
 use anyhow::Result;
 use polars::prelude::*;
 
+/// Configuration for histogram building with streaming data.
+#[derive(Debug, Clone)]
+pub struct HistogramConfig {
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub q1: Option<f64>,
+    pub q3: Option<f64>,
+    pub total_count: usize,
+    pub null_count: usize,
+    pub custom_sample_size: usize,
+}
+
 pub fn get_adaptive_sample_size(total_rows: usize, custom_sample_size: usize) -> usize {
     // Use custom sample size with adaptive logic to handle small datasets
     // Histograms and statistics accuracy improves with larger samples
@@ -240,18 +252,20 @@ pub fn calculate_histogram(
     (bin_width, histogram)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn build_histogram_streaming(
     lf: LazyFrame,
     name: &str,
-    min: Option<f64>,
-    max: Option<f64>,
-    q1: Option<f64>,
-    q3: Option<f64>,
-    total_count: usize,
-    null_count: usize,
-    custom_sample_size: usize,
+    config: HistogramConfig,
 ) -> Result<(f64, Vec<(f64, usize)>)> {
+    let HistogramConfig {
+        min,
+        max,
+        q1,
+        q3,
+        total_count,
+        null_count,
+        custom_sample_size,
+    } = config;
     if let (Some(min_v), Some(max_v)) = (min, max) {
         if (max_v - min_v).abs() < f64::EPSILON {
             let num_bins = 20;

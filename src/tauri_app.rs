@@ -55,39 +55,32 @@ fn resolve_project_root() -> Result<PathBuf, String> {
     Err("Could not find project root (Cargo.toml)".to_owned())
 }
 
-async fn run_on_worker_thread<F, Fut, R>(name_str: &str, f: F) -> Result<R, String>
+async fn run_on_worker_thread<F, Fut, R>(name: &str, f: F) -> Result<R, String>
 where
     F: FnOnce() -> Fut + Send + 'static,
     Fut: Future<Output = Result<R, String>> + Send + 'static,
     R: Send + 'static,
 {
-    let name = name_str.to_owned();
-    let name_outer = name.clone();
+    let thread_name = name.to_owned();
+    let spawn_name = thread_name.clone();
+    let panic_name = thread_name.clone();
+
     tauri::async_runtime::spawn_blocking(move || {
-        let name_for_thread = name.clone();
-        let name_for_err = name.clone();
-        let name_for_join = name.clone();
-
-        let builder = std::thread::Builder::new()
-            .name(name)
-            .stack_size(WORKER_THREAD_STACK_SIZE);
-
-        let handle = builder
+        std::thread::Builder::new()
+            .name(thread_name)
+            .stack_size(WORKER_THREAD_STACK_SIZE)
             .spawn(move || {
-                let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
                     tauri::async_runtime::block_on(f())
-                }));
-
-                res.unwrap_or_else(|_| Err(format!("{name_for_thread} thread panicked.")))
+                }))
+                .unwrap_or_else(|_| Err(format!("{panic_name} panicked")))
             })
-            .map_err(|e| format!("Failed to spawn {name_for_err} thread: {e}"))?;
-
-        handle
+            .map_err(|e| format!("Failed to spawn {spawn_name}: {e}"))?
             .join()
-            .map_err(|e| format!("{name_for_join} thread joined with error (panic): {e:?}"))?
+            .map_err(|e| format!("Thread join error: {e:?}"))?
     })
     .await
-    .map_err(|e| format!("{name_outer} task execution failed: {e}"))?
+    .map_err(|e| format!("Worker task failed: {e}"))?
 }
 
 #[tauri::command]

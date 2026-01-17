@@ -532,8 +532,17 @@ pub fn compute_numeric_stats(
     })?;
 
     let trimmed_mean = profiling::calculate_trimmed_mean(sample_ca, mean, trim_pct);
+    let histogram_config = profiling::HistogramConfig {
+        min,
+        max,
+        q1,
+        q3,
+        total_count: count,
+        null_count,
+        custom_sample_size: adaptive_sample_size,
+    };
     let (bin_width, histogram) =
-        profiling::build_histogram_streaming(lf, name, min, max, q1, q3, count, null_count, adaptive_sample_size)?;
+        profiling::build_histogram_streaming(lf, name, histogram_config)?;
 
     Ok((
         ColumnKind::Numeric,

@@ -89,16 +89,19 @@ fn test_histogram_streaming_large() -> Result<()> {
     let lf = df.lazy();
 
     // Directly call the streaming histogram function
+    let histogram_config = profiling::HistogramConfig {
+        min: Some(0.0),
+        max: Some(99999.0),
+        q1: Some(25000.0),
+        q3: Some(75000.0),
+        total_count: 100_000,
+        null_count: 0,
+        custom_sample_size: 10_000,
+    };
     let (bin_width, histogram) = profiling::build_histogram_streaming(
         lf,
         "col",
-        Some(0.0),
-        Some(99999.0),
-        Some(25000.0),
-        Some(75000.0),
-        100_000,
-        0,
-        10_000,  // custom_sample_size
+        histogram_config,
     )?;
 
     assert!(!histogram.is_empty(), "Histogram should not be empty");
