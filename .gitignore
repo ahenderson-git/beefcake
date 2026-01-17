@@ -33,3 +33,19 @@ playwright-report/
 
 # Husky
 .husky/_/
+
+# Lint and analysis reports
+.cache/
+*.txt
+!docs/**/*.txt
+clippy_*.txt
+eslint_*.txt
+watcher_lint*.txt
+
+# Test artifacts and temporary files
+test_*.csv
+test_*.py
+test_*.html
+.output.txt
+NUL
+_UL

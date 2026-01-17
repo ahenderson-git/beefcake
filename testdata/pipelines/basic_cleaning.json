@@ -1,0 +1,25 @@
+{
+  "version": "0.1",
+  "name": "Basic Data Cleaning",
+  "description": "Standard cleaning operations for most datasets",
+  "steps": [
+    {
+      "op": "trim_whitespace",
+      "columns": ["name", "email", "department"]
+    },
+    {
+      "op": "standardize_nulls"
+    },
+    {
+      "op": "drop_columns",
+      "columns": ["temp_column"]
+    }
+  ],
+  "input": {
+    "format": "csv"
+  },
+  "output": {
+    "format": "parquet",
+    "path": "cleaned_output.parquet"
+  }
+}

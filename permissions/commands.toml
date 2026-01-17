@@ -207,3 +207,13 @@ commands.allow = ["watcher_set_folder"]
 identifier = "allow-watcher-ingest-now"
 description = "Allows the watcher_ingest_now command"
 commands.allow = ["watcher_ingest_now"]
+
+[[permission]]
+identifier = "allow-list-documentation-files"
+description = "Allows the list_documentation_files command"
+commands.allow = ["list_documentation_files"]
+
+[[permission]]
+identifier = "allow-read-documentation-file"
+description = "Allows the read_documentation_file command"
+commands.allow = ["read_documentation_file"]

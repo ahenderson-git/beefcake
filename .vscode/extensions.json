@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "zixuanchen.vitest-explorer",
+    "rust-lang.rust-analyzer",
+    "tauri-apps.tauri-vscode",
+    "ms-playwright.playwright"
+  ],
+  "unwantedRecommendations": []
+}

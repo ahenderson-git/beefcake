@@ -11,6 +11,9 @@ pub const DATA_PROCESSED_DIR: &str = "data/processed";
 pub const KEYRING_SERVICE: &str = "au.com.ahenderson.beefcake";
 pub const KEYRING_PLACEHOLDER: &str = "__KEYRING__";
 
+/// Maximum number of audit log entries to keep (prevents config file bloat)
+pub const MAX_AUDIT_LOG_ENTRIES: usize = 100;
+
 pub static ABORT_SIGNAL: AtomicBool = AtomicBool::new(false);
 
 // Pending audit log entries that will be flushed periodically
@@ -75,15 +78,15 @@ impl AuditLog {
     }
 
     /// Add an entry to the audit log.
-    /// Automatically limits to the last 100 entries to prevent unbounded growth.
+    /// Automatically limits to the last MAX_AUDIT_LOG_ENTRIES entries to prevent unbounded growth.
     pub fn push(&mut self, action: impl Into<String>, details: impl Into<String>) {
         self.entries.push(AuditEntry {
             timestamp: Local::now(),
             action: action.into(),
             details: details.into(),
         });
-        // Keep only last 100 entries to prevent config file bloat
-        if self.entries.len() > 100 {
+        // Keep only last N entries to prevent config file bloat
+        if self.entries.len() > MAX_AUDIT_LOG_ENTRIES {
             self.entries.remove(0);
         }
     }
@@ -144,7 +147,7 @@ impl Default for AppSettings {
             security_warning_acknowledged: false,
             skip_full_row_count: false,
             analysis_sample_size: 10_000,
-            sampling_strategy: "balanced".to_string(),
+            sampling_strategy: "balanced".to_owned(),
         }
     }
 }

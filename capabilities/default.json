@@ -53,6 +53,8 @@
     "allow-watcher-start",
     "allow-watcher-stop",
     "allow-watcher-set-folder",
-    "allow-watcher-ingest-now"
+    "allow-watcher-ingest-now",
+    "allow-list-documentation-files",
+    "allow-read-documentation-file"
   ]
 }

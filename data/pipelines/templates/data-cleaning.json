@@ -1,0 +1,31 @@
+{
+  "version": "0.1",
+  "name": "Data Cleaning",
+  "input": {
+    "format": "csv",
+    "path": ""
+  },
+  "schema": {
+    "required_columns": [],
+    "optional_columns": []
+  },
+  "steps": [
+    {
+      "op": "trim_whitespace",
+      "columns": []
+    },
+    {
+      "op": "drop_columns",
+      "columns": []
+    },
+    {
+      "op": "impute",
+      "strategy": "mean",
+      "columns": []
+    }
+  ],
+  "output": {
+    "format": "parquet",
+    "path": ""
+  }
+}

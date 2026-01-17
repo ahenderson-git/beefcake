@@ -507,6 +507,12 @@
           "markdownDescription": "Allows the lifecycle_set_active_version command"
         },
         {
+          "description": "Allows the list_documentation_files command",
+          "type": "string",
+          "const": "allow-list-documentation-files",
+          "markdownDescription": "Allows the list_documentation_files command"
+        },
+        {
           "description": "Allows the list_pipeline_specs command",
           "type": "string",
           "const": "allow-list-pipeline-specs",
@@ -541,6 +547,12 @@
           "type": "string",
           "const": "allow-push-to-db",
           "markdownDescription": "Allows the push_to_db command"
+        },
+        {
+          "description": "Allows the read_documentation_file command",
+          "type": "string",
+          "const": "allow-read-documentation-file",
+          "markdownDescription": "Allows the read_documentation_file command"
         },
         {
           "description": "Allows the read_text_file command",

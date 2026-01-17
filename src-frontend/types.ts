@@ -442,3 +442,15 @@ export interface SnapshotMetadata {
   column_count: number;
   completeness_pct: number;
 }
+
+/**
+ * Documentation file metadata returned from the backend
+ */
+export interface DocFileMetadata {
+  /** Relative path from docs/ directory (e.g., "README.md") */
+  path: string;
+  /** Display name for the UI */
+  title: string;
+  /** Category for grouping (e.g., "Getting Started", "Reference") */
+  category: string;
+}

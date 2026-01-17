@@ -1,0 +1,30 @@
+{
+  "version": "0.1",
+  "name": "Text Processing",
+  "input": {
+    "format": "csv",
+    "path": ""
+  },
+  "schema": {
+    "required_columns": [],
+    "optional_columns": []
+  },
+  "steps": [
+    {
+      "op": "trim_whitespace",
+      "columns": []
+    },
+    {
+      "op": "rename_columns",
+      "mapping": {}
+    },
+    {
+      "op": "cast_types",
+      "columns": {}
+    }
+  ],
+  "output": {
+    "format": "parquet",
+    "path": ""
+  }
+}

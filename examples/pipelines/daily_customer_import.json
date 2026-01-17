@@ -1,0 +1,75 @@
+{
+  "version": "0.1",
+  "name": "daily_customer_import",
+  "input": {
+    "format": "csv",
+    "has_header": true,
+    "delimiter": ",",
+    "encoding": "utf-8"
+  },
+  "schema": {
+    "match_mode": "strict",
+    "required_columns": [
+      "customer_id",
+      "age",
+      "signup_date",
+      "state",
+      "income"
+    ]
+  },
+  "steps": [
+    {
+      "op": "drop_columns",
+      "columns": [
+        "internal_notes",
+        "debug_flag"
+      ]
+    },
+    {
+      "op": "rename_columns",
+      "mapping": {
+        "cust_id": "customer_id",
+        "dob": "date_of_birth"
+      }
+    },
+    {
+      "op": "trim_whitespace",
+      "columns": [
+        "state"
+      ]
+    },
+    {
+      "op": "cast_types",
+      "columns": {
+        "age": "i64",
+        "income": "f64"
+      }
+    },
+    {
+      "op": "parse_dates",
+      "columns": {
+        "signup_date": "yyyy-MM-dd"
+      }
+    },
+    {
+      "op": "impute",
+      "strategy": "median",
+      "columns": [
+        "income",
+        "age"
+      ]
+    },
+    {
+      "op": "one_hot_encode",
+      "columns": [
+        "state"
+      ],
+      "drop_original": true
+    }
+  ],
+  "output": {
+    "format": "parquet",
+    "path_template": "output/cleaned_{date}.parquet",
+    "overwrite": true
+  }
+}

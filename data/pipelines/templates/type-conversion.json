@@ -1,0 +1,26 @@
+{
+  "version": "0.1",
+  "name": "Type Conversion",
+  "input": {
+    "format": "csv",
+    "path": ""
+  },
+  "schema": {
+    "required_columns": [],
+    "optional_columns": []
+  },
+  "steps": [
+    {
+      "op": "cast_types",
+      "columns": {}
+    },
+    {
+      "op": "parse_dates",
+      "columns": {}
+    }
+  ],
+  "output": {
+    "format": "parquet",
+    "path": ""
+  }
+}

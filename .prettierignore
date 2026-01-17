@@ -1,0 +1,32 @@
+# Build outputs
+dist/
+target/
+build/
+
+# Dependencies
+node_modules/
+
+# Test outputs
+coverage/
+playwright-report/
+test-results/
+
+# Generated documentation
+docs/typescript/
+target/doc/
+
+# Lock files
+package-lock.json
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.log
+*.tmp

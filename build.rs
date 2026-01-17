@@ -6,7 +6,7 @@ fn main() {
     // during development or initial build.
     let dist_path = Path::new("dist");
     println!("cargo:rerun-if-changed=tauri.conf.json");
-    println!("cargo:warning=Checking for dist directory at: {:?}", dist_path.canonicalize().unwrap_or(dist_path.to_path_buf()));
+    println!("cargo:warning=Checking for dist directory at: {}", dist_path.canonicalize().unwrap_or(dist_path.to_path_buf()).display());
 
     if !dist_path.exists() {
         println!("cargo:warning=dist directory NOT found, creating it...");

@@ -1,0 +1,11 @@
+id,name,age,email,salary,department
+1,Alice Johnson,28,alice@example.com,75000,Engineering
+2,Bob Smith,,bob@example.com,,Marketing
+3,Charlie Brown,45,,95000,Engineering
+4,Diana Prince,29,diana@example.com,70000,
+5,Eve Martinez,,,80000,Engineering
+6,Frank Wilson,52,frank@example.com,,Management
+7,Grace Lee,,grace@example.com,72000,
+8,Henry Davis,41,,85000,Engineering
+9,Iris Chen,26,iris@example.com,,Sales
+10,Jack Robinson,,,78000,Marketing

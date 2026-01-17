@@ -127,7 +127,7 @@ export class PipelineComponent extends Component {
     }
 
     // Create editor
-    this.pipelineEditor = new PipelineEditor(editorContainer, this.actions, spec);
+    this.pipelineEditor = new PipelineEditor(editorContainer, spec);
 
     // Set callbacks
     this.pipelineEditor.setOnBack(() => {
@@ -238,7 +238,7 @@ export class PipelineComponent extends Component {
       container.appendChild(executorContainer);
 
       // Create and show executor
-      const executor = new PipelineExecutor(executorContainer, this.actions, spec);
+      const executor = new PipelineExecutor(executorContainer, spec);
       executor.setOnClose(() => {
         // Clean up modal when closed
         executorContainer.remove();

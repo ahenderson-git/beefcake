@@ -1,0 +1,45 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src-frontend"],
+  "entryPointStrategy": "expand",
+  "out": "docs/typescript",
+  "name": "Beefcake Frontend Documentation",
+  "includeVersion": true,
+  "readme": "docs/LEARNING_GUIDE.md",
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**"
+  ],
+  "externalPattern": [
+    "**/node_modules/**"
+  ],
+  "excludeExternals": true,
+  "excludePrivate": false,
+  "excludeProtected": false,
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Class",
+    "Interface",
+    "TypeAlias",
+    "Function",
+    "Variable"
+  ],
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "visibilityFilters": {
+    "protected": true,
+    "private": true,
+    "inherited": true,
+    "external": false
+  },
+  "searchInComments": true,
+  "cleanOutputDir": true,
+  "treatWarningsAsErrors": false,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  }
+}

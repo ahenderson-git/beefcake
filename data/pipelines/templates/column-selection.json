@@ -1,0 +1,26 @@
+{
+  "version": "0.1",
+  "name": "Column Selection",
+  "input": {
+    "format": "csv",
+    "path": ""
+  },
+  "schema": {
+    "required_columns": [],
+    "optional_columns": []
+  },
+  "steps": [
+    {
+      "op": "drop_columns",
+      "columns": []
+    },
+    {
+      "op": "rename_columns",
+      "mapping": {}
+    }
+  ],
+  "output": {
+    "format": "parquet",
+    "path": ""
+  }
+}

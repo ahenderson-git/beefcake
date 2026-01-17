@@ -1,0 +1,29 @@
+{
+  "version": "0.1",
+  "name": "Outlier Handling",
+  "input": {
+    "format": "csv",
+    "path": ""
+  },
+  "schema": {
+    "required_columns": [],
+    "optional_columns": []
+  },
+  "steps": [
+    {
+      "op": "clip_outliers",
+      "columns": [],
+      "lower_quantile": 0.01,
+      "upper_quantile": 0.99
+    },
+    {
+      "op": "normalize_columns",
+      "method": "zscore",
+      "columns": []
+    }
+  ],
+  "output": {
+    "format": "parquet",
+    "path": ""
+  }
+}

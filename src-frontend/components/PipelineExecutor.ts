@@ -8,13 +8,10 @@ import { open } from '@tauri-apps/plugin-dialog';
 
 import { PipelineSpec, executePipeline, ExecutionResult } from '../api-pipeline';
 
-import { ComponentActions } from './Component';
-
 export type ExecutionState = 'idle' | 'selecting' | 'running' | 'success' | 'error';
 
 export class PipelineExecutor {
   private container: HTMLElement;
-  private actions: ComponentActions;
   private spec: PipelineSpec;
   private state: ExecutionState = 'idle';
   private inputPath: string | null = null;
@@ -23,9 +20,8 @@ export class PipelineExecutor {
   private error: string | null = null;
   private onClose?: () => void;
 
-  constructor(container: HTMLElement, actions: ComponentActions, spec: PipelineSpec) {
+  constructor(container: HTMLElement, spec: PipelineSpec) {
     this.container = container;
-    this.actions = actions;
     this.spec = spec;
   }
 

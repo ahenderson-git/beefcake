@@ -8,6 +8,7 @@ use anyhow::{Context as _, Result};
 use polars::prelude::*;
 use std::collections::HashMap;
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_full_analysis_streaming(
     lf: LazyFrame,
     path: String,
@@ -48,6 +49,7 @@ pub fn run_full_analysis_streaming(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_full_analysis(
     lf: LazyFrame,
     path: String,

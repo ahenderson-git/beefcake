@@ -3,6 +3,7 @@ on: [push, pull_request, workflow_dispatch]
 name: CI
 
 env:
+  toolchain: stable
   RUSTFLAGS: -D warnings
   RUSTDOCFLAGS: -D warnings
 

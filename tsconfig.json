@@ -25,5 +25,5 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true
   },
-  "include": ["src-frontend"]
+  "include": ["src-frontend", "e2e"]
 }

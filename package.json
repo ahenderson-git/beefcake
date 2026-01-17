@@ -42,11 +42,15 @@
     "@tauri-apps/plugin-window-state": "^2.0.1",
     "ansi_up": "^6.0.2",
     "chart.js": "^4.4.1",
+    "dompurify": "^3.2.7",
+    "marked": "^14.0.0",
     "monaco-editor": "^0.55.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@tauri-apps/cli": "^2.1.0",
+    "@types/dompurify": "^3.0.5",
+    "@types/marked": "^5.0.2",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "@vitest/coverage-v8": "^4.0.17",

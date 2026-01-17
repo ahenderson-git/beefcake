@@ -69,6 +69,7 @@ import {
   SnapshotMetadata,
   DbConnection,
   DiffSummary,
+  DocFileMetadata,
 } from './types';
 
 /**
@@ -340,4 +341,25 @@ export async function dictionaryExportMarkdown(
   outputPath: string
 ): Promise<void> {
   return await invoke('dictionary_export_markdown', { snapshotId, outputPath });
+}
+
+/**
+ * List all available documentation files with metadata.
+ *
+ * @returns Array of documentation file metadata
+ * @throws Error if documentation directory cannot be accessed
+ */
+export async function listDocumentationFiles(): Promise<DocFileMetadata[]> {
+  return await invoke('list_documentation_files');
+}
+
+/**
+ * Read the content of a documentation file.
+ *
+ * @param docPath - Relative path from docs/ directory (e.g., "README.md")
+ * @returns Markdown content of the documentation file
+ * @throws Error if file cannot be read or path is invalid
+ */
+export async function readDocumentationFile(docPath: string): Promise<string> {
+  return await invoke('read_documentation_file', { docPath });
 }

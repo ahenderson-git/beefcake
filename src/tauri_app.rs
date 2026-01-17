@@ -15,6 +15,46 @@ use std::str::FromStr as _;
 use crate::export;
 use crate::python_runner;
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+/// Stack size for worker threads (50MB) - used for memory-intensive operations
+const WORKER_THREAD_STACK_SIZE: usize = 50 * 1024 * 1024;
+
+/// File size threshold (50MB) for warning about memory-intensive operations
+const LARGE_FILE_WARNING_THRESHOLD: u64 = 50 * 1024 * 1024;
+
+/// Maximum search depth when looking for project root
+const PROJECT_ROOT_SEARCH_DEPTH: usize = 10;
+
+// ============================================================================
+// Utilities
+// ============================================================================
+
+/// Resolve the project root directory by searching for Cargo.toml
+fn resolve_project_root() -> Result<PathBuf, String> {
+    let mut current_dir = std::env::current_exe()
+        .map_err(|e| format!("Failed to get exe path: {e}"))?
+        .parent()
+        .ok_or("No parent directory")?
+        .to_path_buf();
+
+    // Navigate up to find project root (where Cargo.toml exists)
+    for _ in 0..PROJECT_ROOT_SEARCH_DEPTH {
+        if current_dir.join("Cargo.toml").exists() {
+            return Ok(current_dir);
+        }
+        if let Some(parent) = current_dir.parent() {
+            current_dir = parent.to_path_buf();
+        } else {
+            break;
+        }
+    }
+
+    Err("Could not find project root (Cargo.toml)".to_owned())
+}
+
 async fn run_on_worker_thread<F, Fut, R>(name_str: &str, f: F) -> Result<R, String>
 where
     F: FnOnce() -> Fut + Send + 'static,
@@ -30,7 +70,7 @@ where
 
         let builder = std::thread::Builder::new()
             .name(name)
-            .stack_size(50 * 1024 * 1024);
+            .stack_size(WORKER_THREAD_STACK_SIZE);
 
         let handle = builder
             .spawn(move || {
@@ -157,7 +197,7 @@ pub async fn export_data(options: export::ExportOptions) -> Result<(), String> {
         ) {
             if let Some(path) = &options.source.path {
                 if let Ok(meta) = std::fs::metadata(path) {
-                    if meta.len() > 50 * 1024 * 1024 {
+                    if meta.len() > LARGE_FILE_WARNING_THRESHOLD {
                         beefcake::utils::log_event(
                             "Export",
                             &format!(
@@ -812,11 +852,11 @@ pub async fn delete_pipeline_spec(path: String) -> Result<(), String> {
     };
 
     if !absolute_path.starts_with(&pipelines_dir) {
-        return Err("Access denied: Path is outside the pipelines directory".to_string());
+        return Err("Access denied: Path is outside the pipelines directory".to_owned());
     }
 
     if !absolute_path.exists() {
-        return Err("File not found".to_string());
+        return Err("File not found".to_owned());
     }
 
     fs::remove_file(absolute_path).map_err(|e| format!("Failed to delete pipeline spec: {e}"))
@@ -1025,6 +1065,91 @@ pub async fn watcher_ingest_now(path: String) -> Result<(), String> {
     beefcake::watcher::ingest_now(path_buf).map_err(|e| e.to_string())
 }
 
+/// Documentation file metadata for the frontend
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DocFileMetadata {
+    /// Relative path from docs/ directory (e.g., "README.md", "typescript/PATTERNS.md")
+    pub path: String,
+    /// Display name for the UI
+    pub title: String,
+    /// Category for grouping (e.g., "Getting Started", "Reference", "Architecture")
+    pub category: String,
+}
+
+#[tauri::command]
+pub async fn list_documentation_files() -> Result<Vec<DocFileMetadata>, String> {
+    let current_dir = resolve_project_root()?;
+    let docs_dir = current_dir.join("docs");
+    if !docs_dir.exists() {
+        return Err(format!("Documentation directory not found: {}", docs_dir.display()));
+    }
+
+    let mut docs = Vec::new();
+
+    // Manually list important documentation files with metadata
+    let doc_files = vec![
+        ("README.md", "Documentation Index", "Getting Started"),
+        ("LEARNING_GUIDE.md", "Learning Guide", "Getting Started"),
+        ("FEATURES.md", "Features Overview", "Reference"),
+        ("HELPFUL_LINKS.md", "Helpful Links", "Reference"),
+        ("LIMITATIONS.md", "Known Limitations", "Reference"),
+        ("ARCHITECTURE.md", "System Architecture", "Architecture"),
+        ("MODULES.md", "Module Reference", "Architecture"),
+        ("RUST_CONCEPTS.md", "Rust Concepts", "Learning"),
+        ("TYPESCRIPT_PATTERNS.md", "TypeScript Patterns", "Learning"),
+        ("AUTOMATION.md", "Pipeline Automation", "Guide"),
+        ("ROADMAP.md", "Development Roadmap", "Planning"),
+        ("PIPELINE_BUILDER_SPEC.md", "Pipeline Builder Spec", "Reference"),
+        ("PIPELINE_IMPLEMENTATION_GUIDE.md", "Pipeline Implementation", "Guide"),
+        ("CODE_QUALITY.md", "Code Quality Standards", "Development"),
+        ("testing.md", "Testing Guide", "Development"),
+        ("test-matrix.md", "Test Matrix", "Development"),
+    ];
+
+    for (filename, title, category) in doc_files {
+        let file_path = docs_dir.join(filename);
+        if file_path.exists() {
+            docs.push(DocFileMetadata {
+                path: filename.to_owned(),
+                title: title.to_owned(),
+                category: category.to_owned(),
+            });
+        }
+    }
+
+    Ok(docs)
+}
+
+#[tauri::command]
+pub async fn read_documentation_file(doc_path: String) -> Result<String, String> {
+    use std::fs;
+
+    // Security: only allow reading from docs/ directory
+    if doc_path.contains("..") || doc_path.contains("\\..") || doc_path.starts_with('/') || doc_path.starts_with('\\') {
+        return Err("Invalid documentation path: path traversal not allowed".to_owned());
+    }
+
+    let current_dir = resolve_project_root()?;
+    let file_path = current_dir.join("docs").join(&doc_path);
+
+    // Verify the resolved path is still within docs directory (canonical path check)
+    let docs_dir_canonical = current_dir.join("docs")
+        .canonicalize()
+        .map_err(|e| format!("Failed to canonicalize docs dir: {e}"))?;
+
+    let file_path_canonical = file_path
+        .canonicalize()
+        .map_err(|e| format!("Documentation file not found: {e}"))?;
+
+    if !file_path_canonical.starts_with(&docs_dir_canonical) {
+        return Err("Invalid documentation path: outside docs directory".to_owned());
+    }
+
+    // Read and return the file content
+    fs::read_to_string(&file_path_canonical)
+        .map_err(|e| format!("Failed to read documentation file: {e}"))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -1073,7 +1198,9 @@ pub fn run() {
             watcher_start,
             watcher_stop,
             watcher_set_folder,
-            watcher_ingest_now
+            watcher_ingest_now,
+            list_documentation_files,
+            read_documentation_file
         ])
         .setup(|app| {
             // Initialize watcher service

@@ -1,0 +1,37 @@
+{
+  "version": "0.1",
+  "name": "ML Preprocessing",
+  "input": {
+    "format": "csv",
+    "path": ""
+  },
+  "schema": {
+    "required_columns": [],
+    "optional_columns": []
+  },
+  "steps": [
+    {
+      "op": "cast_types",
+      "columns": {}
+    },
+    {
+      "op": "impute",
+      "strategy": "mean",
+      "columns": []
+    },
+    {
+      "op": "normalize_columns",
+      "method": "minmax",
+      "columns": []
+    },
+    {
+      "op": "one_hot_encode",
+      "columns": [],
+      "drop_original": true
+    }
+  ],
+  "output": {
+    "format": "parquet",
+    "path": ""
+  }
+}

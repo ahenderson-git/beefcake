@@ -182,7 +182,7 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
             },
 
             // Balanced strategy (default): Use stratified for medium/large files
-            ("balanced", _) | (_, _) => {
+            ("balanced" | _, _) => {
                 crate::utils::log_event(
                     "Analyser",
                     &format!(

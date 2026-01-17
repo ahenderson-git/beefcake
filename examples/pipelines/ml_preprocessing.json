@@ -1,0 +1,57 @@
+{
+  "version": "0.1",
+  "name": "ml_preprocessing",
+  "input": {
+    "format": "csv",
+    "has_header": true,
+    "delimiter": ",",
+    "encoding": "utf-8"
+  },
+  "schema": {
+    "match_mode": "tolerant",
+    "required_columns": [
+      "price",
+      "quantity",
+      "category"
+    ]
+  },
+  "steps": [
+    {
+      "op": "impute",
+      "strategy": "mean",
+      "columns": [
+        "price",
+        "quantity"
+      ]
+    },
+    {
+      "op": "clip_outliers",
+      "columns": [
+        "price",
+        "quantity"
+      ],
+      "lower_quantile": 0.05,
+      "upper_quantile": 0.95
+    },
+    {
+      "op": "normalize_columns",
+      "method": "zscore",
+      "columns": [
+        "price",
+        "quantity"
+      ]
+    },
+    {
+      "op": "one_hot_encode",
+      "columns": [
+        "category"
+      ],
+      "drop_original": true
+    }
+  ],
+  "output": {
+    "format": "parquet",
+    "path_template": "output/ml_ready.parquet",
+    "overwrite": true
+  }
+}

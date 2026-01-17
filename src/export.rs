@@ -344,15 +344,12 @@ async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
 
     // Load the exported file to analyze it
     let dummy_progress = Arc::new(AtomicU64::new(0));
-    let df = match beefcake::analyser::logic::load_df(&output_path, &dummy_progress) {
-        Ok(df) => df,
-        Err(_) => {
-            beefcake::utils::log_event(
-                "Export",
-                "Could not load exported file for dictionary analysis",
-            );
-            return Ok(());
-        }
+    let Ok(df) = beefcake::analyser::logic::load_df(&output_path, &dummy_progress) else {
+        beefcake::utils::log_event(
+            "Export",
+            "Could not load exported file for dictionary analysis",
+        );
+        return Ok(());
     };
 
     // Determine dataset name from output filename
