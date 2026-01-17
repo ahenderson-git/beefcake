@@ -10,7 +10,7 @@ export function renderDocumentationViewer(
 ): string {
   // Group docs by category
   const categories = new Map<string, DocFileMetadata[]>();
-  docs.forEach((doc) => {
+  docs.forEach(doc => {
     if (!categories.has(doc.category)) {
       categories.set(doc.category, []);
     }
@@ -59,8 +59,8 @@ export function renderDocumentationViewer(
         <!-- Navigation Tree -->
         <div class="doc-nav-tree">
           ${sortedCategories
-            .map((category) => {
-              const categoryDocs = categories.get(category) || [];
+            .map(category => {
+              const categoryDocs = categories.get(category) ?? [];
               return `
                 <div class="doc-category">
                   <div class="doc-category-header">
@@ -71,7 +71,7 @@ export function renderDocumentationViewer(
                   <div class="doc-category-items">
                     ${categoryDocs
                       .map(
-                        (doc) => `
+                        doc => `
                       <div
                         class="doc-nav-item ${doc.path === currentDoc ? 'active' : ''}"
                         data-doc-path="${doc.path}"

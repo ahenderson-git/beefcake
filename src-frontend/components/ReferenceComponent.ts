@@ -1,9 +1,11 @@
-import * as renderers from '../renderers';
-import * as api from '../api';
-import { AppState, DocFileMetadata } from '../types';
-import { Component, ComponentActions } from './Component';
-import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { marked } from 'marked';
+
+import * as api from '../api';
+import * as renderers from '../renderers';
+import { AppState, DocFileMetadata } from '../types';
+
+import { Component, ComponentActions } from './Component';
 
 /**
  * ReferenceComponent - Documentation viewer with markdown rendering
@@ -54,46 +56,39 @@ export class ReferenceComponent extends Component {
 
       this.bindEvents(state);
     } catch (err) {
-      container.innerHTML = renderers.renderErrorState(
-        'Failed to load documentation',
-        String(err)
-      );
+      container.innerHTML = renderers.renderErrorState('Failed to load documentation', String(err));
     }
   }
 
   override bindEvents(_state: AppState): void {
     // Document navigation links
     const docLinks = document.querySelectorAll<HTMLElement>('.doc-nav-item');
-    docLinks.forEach((link) => {
-      link.addEventListener('click', async (e) => {
+    docLinks.forEach(link => {
+      link.addEventListener('click', e => {
         e.preventDefault();
         const docPath = link.dataset.docPath;
         if (docPath) {
-          await this.loadDocument(docPath);
+          void this.loadDocument(docPath);
 
           // Update active state
-          docLinks.forEach((l) => l.classList.remove('active'));
+          docLinks.forEach(l => l.classList.remove('active'));
           link.classList.add('active');
         }
       });
     });
 
     // Search input
-    const searchInput = document.getElementById(
-      'doc-search-input'
-    ) as HTMLInputElement | null;
+    const searchInput = document.getElementById('doc-search-input') as HTMLInputElement | null;
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
+      searchInput.addEventListener('input', e => {
         this.searchQuery = (e.target as HTMLInputElement).value;
         this.filterDocs();
       });
     }
 
     // Category collapsing
-    const categoryHeaders = document.querySelectorAll<HTMLElement>(
-      '.doc-category-header'
-    );
-    categoryHeaders.forEach((header) => {
+    const categoryHeaders = document.querySelectorAll<HTMLElement>('.doc-category-header');
+    categoryHeaders.forEach(header => {
       header.addEventListener('click', () => {
         const category = header.closest('.doc-category');
         category?.classList.toggle('collapsed');
@@ -133,7 +128,7 @@ export class ReferenceComponent extends Component {
       contentArea.innerHTML = `<div class="markdown-content">${cleanHtml}</div>`;
 
       // Update breadcrumb
-      const docMeta = this.docs.find((d) => d.path === docPath);
+      const docMeta = this.docs.find(d => d.path === docPath);
       const breadcrumb = document.getElementById('doc-breadcrumb');
       if (breadcrumb && docMeta) {
         breadcrumb.innerHTML = `
@@ -164,16 +159,16 @@ export class ReferenceComponent extends Component {
    */
   private handleInternalLinks(contentArea: HTMLElement): void {
     const links = contentArea.querySelectorAll<HTMLAnchorElement>('a');
-    links.forEach((link) => {
+    links.forEach(link => {
       const href = link.getAttribute('href');
       if (href && href.endsWith('.md')) {
-        link.addEventListener('click', async (e) => {
+        link.addEventListener('click', e => {
           e.preventDefault();
           // Extract just the filename if it's a relative link
-          const filename = href.split('/').pop() || href;
-          const docMeta = this.docs.find((d) => d.path === filename);
+          const filename = href.split('/').pop() ?? href;
+          const docMeta = this.docs.find(d => d.path === filename);
           if (docMeta) {
-            await this.loadDocument(docMeta.path);
+            void this.loadDocument(docMeta.path);
           }
         });
       }
@@ -190,8 +185,8 @@ export class ReferenceComponent extends Component {
     const docItems = document.querySelectorAll<HTMLElement>('.doc-nav-item');
     const categories = document.querySelectorAll<HTMLElement>('.doc-category');
 
-    docItems.forEach((item) => {
-      const title = item.textContent?.toLowerCase() || '';
+    docItems.forEach(item => {
+      const title = item.textContent?.toLowerCase() ?? '';
       if (query === '' || title.includes(query)) {
         item.style.display = '';
       } else {
@@ -200,7 +195,7 @@ export class ReferenceComponent extends Component {
     });
 
     // Hide empty categories
-    categories.forEach((category) => {
+    categories.forEach(category => {
       const visibleItems = category.querySelectorAll<HTMLElement>(
         '.doc-nav-item:not([style*="display: none"])'
       );
