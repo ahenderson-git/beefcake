@@ -18,7 +18,15 @@
  * - `pipeline:deleted`: User deleted a pipeline
  */
 
-import { listPipelines, listTemplates, loadTemplate, type PipelineInfo } from '../api-pipeline';
+import {
+  listPipelines,
+  listTemplates,
+  loadTemplate,
+  deletePipeline,
+  type PipelineInfo,
+} from '../api-pipeline';
+
+import { ComponentActions } from './Component';
 
 export interface PipelineLibraryState {
   /** All available pipelines */
@@ -51,9 +59,11 @@ export class PipelineLibrary {
   };
 
   private container: HTMLElement;
+  private actions: ComponentActions;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, actions: ComponentActions) {
     this.container = container;
+    this.actions = actions;
   }
 
   /**
@@ -370,7 +380,7 @@ export class PipelineLibrary {
     this.container.querySelectorAll('.delete-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         const path = (e.currentTarget as HTMLElement).getAttribute('data-path');
-        if (path) this.handleDeletePipeline(path);
+        if (path) void this.handleDeletePipeline(path);
       });
     });
 
@@ -416,23 +426,31 @@ export class PipelineLibrary {
   /**
    * Handle "Delete Pipeline" action.
    */
-  private handleDeletePipeline(path: string): void {
+  private async handleDeletePipeline(path: string): Promise<void> {
     const pipeline = this.state.pipelines.find(p => p.path === path);
     if (!pipeline) return;
 
     const confirmed = confirm(`Delete pipeline "${pipeline.name}"? This cannot be undone.`);
 
     if (confirmed) {
-      // TODO: Call delete API when available
-      // For now, just remove from local state and refresh
-      this.state.pipelines = this.state.pipelines.filter(p => p.path !== path);
-      this.render();
-      this.attachEventListeners();
+      try {
+        await deletePipeline(path);
 
-      const event = new CustomEvent('pipeline:deleted', {
-        detail: { path },
-      });
-      this.container.dispatchEvent(event);
+        // Remove from local state and refresh UI
+        this.state.pipelines = this.state.pipelines.filter(p => p.path !== path);
+        this.render();
+        this.attachEventListeners();
+
+        const event = new CustomEvent('pipeline:deleted', {
+          detail: { path },
+        });
+        this.container.dispatchEvent(event);
+
+        this.actions.showToast(`Pipeline "${pipeline.name}" deleted`, 'success');
+      } catch (error) {
+        console.error('Failed to delete pipeline:', error);
+        this.actions.showToast(`Failed to delete pipeline: ${String(error)}`, 'error');
+      }
     }
   }
 

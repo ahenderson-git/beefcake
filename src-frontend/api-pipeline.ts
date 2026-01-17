@@ -185,6 +185,24 @@ export async function loadPipeline(path: string): Promise<PipelineSpec> {
 }
 
 /**
+ * Deletes a pipeline specification file.
+ *
+ * **Backend**: Calls `delete_pipeline_spec` in `src/tauri_app.rs`
+ *
+ * @param path - Absolute or relative path to pipeline JSON file
+ * @returns Promise resolving to void
+ * @throws Error string if deletion fails
+ */
+export async function deletePipeline(path: string): Promise<void> {
+  try {
+    await invoke<void>('delete_pipeline_spec', { path });
+  } catch (error) {
+    console.error(`Failed to delete pipeline at ${path}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Saves a pipeline specification to file.
  *
  * **Backend**: Calls `save_pipeline_spec` in `src/tauri_app.rs`

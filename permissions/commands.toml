@@ -139,6 +139,11 @@ description = "Allows the execute_pipeline_spec command"
 commands.allow = ["execute_pipeline_spec"]
 
 [[permission]]
+identifier = "allow-delete-pipeline-spec"
+description = "Allows the delete_pipeline_spec command"
+commands.allow = ["delete_pipeline_spec"]
+
+[[permission]]
 identifier = "allow-generate-powershell"
 description = "Allows the generate_powershell command"
 commands.allow = ["generate_powershell"]

@@ -7,6 +7,7 @@
 
 import { PipelineSpec, PipelineStep } from '../api-pipeline';
 
+import { ComponentActions } from './Component';
 import { StepConfigPanel } from './StepConfigPanel';
 import { StepPalette } from './StepPalette';
 
@@ -27,14 +28,16 @@ export interface PipelineEditorState {
 export class PipelineEditor {
   private state: PipelineEditorState;
   private container: HTMLElement;
+  private actions: ComponentActions;
   private stepPalette: StepPalette | null = null;
   private configPanel: StepConfigPanel | null = null;
   private onSave?: (spec: PipelineSpec) => void;
   private onBack?: () => void;
   private onExecute?: (spec: PipelineSpec) => void;
 
-  constructor(container: HTMLElement, spec?: PipelineSpec) {
+  constructor(container: HTMLElement, actions: ComponentActions, spec?: PipelineSpec) {
     this.container = container;
+    this.actions = actions;
     this.state = {
       spec: spec ?? this.createEmptyPipeline(),
       selectedStepIndex: null,

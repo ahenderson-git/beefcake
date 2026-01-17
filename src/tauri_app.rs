@@ -790,6 +790,39 @@ pub async fn list_pipeline_specs() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn delete_pipeline_spec(path: String) -> Result<(), String> {
+    use std::fs;
+
+    beefcake::utils::log_event("Pipeline", &format!("Deleting spec at: {path}"));
+
+    let path_buf = PathBuf::from(&path);
+
+    // Security check: ensure the path is within the pipelines directory
+    let pipelines_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {e}"))?
+        .join("data")
+        .join("pipelines");
+
+    let absolute_path = if path_buf.is_absolute() {
+        path_buf.clone()
+    } else {
+        std::env::current_dir()
+            .map_err(|e| format!("Failed to get current directory: {e}"))?
+            .join(path_buf)
+    };
+
+    if !absolute_path.starts_with(&pipelines_dir) {
+        return Err("Access denied: Path is outside the pipelines directory".to_string());
+    }
+
+    if !absolute_path.exists() {
+        return Err("File not found".to_string());
+    }
+
+    fs::remove_file(absolute_path).map_err(|e| format!("Failed to delete pipeline spec: {e}"))
+}
+
+#[tauri::command]
 pub async fn list_pipeline_templates() -> Result<String, String> {
     use std::fs;
 
@@ -867,7 +900,9 @@ pub async fn load_pipeline_template(template_name: String) -> Result<String, Str
 // Data Dictionary Commands
 // ============================================================================
 
-use beefcake::dictionary::{DataDictionary, storage::SnapshotMetadata};
+use beefcake::dictionary::{
+    DataDictionary, storage::SnapshotMetadata, ColumnBusinessMetadata, DatasetBusinessMetadata,
+};
 
 #[tauri::command]
 pub async fn dictionary_load_snapshot(snapshot_id: String) -> Result<DataDictionary, String> {
@@ -897,9 +932,8 @@ pub async fn dictionary_list_snapshots(
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateBusinessMetadataRequest {
     pub snapshot_id: String,
-    pub dataset_business: Option<beefcake::dictionary::DatasetBusinessMetadata>,
-    pub column_business_updates:
-        Option<HashMap<String, beefcake::dictionary::ColumnBusinessMetadata>>,
+    pub dataset_business: Option<DatasetBusinessMetadata>,
+    pub column_business_updates: Option<HashMap<String, ColumnBusinessMetadata>>,
 }
 
 #[tauri::command]
@@ -1027,6 +1061,7 @@ pub fn run() {
             generate_powershell,
             pipeline_from_configs,
             execute_pipeline_spec,
+            delete_pipeline_spec,
             list_pipeline_specs,
             list_pipeline_templates,
             load_pipeline_template,

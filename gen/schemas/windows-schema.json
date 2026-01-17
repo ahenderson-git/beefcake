@@ -405,6 +405,12 @@
           "markdownDescription": "Allows the delete_connection command"
         },
         {
+          "description": "Allows the delete_pipeline_spec command",
+          "type": "string",
+          "const": "allow-delete-pipeline-spec",
+          "markdownDescription": "Allows the delete_pipeline_spec command"
+        },
+        {
           "description": "Allows the dictionary_export_markdown command",
           "type": "string",
           "const": "allow-dictionary-export-markdown",
