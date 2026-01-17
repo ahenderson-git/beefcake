@@ -1,8 +1,10 @@
-import { Component, ComponentActions } from "./Component";
-import { AppState } from "../types";
-import * as renderers from "../renderers";
-import * as api from "../api";
 import * as monaco from 'monaco-editor';
+
+import * as api from '../api';
+import * as renderers from '../renderers';
+import { AppState } from '../types';
+
+import { Component, ComponentActions } from './Component';
 
 export class PowerShellComponent extends Component {
   private editor: monaco.editor.IStandaloneCodeEditor | null = null;
@@ -13,12 +15,12 @@ export class PowerShellComponent extends Component {
 
   render(state: AppState): void {
     const container = this.getContainer();
-    container.innerHTML = renderers.renderPowerShellView(state.config?.powershell_font_size || 14);
+    container.innerHTML = renderers.renderPowerShellView(state.config?.powershell_font_size ?? 14);
     this.initMonaco(state);
     this.bindEvents(state);
   }
 
-  private initMonaco(state: AppState) {
+  private initMonaco(state: AppState): void {
     const editorContainer = document.getElementById('ps-editor');
     if (editorContainer) {
       this.editor = monaco.editor.create(editorContainer, {
@@ -26,27 +28,37 @@ export class PowerShellComponent extends Component {
         language: 'powershell',
         theme: 'vs-dark',
         automaticLayout: true,
-        fontSize: state.config?.powershell_font_size || 14,
+        fontSize: state.config?.powershell_font_size ?? 14,
         fontFamily: "'Fira Code', monospace",
         fontLigatures: true,
-        minimap: { enabled: false }
+        minimap: { enabled: false },
       });
     }
   }
 
   override bindEvents(state: AppState): void {
-    document.getElementById('btn-run-ps')?.addEventListener('click', () => this.runPowerShell());
+    document.getElementById('btn-run-ps')?.addEventListener('click', () => {
+      void this.runPowerShell();
+    });
     document.getElementById('btn-clear-ps')?.addEventListener('click', () => {
       const output = document.getElementById('ps-output');
       if (output) output.textContent = '';
     });
-    document.getElementById('btn-inc-font')?.addEventListener('click', () => this.updateFontSize(state, 1));
-    document.getElementById('btn-dec-font')?.addEventListener('click', () => this.updateFontSize(state, -1));
-    document.getElementById('btn-load-ps')?.addEventListener('click', () => this.handleLoadScript());
-    document.getElementById('btn-save-ps')?.addEventListener('click', () => this.handleSaveScript());
+    document.getElementById('btn-inc-font')?.addEventListener('click', () => {
+      void this.updateFontSize(state, 1);
+    });
+    document.getElementById('btn-dec-font')?.addEventListener('click', () => {
+      void this.updateFontSize(state, -1);
+    });
+    document.getElementById('btn-load-ps')?.addEventListener('click', () => {
+      void this.handleLoadScript();
+    });
+    document.getElementById('btn-save-ps')?.addEventListener('click', () => {
+      void this.handleSaveScript();
+    });
   }
 
-  private async runPowerShell() {
+  private async runPowerShell(): Promise<void> {
     if (!this.editor) return;
     const script = this.editor.getValue();
     const output = document.getElementById('ps-output');
@@ -56,15 +68,18 @@ export class PowerShellComponent extends Component {
     try {
       output.textContent = await api.runPowerShell(script);
     } catch (err) {
-      output.textContent = `Error: ${err}`;
+      output.textContent = `Error: ${String(err)}`;
     }
   }
 
-  private async updateFontSize(state: AppState, delta: number) {
+  private async updateFontSize(state: AppState, delta: number): Promise<void> {
     if (state.config) {
-      state.config.powershell_font_size = Math.max(8, Math.min(32, state.config.powershell_font_size + delta));
+      state.config.powershell_font_size = Math.max(
+        8,
+        Math.min(32, state.config.powershell_font_size + delta)
+      );
       this.editor?.updateOptions({ fontSize: state.config.powershell_font_size });
-      
+
       const label = document.getElementById('ps-font-size-label');
       if (label) label.textContent = state.config.powershell_font_size.toString();
 
@@ -73,7 +88,7 @@ export class PowerShellComponent extends Component {
     }
   }
 
-  private async handleLoadScript() {
+  private async handleLoadScript(): Promise<void> {
     try {
       const path = await api.openFileDialog([{ name: 'PowerShell', extensions: ['ps1'] }]);
       if (path) {
@@ -82,20 +97,20 @@ export class PowerShellComponent extends Component {
         this.actions.showToast('Script loaded', 'success');
       }
     } catch (err) {
-      this.actions.showToast(`Error loading script: ${err}`, 'error');
+      this.actions.showToast(`Error loading script: ${String(err)}`, 'error');
     }
   }
 
-  private async handleSaveScript() {
+  private async handleSaveScript(): Promise<void> {
     try {
       const path = await api.saveFileDialog([{ name: 'PowerShell', extensions: ['ps1'] }]);
       if (path) {
-        const content = this.editor?.getValue() || '';
+        const content = this.editor?.getValue() ?? '';
         await api.writeTextFile(path, content);
         this.actions.showToast('Script saved', 'success');
       }
     } catch (err) {
-      this.actions.showToast(`Error saving script: ${err}`, 'error');
+      this.actions.showToast(`Error saving script: ${String(err)}`, 'error');
     }
   }
 }

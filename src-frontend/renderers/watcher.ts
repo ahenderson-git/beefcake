@@ -1,5 +1,5 @@
-import { escapeHtml } from "../utils";
-import type { WatcherState, WatcherActivity } from "../types";
+import type { WatcherState, WatcherActivity } from '../types';
+import { escapeHtml } from '../utils';
 
 export function renderWatcherPanel(
   watcherState: WatcherState | null,
@@ -15,8 +15,8 @@ export function renderWatcherPanel(
 }
 
 function renderWatcherControls(state: WatcherState | null): string {
-  const enabled = state?.enabled || false;
-  const folder = state?.folder || '';
+  const enabled = state?.enabled ?? false;
+  const folder = state?.folder ?? '';
   const hasFolder = folder.length > 0;
 
   return `
@@ -82,19 +82,21 @@ function renderWatcherStatus(state: WatcherState | null): string {
   }
 
   const stateClass = `status-${state.state}`;
-  const stateIcon = {
-    idle: 'ph-circle',
-    watching: 'ph-eye',
-    ingesting: 'ph-arrow-circle-down',
-    error: 'ph-warning-circle',
-  }[state.state] || 'ph-circle';
+  const stateIcon =
+    {
+      idle: 'ph-circle',
+      watching: 'ph-eye',
+      ingesting: 'ph-arrow-circle-down',
+      error: 'ph-warning-circle',
+    }[state.state] || 'ph-circle';
 
-  const stateLabel = {
-    idle: 'Idle',
-    watching: 'Watching',
-    ingesting: 'Ingesting',
-    error: 'Error',
-  }[state.state] || 'Unknown';
+  const stateLabel =
+    {
+      idle: 'Idle',
+      watching: 'Watching',
+      ingesting: 'Ingesting',
+      error: 'Error',
+    }[state.state] || 'Unknown';
 
   return `
     <div class="watcher-status-section">
@@ -108,7 +110,9 @@ function renderWatcherStatus(state: WatcherState | null): string {
           </span>
         </div>
 
-        ${state.folder ? `
+        ${
+          state.folder
+            ? `
           <div class="watcher-folder">
             <label>Watching:</label>
             <div class="folder-path">
@@ -116,14 +120,20 @@ function renderWatcherStatus(state: WatcherState | null): string {
               <span>${escapeHtml(state.folder)}</span>
             </div>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
 
-        ${state.message ? `
+        ${
+          state.message
+            ? `
           <div class="watcher-message ${state.state === 'error' ? 'error' : 'info'}">
             <i class="ph ph-info"></i>
             <span>${escapeHtml(state.message)}</span>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     </div>
   `;
@@ -134,41 +144,51 @@ function renderActivityFeed(activities: WatcherActivity[]): string {
     <div class="watcher-activity-section">
       <div class="activity-header">
         <h3>Recent Activity</h3>
-        ${activities.length > 0 ? `
+        ${
+          activities.length > 0
+            ? `
           <button id="btn-clear-activities" class="btn-text btn-small">
             <i class="ph ph-trash"></i> Clear
           </button>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
-      ${activities.length === 0 ? `
+      ${
+        activities.length === 0
+          ? `
         <div class="activity-empty">
           <i class="ph ph-tray"></i>
           <p>No recent activity</p>
         </div>
-      ` : `
+      `
+          : `
         <div class="activity-list">
           ${activities.map(activity => renderActivityItem(activity)).join('')}
         </div>
-      `}
+      `
+      }
     </div>
   `;
 }
 
 function renderActivityItem(activity: WatcherActivity): string {
   const statusClass = `activity-${activity.status}`;
-  const statusIcon = {
-    detected: 'ph-file-magnifying-glass',
-    ingesting: 'ph-spinner',
-    success: 'ph-check-circle',
-    failed: 'ph-x-circle',
-  }[activity.status] || 'ph-circle';
+  const statusIcon =
+    {
+      detected: 'ph-file-magnifying-glass',
+      ingesting: 'ph-spinner',
+      success: 'ph-check-circle',
+      failed: 'ph-x-circle',
+    }[activity.status] || 'ph-circle';
 
-  const statusLabel = {
-    detected: 'Detected',
-    ingesting: 'Ingesting',
-    success: 'Success',
-    failed: 'Failed',
-  }[activity.status] || 'Unknown';
+  const statusLabel =
+    {
+      detected: 'Detected',
+      ingesting: 'Ingesting',
+      success: 'Success',
+      failed: 'Failed',
+    }[activity.status] || 'Unknown';
 
   return `
     <div class="activity-item ${statusClass}">
@@ -181,27 +201,43 @@ function renderActivityItem(activity: WatcherActivity): string {
           <span class="activity-status">${statusLabel}</span>
           <span class="activity-time">${formatTimestamp(activity.timestamp)}</span>
         </div>
-        ${activity.message ? `
+        ${
+          activity.message
+            ? `
           <div class="activity-message">${escapeHtml(activity.message)}</div>
-        ` : ''}
-        ${activity.rows && activity.cols ? `
+        `
+            : ''
+        }
+        ${
+          activity.rows && activity.cols
+            ? `
           <div class="activity-stats">
             <span>${activity.rows.toLocaleString()} rows</span>
             <span>${activity.cols} columns</span>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
       <div class="activity-actions">
-        ${activity.status === 'failed' ? `
+        ${
+          activity.status === 'failed'
+            ? `
           <button class="btn-retry-ingest btn-text btn-small" data-activity-id="${activity.id}">
             <i class="ph ph-arrow-clockwise"></i> Retry
           </button>
-        ` : ''}
-        ${activity.status === 'success' && activity.datasetId ? `
+        `
+            : ''
+        }
+        ${
+          activity.status === 'success' && activity.datasetId
+            ? `
           <button class="btn-view-dataset btn-primary btn-small" data-dataset-id="${activity.datasetId}">
             <i class="ph ph-arrow-right"></i> View
           </button>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     </div>
   `;

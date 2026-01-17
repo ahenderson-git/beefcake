@@ -1,4 +1,4 @@
-import { DataDictionary, SnapshotMetadata } from "../types";
+import { DataDictionary, SnapshotMetadata } from '../types';
 
 /**
  * Render the Data Dictionary list view showing all snapshots.
@@ -14,12 +14,18 @@ export function renderDictionaryList(snapshots: SnapshotMetadata[]): string {
     `;
   }
 
-  const snapshotRows = snapshots.map(snapshot => {
-    const date = new Date(snapshot.timestamp).toLocaleString();
-    const completeness = snapshot.completeness_pct.toFixed(1);
-    const completenessClass = snapshot.completeness_pct >= 70 ? 'high' : snapshot.completeness_pct >= 40 ? 'medium' : 'low';
+  const snapshotRows = snapshots
+    .map(snapshot => {
+      const date = new Date(snapshot.timestamp).toLocaleString();
+      const completeness = snapshot.completeness_pct.toFixed(1);
+      const completenessClass =
+        snapshot.completeness_pct >= 70
+          ? 'high'
+          : snapshot.completeness_pct >= 40
+            ? 'medium'
+            : 'low';
 
-    return `
+      return `
       <tr class="snapshot-row" data-snapshot-id="${snapshot.snapshot_id}">
         <td><strong>${snapshot.dataset_name}</strong></td>
         <td>${date}</td>
@@ -39,7 +45,8 @@ export function renderDictionaryList(snapshots: SnapshotMetadata[]): string {
         </td>
       </tr>
     `;
-  }).join('');
+    })
+    .join('');
 
   return `
     <div class="dictionary-container">
@@ -80,25 +87,32 @@ function calculateCompleteness(snapshot: DataDictionary): number {
   // Dataset level fields (6 fields in types.ts, tags is always array)
   const b = snapshot.dataset_metadata.business;
   const datasetFields: (keyof typeof b)[] = [
-    'description', 'intended_use', 'owner_or_steward', 
-    'refresh_expectation', 'sensitivity_classification', 'known_limitations'
+    'description',
+    'intended_use',
+    'owner_or_steward',
+    'refresh_expectation',
+    'sensitivity_classification',
+    'known_limitations',
   ];
-  
+
   datasetFields.forEach(f => {
     totalFields++;
-    if (b[f] && b[f] !== "") filledFields++;
+    if (b[f] && b[f] !== '') filledFields++;
   });
 
   // Column level fields (4 fields per column)
   snapshot.columns.forEach(col => {
     const cb = col.business;
     const colFields: (keyof typeof cb)[] = [
-      'business_definition', 'business_rules', 'sensitivity_tag', 'notes'
+      'business_definition',
+      'business_rules',
+      'sensitivity_tag',
+      'notes',
     ];
-    
+
     colFields.forEach(f => {
       totalFields++;
-      if (cb[f] && cb[f] !== "") filledFields++;
+      if (cb[f] && cb[f] !== '') filledFields++;
     });
   });
 
@@ -121,23 +135,23 @@ export function renderDictionaryDetail(snapshot: DataDictionary): string {
       <form id="dataset-business-form">
         <div class="form-group">
           <label for="description">Description</label>
-          <textarea id="description" name="description" rows="3" placeholder="High-level description of dataset purpose and contents">${business.description || ''}</textarea>
+          <textarea id="description" name="description" rows="3" placeholder="High-level description of dataset purpose and contents">${business.description ?? ''}</textarea>
         </div>
 
         <div class="form-group">
           <label for="intended_use">Intended Use</label>
-          <textarea id="intended_use" name="intended_use" rows="2" placeholder="Intended use cases for this dataset">${business.intended_use || ''}</textarea>
+          <textarea id="intended_use" name="intended_use" rows="2" placeholder="Intended use cases for this dataset">${business.intended_use ?? ''}</textarea>
         </div>
 
         <div class="form-row">
           <div class="form-group">
             <label for="owner_or_steward">Owner/Steward</label>
-            <input type="text" id="owner_or_steward" name="owner_or_steward" placeholder="Person or team responsible" value="${business.owner_or_steward || ''}">
+            <input type="text" id="owner_or_steward" name="owner_or_steward" placeholder="Person or team responsible" value="${business.owner_or_steward ?? ''}">
           </div>
 
           <div class="form-group">
             <label for="refresh_expectation">Refresh Expectation</label>
-            <input type="text" id="refresh_expectation" name="refresh_expectation" placeholder="e.g., Daily, Weekly" value="${business.refresh_expectation || ''}">
+            <input type="text" id="refresh_expectation" name="refresh_expectation" placeholder="e.g., Daily, Weekly" value="${business.refresh_expectation ?? ''}">
           </div>
         </div>
 
@@ -156,21 +170,22 @@ export function renderDictionaryDetail(snapshot: DataDictionary): string {
 
         <div class="form-group">
           <label for="known_limitations">Known Limitations</label>
-          <textarea id="known_limitations" name="known_limitations" rows="3" placeholder="Known limitations, caveats, or warnings">${business.known_limitations || ''}</textarea>
+          <textarea id="known_limitations" name="known_limitations" rows="3" placeholder="Known limitations, caveats, or warnings">${business.known_limitations ?? ''}</textarea>
         </div>
       </form>
     </div>
   `;
 
   // Render column metadata table
-  const columnRows = snapshot.columns.map(col => {
-    const hasWarnings = col.technical.warnings.length > 0;
-    const warningClass = hasWarnings ? 'has-warning' : '';
-    const warningsHtml = hasWarnings
-      ? `<div class="warnings">${col.technical.warnings.map(w => `<span class="warning-badge">${w}</span>`).join('')}</div>`
-      : '';
+  const columnRows = snapshot.columns
+    .map(col => {
+      const hasWarnings = col.technical.warnings.length > 0;
+      const warningClass = hasWarnings ? 'has-warning' : '';
+      const warningsHtml = hasWarnings
+        ? `<div class="warnings">${col.technical.warnings.map(w => `<span class="warning-badge">${w}</span>`).join('')}</div>`
+        : '';
 
-    return `
+      return `
       <tr class="column-row ${warningClass}" data-column-name="${col.current_name}">
         <td>
           <strong>${col.current_name}</strong>
@@ -182,10 +197,10 @@ export function renderDictionaryDetail(snapshot: DataDictionary): string {
           <small>${col.technical.null_percentage.toFixed(1)}% null</small>
         </td>
         <td>
-          <textarea class="column-definition" data-column="${col.current_name}" placeholder="Plain-English definition">${col.business.business_definition || ''}</textarea>
+          <textarea class="column-definition" data-column="${col.current_name}" placeholder="Plain-English definition">${col.business.business_definition ?? ''}</textarea>
         </td>
         <td>
-          <textarea class="column-rules" data-column="${col.current_name}" placeholder="Business rules or constraints">${col.business.business_rules || ''}</textarea>
+          <textarea class="column-rules" data-column="${col.current_name}" placeholder="Business rules or constraints">${col.business.business_rules ?? ''}</textarea>
         </td>
         <td>
           <select class="column-sensitivity" data-column="${col.current_name}">
@@ -196,11 +211,12 @@ export function renderDictionaryDetail(snapshot: DataDictionary): string {
           </select>
         </td>
         <td>
-          <textarea class="column-notes" data-column="${col.current_name}" placeholder="Additional notes">${col.business.notes || ''}</textarea>
+          <textarea class="column-notes" data-column="${col.current_name}" placeholder="Additional notes">${col.business.notes ?? ''}</textarea>
         </td>
       </tr>
     `;
-  }).join('');
+    })
+    .join('');
 
   return `
     <div class="dictionary-detail-container">

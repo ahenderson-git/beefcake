@@ -121,6 +121,14 @@ pub struct AppSettings {
     pub security_warning_acknowledged: bool,
     /// Whether to skip full row counting for large CSV files (improves load times)
     pub skip_full_row_count: bool,
+    /// Sample size for statistical analysis - rows used for histograms, quantiles, and distribution stats
+    /// (default: 10000, min: 1000, max: 500000)
+    pub analysis_sample_size: u32,
+    /// Sampling strategy for large datasets
+    /// "fast" - Samples from first N rows (fastest, may be biased for sorted data)
+    /// "balanced" - Stratified sampling across entire file (recommended, good accuracy)
+    /// "accurate" - Reservoir sampling from entire file (slowest, perfectly unbiased)
+    pub sampling_strategy: String,
 }
 
 impl Default for AppSettings {
@@ -135,6 +143,8 @@ impl Default for AppSettings {
             preview_row_limit: 100,
             security_warning_acknowledged: false,
             skip_full_row_count: false,
+            analysis_sample_size: 10_000,
+            sampling_strategy: "balanced".to_string(),
         }
     }
 }

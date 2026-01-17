@@ -930,6 +930,131 @@ main {
   accent-color: var(--accent-color);
 }
 
+.pref-item input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+  width: 100%;
+  max-width: 300px;
+}
+
+/* Help icon styling */
+.help-icon {
+  cursor: help;
+  color: #888;
+  font-size: 1rem;
+  transition: color 0.2s ease;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.help-icon:hover {
+  color: var(--accent-color);
+}
+
+/* Disabled dropdown options */
+select option:disabled {
+  color: #999;
+  font-style: italic;
+}
+
+/* Preference subsections */
+.pref-subsection {
+  margin: var(--spacing-large) 0;
+  padding: var(--spacing-large);
+  background: rgba(var(--accent-rgb), 0.02);
+  border: 1px solid rgba(var(--accent-rgb), 0.1);
+  border-radius: 8px;
+}
+
+.pref-subsection h4 {
+  margin: 0 0 var(--spacing-small) 0;
+  color: var(--accent-color);
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subsection-description {
+  margin: 0 0 var(--spacing-medium) 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.pref-subsection .pref-item {
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.08);
+}
+
+.pref-subsection .pref-item:last-child {
+  border-bottom: none;
+}
+
+/* Warning message containers */
+.sample-size-warning,
+.sampling-strategy-info {
+  grid-column: 2;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  transition: all 0.2s ease;
+  animation: fadeInWarning 0.3s ease;
+}
+
+@keyframes fadeInWarning {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Warning level styles */
+.warning-low {
+  background-color: #fff4e6;
+  border-left: 3px solid #ff9800;
+  color: #8b5000;
+}
+
+.warning-good {
+  background-color: #e8f5e9;
+  border-left: 3px solid #4caf50;
+  color: #2e7d32;
+}
+
+.warning-moderate {
+  background-color: #fff3e0;
+  border-left: 3px solid #ff9800;
+  color: #e65100;
+}
+
+.warning-high {
+  background-color: #fce4ec;
+  border-left: 3px solid #f44336;
+  color: #c62828;
+}
+
+.warning-critical {
+  background-color: #ffebee;
+  border-left: 3px solid #d32f2f;
+  color: #b71c1c;
+  font-weight: 500;
+}
+
+.warning-info {
+  background-color: #e3f2fd;
+  border-left: 3px solid #2196f3;
+  color: #1565c0;
+}
+
 .btn-icon {
   background: none;
   border: none;

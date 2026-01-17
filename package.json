@@ -12,12 +12,22 @@
     "fix-locks": "node scripts/clean.js",
     "reset": "node -e \"require('fs').rmSync('node_modules', {recursive:true, force:true}); require('fs').rmSync('package-lock.json', {force:true})\" && npm install",
     "test": "vitest",
+    "test:watch": "vitest --watch",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --coverage.thresholds.lines=70",
     "test:e2e": "playwright test",
     "test:rust": "cargo test",
     "test:rust:integration": "cargo test --test '*'",
     "test:all": "npm run test:rust && npm test -- --run && npm run test:e2e",
+    "lint": "eslint src-frontend --ext .ts",
+    "lint:fix": "eslint src-frontend --ext .ts --fix",
+    "format": "prettier --write \"src-frontend/**/*.ts\"",
+    "format:check": "prettier --check \"src-frontend/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "type-coverage": "type-coverage --at-least 95",
+    "type-coverage:detail": "type-coverage --detail",
+    "quality": "npm run lint && npm run format:check && npm run type-check && npm run type-coverage",
+    "prepare": "husky install",
     "docs:ts": "typedoc",
     "docs:rust": "cargo doc --document-private-items --no-deps",
     "docs:rust:open": "cargo doc --document-private-items --no-deps --open",
@@ -29,6 +39,7 @@
     "@tauri-apps/api": "^2.1.1",
     "@tauri-apps/plugin-dialog": "^2.0.1",
     "@tauri-apps/plugin-shell": "^2.0.1",
+    "@tauri-apps/plugin-window-state": "^2.0.1",
     "ansi_up": "^6.0.2",
     "chart.js": "^4.4.1",
     "monaco-editor": "^0.55.1"
@@ -36,12 +47,29 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@tauri-apps/cli": "^2.1.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "@vitest/coverage-v8": "^4.0.17",
     "@vitest/ui": "^4.0.17",
+    "depcheck": "^1.4.7",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
     "happy-dom": "^20.3.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "madge": "^6.1.0",
+    "prettier": "^3.2.4",
+    "type-coverage": "^2.27.1",
     "typedoc": "^0.25.0",
-    "typescript": "^5.0.0",
+    "typescript": "^5.3.3",
     "vite": "^5.0.0",
     "vitest": "^4.0.17"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }

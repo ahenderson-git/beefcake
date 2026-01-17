@@ -1,263 +1,200 @@
-
-Running 13 tests using 1 worker
-  x   1 …le.spec.ts:21:3 › Dashboard › should display dashboard on launch (2.7s)
-  x   2 …ashboard › should navigate to analyser when Open File is clicked (2.7s)
-  x   3 …Analyser (P0 Workflows) › should load and analyze clean CSV file (2.7s)
-  x   4 …alyser (P0 Workflows) › should expand column row to show details (2.7s)
-  x   5 … Analyser (P0 Workflows) › should toggle column cleaning options (2.7s)
-  x   6 …yser (P0 Workflows) › should transition through lifecycle stages (2.7s)
-  x   7 …147:3 › Analyser (P0 Workflows) › should export data to CSV file (2.7s)
-  x   8 … Analyser (P0 Workflows) › should handle invalid file gracefully (2.7s)
-  x   9 …r (P1 Workflows) › should create new pipeline with drag-and-drop (2.7s)
-  x  10 …r (P1 Workflows) › should validate pipeline against input schema (2.7s)
-  x  11 …ine Editor (P1 Workflows) › should execute pipeline successfully (2.7s)
-  x  12 …r Handling › should display loading state during long operations (2.7s)
-  x  13 …s:268:3 › Error Handling › should allow aborting long operations (2.7s)
-  1) [windows] › e2e\example.spec.ts:21:3 › Dashboard › should display dashboard on launch
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      20 | test.describe('Dashboard', () => {
-      21 |   test('should display dashboard on launch', async ({ page }) => {
-    > 22 |     await page.goto(APP_URL);
-         |                ^
-      23 |
-      24 |     // Wait for app to load
-      25 |     await expect(page).toHaveTitle(/Beefcake/);
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:22:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Dashboard-should-display-dashboard-on-launch-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Dashboard-should-display-dashboard-on-launch-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  2) [windows] › e2e\example.spec.ts:35:3 › Dashboard › should navigate to analyser when Open File is clicked
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      35 |     page,
-      36 |   }) => {
-    > 37 |     await page.goto(APP_URL);
-         |                ^
-      38 |
-      39 |     // Click open file button
-      40 |     // Note: This test ID needs to be added to DashboardComponent
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:37:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Dashboard-should-n-a4aab-r-when-Open-File-is-clicked-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Dashboard-should-n-a4aab-r-when-Open-File-is-clicked-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  3) [windows] › e2e\example.spec.ts:53:3 › Analyser (P0 Workflows) › should load and analyze clean CSV file
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      58 |     // 4. Verifying results displayed
-      59 |
-    > 60 |     await page.goto(APP_URL);
-         |                ^
-      61 |
-      62 |     // TODO: Implement file selection (Tauri-specific)
-      63 |     // await page.getByTestId('btn-open-file').click();
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:60:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-c1fba--and-analyze-clean-CSV-file-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-c1fba--and-analyze-clean-CSV-file-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  4) [windows] › e2e\example.spec.ts:85:3 › Analyser (P0 Workflows) › should expand column row to show details
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      84 |   test('should expand column row to show details', async ({ page }) => {
-      85 |     // Prerequisite: File analyzed
-    > 86 |     await page.goto(APP_URL);
-         |                ^
-      87 |
-      88 |     // TODO: Load fixture file first
-      89 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:86:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-815b6--column-row-to-show-details-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-815b6--column-row-to-show-details-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  5) [windows] › e2e\example.spec.ts:106:3 › Analyser (P0 Workflows) › should toggle column cleaning options
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      103 |
-      104 |   test('should toggle column cleaning options', async ({ page }) => {
-    > 105 |     await page.goto(APP_URL);
-          |                ^
-      106 |
-      107 |     // TODO: Load file and transition to Cleaned stage
-      108 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:105:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-2c96a-gle-column-cleaning-options-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-2c96a-gle-column-cleaning-options-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  6) [windows] › e2e\example.spec.ts:123:3 › Analyser (P0 Workflows) › should transition through lifecycle stages
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      119 |
-      120 |   test('should transition through lifecycle stages', async ({ page }) => {
-    > 121 |     await page.goto(APP_URL);
-          |                ^
-      122 |
-      123 |     // TODO: Load file (creates Raw + Profiled versions)
-      124 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:121:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-dd761-on-through-lifecycle-stages-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-dd761-on-through-lifecycle-stages-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  7) [windows] › e2e\example.spec.ts:147:3 › Analyser (P0 Workflows) › should export data to CSV file
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      142 |
-      143 |   test('should export data to CSV file', async ({ page }) => {
-    > 144 |     await page.goto(APP_URL);
-          |                ^
-      145 |
-      146 |     // TODO: Load and process file
-      147 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:144:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Analyser-P0-Workflows-should-export-data-to-CSV-file-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Analyser-P0-Workflows-should-export-data-to-CSV-file-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  8) [windows] › e2e\example.spec.ts:174:3 › Analyser (P0 Workflows) › should handle invalid file gracefully
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      168 |
-      169 |   test('should handle invalid file gracefully', async ({ page }) => {
-    > 170 |     await page.goto(APP_URL);
-          |                ^
-      171 |
-      172 |     // TODO: Attempt to load testdata/invalid_format.txt
-      173 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:170:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-be9a2-dle-invalid-file-gracefully-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Analyser-P0-Workfl-be9a2-dle-invalid-file-gracefully-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  9) [windows] › e2e\example.spec.ts:189:3 › Pipeline Editor (P1 Workflows) › should create new pipeline with drag-and-drop
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      182 | test.describe('Pipeline Editor (P1 Workflows)', () => {
-      183 |   test('should create new pipeline with drag-and-drop', async ({ page }) => {
-    > 184 |     await page.goto(APP_URL);
-          |                ^
-      185 |
-      186 |     // Navigate to Pipeline view
-      187 |     // await page.getByTestId('nav-pipeline').click();
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:184:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Pipeline-Editor-P1-fbfda-pipeline-with-drag-and-drop-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Pipeline-Editor-P1-fbfda-pipeline-with-drag-and-drop-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  10) [windows] › e2e\example.spec.ts:218:3 › Pipeline Editor (P1 Workflows) › should validate pipeline against input schema
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      210 |
-      211 |   test('should validate pipeline against input schema', async ({ page }) => {
-    > 212 |     await page.goto(APP_URL);
-          |                ^
-      213 |
-      214 |     // TODO: Load pipeline with invalid column reference
-      215 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:212:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Pipeline-Editor-P1-de7c9-peline-against-input-schema-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Pipeline-Editor-P1-de7c9-peline-against-input-schema-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  11) [windows] › e2e\example.spec.ts:234:3 › Pipeline Editor (P1 Workflows) › should execute pipeline successfully
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      225 |
-      226 |   test('should execute pipeline successfully', async ({ page }) => {
-    > 227 |     await page.goto(APP_URL);
-          |                ^
-      228 |
-      229 |     // TODO: Load valid pipeline and input file
-      230 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:227:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Pipeline-Editor-P1-cb02b-ecute-pipeline-successfully-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Pipeline-Editor-P1-cb02b-ecute-pipeline-successfully-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  12) [windows] › e2e\example.spec.ts:254:3 › Error Handling › should display loading state during long operations
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      246 |     page,
-      247 |   }) => {
-    > 248 |     await page.goto(APP_URL);
-          |                ^
-      249 |
-      250 |     // TODO: Trigger long-running operation
-      251 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:248:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Error-Handling-sho-be3e6-tate-during-long-operations-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Error-Handling-sho-be3e6-tate-during-long-operations-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  13) [windows] › e2e\example.spec.ts:268:3 › Error Handling › should allow aborting long operations
-    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:1420/
-    Call log:
-      - navigating to "http://localhost:1420/", waiting until "load"
-      259 |
-      260 |   test('should allow aborting long operations', async ({ page }) => {
-    > 261 |     await page.goto(APP_URL);
-          |                ^
-      262 |
-      263 |     // TODO: Trigger long operation
-      264 |
-        at C:\Users\antho\OneDrive\beefcake\beefcake\e2e\example.spec.ts:261:16
-    attachment #1: screenshot (image/png) ──────────────────────────────────────
-    test-results\example-Error-Handling-should-allow-aborting-long-operations-windows\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────
-    attachment #2: video (video/webm) ──────────────────────────────────────────
-    test-results\example-Error-Handling-should-allow-aborting-long-operations-windows\video.webm
-    ────────────────────────────────────────────────────────────────────────────
-  13 failed
-    [windows] › e2e\example.spec.ts:21:3 › Dashboard › should display dashboard on launch
-    [windows] › e2e\example.spec.ts:35:3 › Dashboard › should navigate to analyser when Open File is clicked
-    [windows] › e2e\example.spec.ts:53:3 › Analyser (P0 Workflows) › should load and analyze clean CSV file
-    [windows] › e2e\example.spec.ts:85:3 › Analyser (P0 Workflows) › should expand column row to show details
-    [windows] › e2e\example.spec.ts:106:3 › Analyser (P0 Workflows) › should toggle column cleaning options
-    [windows] › e2e\example.spec.ts:123:3 › Analyser (P0 Workflows) › should transition through lifecycle stages
-    [windows] › e2e\example.spec.ts:147:3 › Analyser (P0 Workflows) › should export data to CSV file
-    [windows] › e2e\example.spec.ts:174:3 › Analyser (P0 Workflows) › should handle invalid file gracefully
-    [windows] › e2e\example.spec.ts:189:3 › Pipeline Editor (P1 Workflows) › should create new pipeline with drag-and-drop
-    [windows] › e2e\example.spec.ts:218:3 › Pipeline Editor (P1 Workflows) › should validate pipeline against input schema
-    [windows] › e2e\example.spec.ts:234:3 › Pipeline Editor (P1 Workflows) › should execute pipeline successfully
-    [windows] › e2e\example.spec.ts:254:3 › Error Handling › should display loading state during long operations
-    [windows] › e2e\example.spec.ts:268:3 › Error Handling › should allow aborting long operations
+Running all quality checks...
+1/4: Running ESLint...
+> beefcake-frontend@0.2.0 lint
+> eslint src-frontend --ext .ts
+=============
+WARNING: You are currently running a version of TypeScript which is not officially supported by @typescript-eslint/typescript-estree.
+You may find that it works just fine, or you may not.
+SUPPORTED TYPESCRIPT VERSIONS: >=4.3.5 <5.4.0
+YOUR TYPESCRIPT VERSION: 5.4.5
+Please only submit bug reports when using the officially supported version.
+=============
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\components\LifecycleRailComponent.ts
+  27:41  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  47:65  error  Invalid type "unknown" of template literal expression                   @typescript-eslint/restrict-template-expressions
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\components\PipelineComponent.ts
+   42:21  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   49:21  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   86:23  error    Unsafe assignment of an `any` value                                                                                                                                 @typescript-eslint/no-unsafe-assignment
+   87:17  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   87:41  error    Unsafe argument of type `any` assigned to a parameter of type `string`                                                                                              @typescript-eslint/no-unsafe-argument
+   91:23  error    Unsafe assignment of an `any` value                                                                                                                                 @typescript-eslint/no-unsafe-assignment
+   92:17  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   92:44  error    Unsafe argument of type `any` assigned to a parameter of type `string`                                                                                              @typescript-eslint/no-unsafe-argument
+  100:23  error    Unsafe assignment of an `any` value                                                                                                                                 @typescript-eslint/no-unsafe-assignment
+  101:52  error    Unsafe argument of type `any` assigned to a parameter of type `PipelineSpec`                                                                                        @typescript-eslint/no-unsafe-argument
+  117:68  error    Invalid type "unknown" of template literal expression                                                                                                               @typescript-eslint/restrict-template-expressions
+  135:39  error    Promise returned in function argument where a void return was expected                                                                                              @typescript-eslint/no-misused-promises
+  159:49  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                                           @typescript-eslint/prefer-nullish-coalescing
+  180:5   warning  Async method 'handleEditPipeline' has no 'await' expression                                                                                                         @typescript-eslint/require-await
+  212:64  error    Invalid type "unknown" of template literal expression                                                                                                               @typescript-eslint/restrict-template-expressions
+  223:64  error    Invalid type "unknown" of template literal expression                                                                                                               @typescript-eslint/restrict-template-expressions
+  243:13  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  245:67  error    Invalid type "unknown" of template literal expression                                                                                                               @typescript-eslint/restrict-template-expressions
+  250:5   warning  Async method 'cleanup' has no 'await' expression                                                                                                                    @typescript-eslint/require-await
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\components\PipelineEditor.ts
+   39:24   warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  102:71   warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  237:24   warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  249:17   error    Unexpected lexical declaration in case block                                                               no-case-declarations
+  252:17   error    Unexpected lexical declaration in case block                                                               no-case-declarations
+  255:17   error    Unexpected lexical declaration in case block                                                               no-case-declarations
+  258:17   error    Unexpected lexical declaration in case block                                                               no-case-declarations
+  261:17   error    Unexpected lexical declaration in case block                                                               no-case-declarations
+  262:40   error    'strategy' will evaluate to '[object Object]' when stringified                                             @typescript-eslint/no-base-to-string
+  262:40   error    Invalid type "{}" of template literal expression                                                           @typescript-eslint/restrict-template-expressions
+  264:17   error    Unexpected lexical declaration in case block                                                               no-case-declarations
+  265:43   error    'method' will evaluate to '[object Object]' when stringified                                               @typescript-eslint/no-base-to-string
+  265:43   error    Invalid type "{}" of template literal expression                                                           @typescript-eslint/restrict-template-expressions
+  338:100  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  345:100  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  352:100  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  363:89   warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  458:63   warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\components\PipelineExecutor.ts
+  143:64  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  201:71  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  255:51  error    Promise returned in function argument where a void return was expected                                     @typescript-eslint/no-misused-promises
+  258:52  error    Promise returned in function argument where a void return was expected                                     @typescript-eslint/no-misused-promises
+  262:47  error    Promise returned in function argument where a void return was expected                                     @typescript-eslint/no-misused-promises
+  340:33  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\components\PipelineLibrary.ts
+   68:9   warning  Unexpected console statement                                                                                                                                        no-console
+   73:9   warning  Unexpected console statement                                                                                                                                        no-console
+   85:61  error    Invalid type "unknown" of template literal expression                                                                                                               @typescript-eslint/restrict-template-expressions
+   96:13  warning  Unexpected console statement                                                                                                                                        no-console
+   97:13  warning  Unexpected console statement                                                                                                                                        no-console
+   98:13  warning  Unexpected console statement                                                                                                                                        no-console
+  103:61  error    Invalid type "unknown" of template literal expression                                                                                                               @typescript-eslint/restrict-template-expressions
+  130:9   warning  Unexpected console statement                                                                                                                                        no-console
+  306:30  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                                           @typescript-eslint/prefer-nullish-coalescing
+  366:45  error    Promise returned in function argument where a void return was expected                                                                                              @typescript-eslint/no-misused-promises
+  386:27  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  394:35  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  430:5   warning  Async method 'handleDeletePipeline' has no 'await' expression                                                                                                       @typescript-eslint/require-await
+  469:47  error    Invalid type "unknown" of template literal expression                                                                                                               @typescript-eslint/restrict-template-expressions
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\components\PowerShellComponent.ts
+   19:93  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+   24:3   warning  Missing return type on function                                                                            @typescript-eslint/explicit-function-return-type
+   32:54  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+   41:70  error    Promise returned in function argument where a void return was expected                                     @typescript-eslint/no-misused-promises
+   46:72  error    Promise returned in function argument where a void return was expected                                     @typescript-eslint/no-misused-promises
+   47:72  error    Promise returned in function argument where a void return was expected                                     @typescript-eslint/no-misused-promises
+   48:71  error    Promise returned in function argument where a void return was expected                                     @typescript-eslint/no-misused-promises
+   49:71  error    Promise returned in function argument where a void return was expected                                     @typescript-eslint/no-misused-promises
+   52:3   warning  Missing return type on function                                                                            @typescript-eslint/explicit-function-return-type
+   62:38  error    Invalid type "unknown" of template literal expression                                                      @typescript-eslint/restrict-template-expressions
+   66:3   warning  Missing return type on function                                                                            @typescript-eslint/explicit-function-return-type
+   79:3   warning  Missing return type on function                                                                            @typescript-eslint/explicit-function-return-type
+   88:55  error    Invalid type "unknown" of template literal expression                                                      @typescript-eslint/restrict-template-expressions
+   92:3   warning  Missing return type on function                                                                            @typescript-eslint/explicit-function-return-type
+   96:49  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  101:54  error    Invalid type "unknown" of template literal expression                                                      @typescript-eslint/restrict-template-expressions
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\components\PythonComponent.ts
+  105:7  warning  Unexpected console statement  no-console
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\components\WatcherComponent.ts
+  163:7   error  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  163:39  error  Unexpected any. Specify a different type           @typescript-eslint/no-explicit-any
+  168:11  error  Unsafe assignment of an `any` value                @typescript-eslint/no-unsafe-assignment
+  168:26  error  Unexpected any. Specify a different type           @typescript-eslint/no-explicit-any
+  175:25  error  Unsafe member access .timestamp on an `any` value  @typescript-eslint/no-unsafe-member-access
+  176:44  error  Unsafe member access .path on an `any` value       @typescript-eslint/no-unsafe-member-access
+  177:19  error  Unsafe member access .path on an `any` value       @typescript-eslint/no-unsafe-member-access
+  179:34  error  Unsafe member access .status on an `any` value     @typescript-eslint/no-unsafe-member-access
+  184:44  error  Unsafe member access .path on an `any` value       @typescript-eslint/no-unsafe-member-access
+  190:44  error  Unsafe member access .path on an `any` value       @typescript-eslint/no-unsafe-member-access
+  197:44  error  Unsafe member access .path on an `any` value       @typescript-eslint/no-unsafe-member-access
+  199:34  error  Unsafe member access .rows on an `any` value       @typescript-eslint/no-unsafe-member-access
+  199:65  error  Unsafe member access .cols on an `any` value       @typescript-eslint/no-unsafe-member-access
+  200:24  error  Unsafe member access .datasetId on an `any` value  @typescript-eslint/no-unsafe-member-access
+  201:19  error  Unsafe member access .rows on an `any` value       @typescript-eslint/no-unsafe-member-access
+  202:19  error  Unsafe member access .cols on an `any` value       @typescript-eslint/no-unsafe-member-access
+  205:59  error  Unsafe member access .path on an `any` value       @typescript-eslint/no-unsafe-member-access
+  211:44  error  Unsafe member access .path on an `any` value       @typescript-eslint/no-unsafe-member-access
+  213:23  error  Unsafe member access .message on an `any` value    @typescript-eslint/no-unsafe-member-access
+  216:54  error  Unsafe member access .path on an `any` value       @typescript-eslint/no-unsafe-member-access
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\main.ts
+  156:5  warning  Unexpected console statement  no-console
+  160:7  warning  Unexpected console statement  no-console
+  168:9  warning  Unexpected console statement  no-console
+  170:9  warning  Unexpected console statement  no-console
+  178:7  warning  Unexpected console statement  no-console
+  188:7  warning  Unexpected console statement  no-console
+  190:7  warning  Unexpected console statement  no-console
+  192:7  warning  Unexpected console statement  no-console
+  194:7  warning  Unexpected console statement  no-console
+  196:7  warning  Unexpected console statement  no-console
+  201:7  warning  Unexpected console statement  no-console
+  309:9  warning  Unexpected console statement  no-console
+  351:7  warning  Unexpected console statement  no-console
+  353:7  warning  Unexpected console statement  no-console
+  356:7  warning  Unexpected console statement  no-console
+  359:7  warning  Unexpected console statement  no-console
+  369:7  warning  Unexpected console statement  no-console
+  377:9  warning  Unexpected console statement  no-console
+  384:9  warning  Unexpected console statement  no-console
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\renderers\dashboard.ts
+   3:44  error  Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+   7:38  error  Unsafe member access .version on an `any` value                         @typescript-eslint/no-unsafe-member-access
+  14:49  error  Unsafe member access .version on an `any` value                         @typescript-eslint/no-unsafe-member-access
+  53:43  error  Unsafe member access .config on an `any` value                          @typescript-eslint/no-unsafe-member-access
+  58:43  error  Unsafe member access .analysisResponse on an `any` value                @typescript-eslint/no-unsafe-member-access
+  58:73  error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  58:79  error  Unsafe member access .analysisResponse on an `any` value                @typescript-eslint/no-unsafe-member-access
+  59:22  error  Unsafe member access .analysisResponse on an `any` value                @typescript-eslint/no-unsafe-member-access
+  59:50  error  Unsafe argument of type `any` assigned to a parameter of type `number`  @typescript-eslint/no-unsafe-argument
+  59:56  error  Unsafe member access .analysisResponse on an `any` value                @typescript-eslint/no-unsafe-member-access
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\renderers\dictionary.ts
+  124:158  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  129:142  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  135:154  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  140:156  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  159:161  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  185:155  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  188:150  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  199:128  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\renderers\ide.ts
+   29:41  error  Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+   30:9   error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+   30:26  error  Unsafe member access .config on an `any` value                          @typescript-eslint/no-unsafe-member-access
+   35:96  error  Unsafe member access .polarsVersion on an `any` value                   @typescript-eslint/no-unsafe-member-access
+   44:68  error  Unsafe member access .pythonSkipCleaning on an `any` value              @typescript-eslint/no-unsafe-member-access
+   70:38  error  Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+   71:9   error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+   71:26  error  Unsafe member access .config on an `any` value                          @typescript-eslint/no-unsafe-member-access
+   76:97  error  Unsafe member access .polarsVersion on an `any` value                   @typescript-eslint/no-unsafe-member-access
+   86:69  error  Unsafe member access .sqlSkipCleaning on an `any` value                 @typescript-eslint/no-unsafe-member-access
+  112:37  error  Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+  113:14  error  Unsafe member access .analysisResponse on an `any` value                @typescript-eslint/no-unsafe-member-access
+  125:11  error  Unsafe call of an `any` typed value                                     @typescript-eslint/no-unsafe-call
+  125:11  error  Unsafe call of an `any` typed value                                     @typescript-eslint/no-unsafe-call
+  125:17  error  Unsafe member access .analysisResponse on an `any` value                @typescript-eslint/no-unsafe-member-access
+  125:52  error  Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+  127:56  error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  127:60  error  Unsafe member access .name on an `any` value                            @typescript-eslint/no-unsafe-member-access
+  127:81  error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  127:85  error  Unsafe member access .name on an `any` value                            @typescript-eslint/no-unsafe-member-access
+  128:84  error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  128:88  error  Unsafe member access .name on an `any` value                            @typescript-eslint/no-unsafe-member-access
+  132:12  error  Unsafe member access .join on an `any` value                            @typescript-eslint/no-unsafe-member-access
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\renderers\lifecycle.ts
+   80:31  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  188:82  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  361:88  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  365:73  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\renderers\settings.ts
+  81:52  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  91:64  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  94:68  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+C:\Users\antho\OneDrive\beefcake\beefcake\src-frontend\renderers\watcher.ts
+  18:34  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+  19:32  warning  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+✖ 165 problems (98 errors, 67 warnings)
+C:\Users\antho\OneDrive\beefcake\beefcake\scripts\quality.ps1 : ESLint failed
+At C:\Users\antho\OneDrive\beefcake\beefcake\Beefcake.psm1:149 char:9
++         & $ScriptPath
++         ~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorExcep
+   tion
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorExceptio
+   n,quality.ps1

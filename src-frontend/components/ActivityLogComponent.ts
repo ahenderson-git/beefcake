@@ -1,7 +1,8 @@
-import { Component, ComponentActions } from "./Component";
-import { AppState } from "../types";
-import * as renderers from "../renderers";
-import * as api from "../api";
+import * as api from '../api';
+import * as renderers from '../renderers';
+import { AppState } from '../types';
+
+import { Component, ComponentActions } from './Component';
 
 export class ActivityLogComponent extends Component {
   constructor(containerId: string, actions: ComponentActions) {
@@ -16,11 +17,12 @@ export class ActivityLogComponent extends Component {
   }
 
   override bindEvents(state: AppState): void {
-    document.getElementById('btn-clear-log')?.addEventListener('click', async () => {
+    document.getElementById('btn-clear-log')?.addEventListener('click', () => {
       if (state.config) {
         state.config.audit_log = [];
-        await api.saveAppConfig(state.config);
-        this.actions.onStateChange();
+        void api.saveAppConfig(state.config).then(() => {
+          this.actions.onStateChange();
+        });
       }
     });
   }

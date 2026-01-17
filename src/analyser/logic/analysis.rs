@@ -15,9 +15,10 @@ pub fn run_full_analysis_streaming(
     total_row_count: usize,
     sampled_row_count: usize,
     trim_pct: f64,
+    custom_sample_size: usize,
     start_time: std::time::Instant,
 ) -> Result<AnalysisResponse> {
-    let summary = analyse_df_lazy(lf.clone(), trim_pct)?;
+    let summary = analyse_df_lazy(lf.clone(), trim_pct, custom_sample_size)?;
     let health = super::health::calculate_file_health(&summary);
     let correlation_matrix = calculate_correlation_matrix_lazy(lf.clone())?;
 
@@ -54,6 +55,7 @@ pub fn run_full_analysis(
     total_row_count: usize,
     sampled_row_count: usize,
     trim_pct: f64,
+    custom_sample_size: usize,
     start_time: std::time::Instant,
 ) -> Result<AnalysisResponse> {
     run_full_analysis_streaming(
@@ -63,15 +65,16 @@ pub fn run_full_analysis(
         total_row_count,
         sampled_row_count,
         trim_pct,
+        custom_sample_size,
         start_time,
     )
 }
 
 pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
-    analyse_df_lazy(df.clone().lazy(), trim_pct)
+    analyse_df_lazy(df.clone().lazy(), trim_pct, 10_000)
 }
 
-pub fn analyse_df_lazy(mut lf: LazyFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
+pub fn analyse_df_lazy(mut lf: LazyFrame, trim_pct: f64, custom_sample_size: usize) -> Result<Vec<ColumnSummary>> {
     let schema = lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
     let mut summaries = Vec::new();
 
@@ -90,7 +93,7 @@ pub fn analyse_df_lazy(mut lf: LazyFrame, trim_pct: f64) -> Result<Vec<ColumnSum
         .get(0)
         .unwrap_or(0) as usize;
 
-    let adaptive_sample_size = profiling::get_adaptive_sample_size(total_rows);
+    let adaptive_sample_size = profiling::get_adaptive_sample_size(total_rows, custom_sample_size);
 
     for (name, dtype) in schema.iter() {
         let name_str = name.as_str();
@@ -528,7 +531,7 @@ pub fn compute_numeric_stats(
 
     let trimmed_mean = profiling::calculate_trimmed_mean(sample_ca, mean, trim_pct);
     let (bin_width, histogram) =
-        profiling::build_histogram_streaming(lf, name, min, max, q1, q3, count, null_count)?;
+        profiling::build_histogram_streaming(lf, name, min, max, q1, q3, count, null_count, adaptive_sample_size)?;
 
     Ok((
         ColumnKind::Numeric,

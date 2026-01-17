@@ -1,5 +1,5 @@
-import { DbConnection, ExportSource } from "../types";
-import { escapeHtml } from "../utils";
+import { DbConnection, ExportSource } from '../types';
+import { escapeHtml } from '../utils';
 
 export function renderExportConfig(
   destType: 'File' | 'Database',
@@ -30,9 +30,13 @@ export function renderExportConfig(
         <label>2. Select Connection</label>
         <select id="export-connection-id">
           <option value="">-- Choose Connection --</option>
-          ${connections.map(conn => `
+          ${connections
+            .map(
+              conn => `
             <option value="${conn.id}" ${conn.id === activeExportId ? 'selected' : ''}>${escapeHtml(conn.name)} (${escapeHtml(conn.settings.database)}.${escapeHtml(conn.settings.table)})</option>
-          `).join('')}
+          `
+            )
+            .join('')}
         </select>
       </div>
     `;
@@ -81,12 +85,13 @@ export function renderExportModal(
         </div>
         <div class="modal-footer ${isLoading ? 'modal-footer-loading' : ''}">
           ${!isLoading ? '<button type="button" class="btn-secondary btn-close-modal">Cancel</button>' : ''}
-          ${isLoading
-            ? `<div class="loading-button-group">
+          ${
+            isLoading
+              ? `<div class="loading-button-group">
                 <button type="button" class="btn-primary" disabled><div class="spinner-small"></div> Processing...</button>
                 <button type="button" id="btn-abort-export" class="btn-danger btn-small">${isAborting ? 'Aborting...' : 'Abort'}</button>
               </div>`
-            : `<button type="button" id="btn-start-export" class="btn-primary" ${destType === 'Database' && !activeExportId ? 'disabled' : ''}>
+              : `<button type="button" id="btn-start-export" class="btn-primary" ${destType === 'Database' && !activeExportId ? 'disabled' : ''}>
                 <i class="ph ph-rocket-launch"></i> Start Export
               </button>`
           }

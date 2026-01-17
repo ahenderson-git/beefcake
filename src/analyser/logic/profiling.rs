@@ -19,17 +19,20 @@ use super::types::{BooleanStats, ColumnKind, ColumnStats, NumericStats, Temporal
 use anyhow::Result;
 use polars::prelude::*;
 
-pub fn get_adaptive_sample_size(total_rows: usize) -> usize {
-    // Reduced sample sizes to minimize memory usage
-    // Histograms and statistics are still accurate with smaller samples
+pub fn get_adaptive_sample_size(total_rows: usize, custom_sample_size: usize) -> usize {
+    // Use custom sample size with adaptive logic to handle small datasets
+    // Histograms and statistics accuracy improves with larger samples
+    let max_sample = custom_sample_size.clamp(1_000, 500_000);
+
     if total_rows < 10_000 {
+        // For very small datasets, use all rows regardless of custom setting
         total_rows
-    } else if total_rows < 100_000 {
-        10_000
+    } else if total_rows < max_sample {
+        // If dataset is smaller than requested sample, use all available rows
+        total_rows
     } else {
-        // For large datasets, cap at 10k rows for memory efficiency
-        // This is sufficient for histogram binning and statistical accuracy
-        10_000
+        // Use the custom sample size for large datasets
+        max_sample
     }
 }
 
@@ -247,6 +250,7 @@ pub fn build_histogram_streaming(
     q3: Option<f64>,
     total_count: usize,
     null_count: usize,
+    custom_sample_size: usize,
 ) -> Result<(f64, Vec<(f64, usize)>)> {
     if let (Some(min_v), Some(max_v)) = (min, max) {
         if (max_v - min_v).abs() < f64::EPSILON {
@@ -279,7 +283,7 @@ pub fn build_histogram_streaming(
         let mut bins = vec![0; num_bins];
 
         // Process in chunks (up to adaptive sample size as per requirement)
-        let max_rows = get_adaptive_sample_size(total_count);
+        let max_rows = get_adaptive_sample_size(total_count, custom_sample_size);
         let effective_rows = total_count.min(max_rows);
         let chunk_size = 50_000;
         let total_chunks = effective_rows.div_ceil(chunk_size);

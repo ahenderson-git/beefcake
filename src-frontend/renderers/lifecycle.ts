@@ -16,7 +16,7 @@ const STAGE_CONFIGS: StageConfig[] = [
     description: 'Original data (immutable)',
     icon: 'ph-file',
     isMutating: false,
-    color: 'grey'
+    color: 'grey',
   },
   {
     stage: 'Profiled',
@@ -24,7 +24,7 @@ const STAGE_CONFIGS: StageConfig[] = [
     description: 'Analysis complete • Read-only • No mutations',
     icon: 'ph-chart-line',
     isMutating: false,
-    color: 'blue'
+    color: 'blue',
   },
   {
     stage: 'Cleaned',
@@ -32,7 +32,7 @@ const STAGE_CONFIGS: StageConfig[] = [
     description: 'Text/type transforms • Reversible',
     icon: 'ph-broom',
     isMutating: true,
-    color: 'blue'
+    color: 'blue',
   },
   {
     stage: 'Advanced',
@@ -40,7 +40,7 @@ const STAGE_CONFIGS: StageConfig[] = [
     description: 'ML preprocessing • Statistical operations',
     icon: 'ph-gear-six',
     isMutating: true,
-    color: 'purple'
+    color: 'purple',
   },
   {
     stage: 'Validated',
@@ -48,7 +48,7 @@ const STAGE_CONFIGS: StageConfig[] = [
     description: 'QA gates • Validation rules',
     icon: 'ph-check-circle',
     isMutating: false,
-    color: 'amber'
+    color: 'amber',
   },
   {
     stage: 'Published',
@@ -56,13 +56,33 @@ const STAGE_CONFIGS: StageConfig[] = [
     description: 'Production ready • Finalized',
     icon: 'ph-rocket-launch',
     isMutating: false,
-    color: 'green'
-  }
+    color: 'green',
+  },
 ];
+
+function getStageColor(stage: LifecycleStage): string {
+  const config = STAGE_CONFIGS.find(s => s.stage === stage);
+  if (config) {
+    return `var(--stage-${config.color})`;
+  }
+  // Fallback for unknown stages or EXTERNAL_FRAGMENT
+  return 'var(--stage-grey)';
+}
 
 function getStageConfig(stage: LifecycleStage): StageConfig {
   const config = STAGE_CONFIGS.find(s => s.stage === stage);
-  return config!;
+  if (!config) {
+    // Fallback for unknown stages
+    return {
+      stage: stage,
+      label: stage,
+      description: 'Unknown stage',
+      icon: 'ph-question',
+      isMutating: false,
+      color: 'grey',
+    };
+  }
+  return config;
 }
 
 function getStageIndex(stage: LifecycleStage): number {
@@ -77,10 +97,14 @@ function getCompletedStages(versions: DatasetVersion[]): Set<LifecycleStage> {
 
 function getActiveStage(dataset: CurrentDataset): LifecycleStage {
   const activeVersion = dataset.versions.find(v => v.id === dataset.activeVersionId);
-  return activeVersion?.stage || 'Raw';
+  return activeVersion?.stage ?? 'Raw';
 }
 
-function canProgressTo(currentStage: LifecycleStage, targetStage: LifecycleStage, completedStages: Set<LifecycleStage>): boolean {
+function canProgressTo(
+  currentStage: LifecycleStage,
+  targetStage: LifecycleStage,
+  completedStages: Set<LifecycleStage>
+): boolean {
   const currentIdx = getStageIndex(currentStage);
   const targetIdx = getStageIndex(targetStage);
 
@@ -113,8 +137,10 @@ export function renderLifecycleRail(dataset: CurrentDataset | null): string {
       `stage-${config.color}`,
       isCompleted && 'stage-completed',
       isActive && 'stage-active',
-      isLocked && 'stage-locked'
-    ].filter(Boolean).join(' ');
+      isLocked && 'stage-locked',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     return `
       <div class="${classes}" data-stage="${config.stage}" title="${config.description}">
@@ -146,11 +172,12 @@ export function renderLifecycleRail(dataset: CurrentDataset | null): string {
 
 export function renderVersionChip(version: DatasetVersion, isActive: boolean): string {
   const stageConfig = getStageConfig(version.stage);
+  const stageColor = getStageColor(version.stage);
   const date = new Date(version.created_at).toLocaleDateString();
 
   return `
     <div class="version-chip ${isActive ? 'version-chip-active' : ''}" data-version-id="${version.id}">
-      <div class="version-chip-badge" style="background-color: var(--stage-${stageConfig.color})">
+      <div class="version-chip-badge" style="background-color: ${stageColor}">
         <i class="ph ${stageConfig.icon}"></i>
       </div>
       <div class="version-chip-content">
@@ -169,25 +196,34 @@ export function renderDiffBadge(diff: DiffSummary | null): string {
 
   // Schema changes
   if (diff.schema_changes.columns_added.length > 0) {
-    badges.push(`<span class="diff-badge diff-badge-add">+${diff.schema_changes.columns_added.length} cols</span>`);
+    badges.push(
+      `<span class="diff-badge diff-badge-add">+${diff.schema_changes.columns_added.length} cols</span>`
+    );
   }
   if (diff.schema_changes.columns_removed.length > 0) {
-    badges.push(`<span class="diff-badge diff-badge-remove">-${diff.schema_changes.columns_removed.length} cols</span>`);
+    badges.push(
+      `<span class="diff-badge diff-badge-remove">-${diff.schema_changes.columns_removed.length} cols</span>`
+    );
   }
 
   // Row changes
   const rowChange = diff.row_changes.rows_v2 - diff.row_changes.rows_v1;
   if (rowChange !== 0) {
     const pct = ((rowChange / diff.row_changes.rows_v1) * 100).toFixed(1);
-    badges.push(`<span class="diff-badge diff-badge-rows">${rowChange > 0 ? '+' : ''}${pct}% rows</span>`);
+    badges.push(
+      `<span class="diff-badge diff-badge-rows">${rowChange > 0 ? '+' : ''}${pct}% rows</span>`
+    );
   }
 
   // Statistical changes (null reduction is common)
   const nullChanges = diff.statistical_changes.filter(c => c.metric.toLowerCase().includes('null'));
   if (nullChanges.length > 0) {
-    const avgNullChange = nullChanges.reduce((sum, c) => sum + (c.change_percent || 0), 0) / nullChanges.length;
+    const avgNullChange =
+      nullChanges.reduce((sum, c) => sum + (c.change_percent ?? 0), 0) / nullChanges.length;
     if (Math.abs(avgNullChange) > 1) {
-      badges.push(`<span class="diff-badge diff-badge-nulls">${avgNullChange > 0 ? '+' : ''}${avgNullChange.toFixed(1)}% nulls</span>`);
+      badges.push(
+        `<span class="diff-badge diff-badge-nulls">${avgNullChange > 0 ? '+' : ''}${avgNullChange.toFixed(1)}% nulls</span>`
+      );
     }
   }
 
@@ -253,19 +289,21 @@ export function renderPublishModal(): string {
 }
 
 export function renderVersionTree(dataset: CurrentDataset): string {
-  const sortedVersions = [...dataset.versions].sort((a, b) =>
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  const sortedVersions = [...dataset.versions].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
-  const versionsHTML = sortedVersions.map((version, index) => {
-    const isActive = version.id === dataset.activeVersionId;
-    const stageConfig = getStageConfig(version.stage);
+  const versionsHTML = sortedVersions
+    .map((version, index) => {
+      const isActive = version.id === dataset.activeVersionId;
+      const stageConfig = getStageConfig(version.stage);
+      const stageColor = getStageColor(version.stage);
 
-    return `
+      return `
       <div class="version-tree-node ${isActive ? 'version-tree-node-active' : ''}" data-version-id="${version.id}">
         <div class="version-tree-connector"></div>
         <div class="version-tree-content">
-          <div class="version-tree-badge" style="background-color: var(--stage-${stageConfig.color})">
+          <div class="version-tree-badge" style="background-color: ${stageColor}">
             <i class="ph ${stageConfig.icon}"></i>
           </div>
           <div class="version-tree-details">
@@ -275,8 +313,8 @@ export function renderVersionTree(dataset: CurrentDataset): string {
             </div>
             <div class="version-tree-meta">
               ${new Date(version.created_at).toLocaleString()}
-              ${version.metadata.row_count ? ` • ${version.metadata.row_count.toLocaleString()} rows` : ''}
-              ${version.metadata.column_count ? ` • ${version.metadata.column_count} columns` : ''}
+              ${version.metadata.row_count !== null ? ` • ${version.metadata.row_count.toLocaleString()} rows` : ''}
+              ${version.metadata.column_count !== null ? ` • ${version.metadata.column_count} columns` : ''}
             </div>
             <div class="version-tree-description">${version.metadata.description}</div>
           </div>
@@ -287,7 +325,8 @@ export function renderVersionTree(dataset: CurrentDataset): string {
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 
   return `
     <div class="version-tree">
@@ -342,11 +381,12 @@ function renderActiveVersionDetails(dataset: CurrentDataset): string {
   if (!activeVersion) return '<p>No active version</p>';
 
   const stageConfig = getStageConfig(activeVersion.stage);
+  const stageColor = getStageColor(activeVersion.stage);
 
   return `
     <div class="version-details">
       <div class="version-details-header">
-        <div class="version-details-badge" style="background-color: var(--stage-${stageConfig.color})">
+        <div class="version-details-badge" style="background-color: ${stageColor}">
           <i class="ph ${stageConfig.icon}"></i>
         </div>
         <div>
@@ -358,11 +398,11 @@ function renderActiveVersionDetails(dataset: CurrentDataset): string {
       <div class="version-details-stats">
         <div class="stat-card">
           <div class="stat-label">Rows</div>
-          <div class="stat-value">${activeVersion.metadata.row_count?.toLocaleString() || 'N/A'}</div>
+          <div class="stat-value">${activeVersion.metadata.row_count?.toLocaleString() ?? 'N/A'}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Columns</div>
-          <div class="stat-value">${activeVersion.metadata.column_count || 'N/A'}</div>
+          <div class="stat-value">${activeVersion.metadata.column_count ?? 'N/A'}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Created</div>
@@ -370,16 +410,24 @@ function renderActiveVersionDetails(dataset: CurrentDataset): string {
         </div>
       </div>
 
-      ${activeVersion.pipeline.transforms.length > 0 ? `
+      ${
+        activeVersion.pipeline.transforms.length > 0
+          ? `
         <div class="version-details-transforms">
           <h6>Applied Transforms</h6>
           <ul>
-            ${activeVersion.pipeline.transforms.map(t => `
+            ${activeVersion.pipeline.transforms
+              .map(
+                t => `
               <li><code>${t.transform_type}</code></li>
-            `).join('')}
+            `
+              )
+              .join('')}
           </ul>
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
   `;
 }

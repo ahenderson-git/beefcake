@@ -1,22 +1,25 @@
-import { Component, ComponentActions } from "./Component";
-import { AppState, ColumnCleanConfig, LifecycleStage } from "../types";
-import * as renderers from "../renderers";
-import * as api from "../api";
-import Chart from 'chart.js/auto';
-import { ExportModal } from "./ExportModal";
+import Chart, { ChartConfiguration } from 'chart.js/auto';
+
+import * as api from '../api';
+import * as renderers from '../renderers';
+import { AppState, ColumnCleanConfig, DatasetVersion, LifecycleStage } from '../types';
+
+import { Component, ComponentActions } from './Component';
+import { ExportModal } from './ExportModal';
 
 export class AnalyserComponent extends Component {
   private charts: Map<string, Chart> = new Map();
   private isTransitioning: boolean = false;
 
   private getCurrentStage(state: AppState): LifecycleStage | null {
-    if (!state.currentDataset || !state.currentDataset.activeVersionId) {
+    if (!state.currentDataset?.activeVersionId) {
       return null;
     }
-    const activeVersion = state.currentDataset.versions.find(
-      v => v.id === state.currentDataset!.activeVersionId
-    );
-    return activeVersion?.stage || null;
+
+    const { activeVersionId, versions } = state.currentDataset;
+    const activeVersion = versions.find(v => v.id === activeVersionId);
+
+    return activeVersion?.stage ?? null;
   }
 
   private isReadOnlyStage(stage: LifecycleStage | null): boolean {
@@ -29,13 +32,15 @@ export class AnalyserComponent extends Component {
 
   render(state: AppState): void {
     const container = this.getContainer();
+
     if (state.isLoading) {
       container.innerHTML = renderers.renderLoading(state.loadingMessage, state.isAborting);
-      document.getElementById('btn-abort-op')?.addEventListener('click', async () => {
-         state.isAborting = true;
-         this.render(state);
-         await api.abortProcessing();
+      document.getElementById('btn-abort-op')?.addEventListener('click', () => {
+        state.isAborting = true;
+        this.render(state);
+        void api.abortProcessing();
       });
+
       return;
     }
 
@@ -70,7 +75,10 @@ export class AnalyserComponent extends Component {
       } else {
         const contentContainer = document.getElementById('analyser-content-container');
         if (contentContainer) {
-          contentContainer.innerHTML = renderers.renderValidatedSummary(state.analysisResponse, state.currentDataset);
+          contentContainer.innerHTML = renderers.renderValidatedSummary(
+            state.analysisResponse,
+            state.currentDataset
+          );
         }
       }
       this.bindValidatedEvents(state);
@@ -131,12 +139,14 @@ export class AnalyserComponent extends Component {
     this.initCharts(state);
   }
 
-  private bindEmptyAnalyserEvents(_state: AppState) {
-    document.getElementById('btn-open-file')?.addEventListener('click', async () => {
-       const path = await api.openFileDialog();
-       if (path) {
-         this.actions.runAnalysis(path);
-       }
+  private bindEmptyAnalyserEvents(_state: AppState): void {
+    document.getElementById('btn-open-file')?.addEventListener('click', () => {
+      void (async () => {
+        const path = await api.openFileDialog();
+        if (path) {
+          this.actions.runAnalysis(path);
+        }
+      })();
     });
   }
 
@@ -145,7 +155,7 @@ export class AnalyserComponent extends Component {
 
     // Expand/Collapse rows
     document.querySelectorAll('.analyser-row').forEach(row => {
-      row.addEventListener('click', (e) => {
+      row.addEventListener('click', e => {
         if ((e.target as HTMLElement).closest('.row-action')) return;
         if ((e.target as HTMLElement).closest('.col-select-checkbox')) return;
         const colName = (e.currentTarget as HTMLElement).dataset.col!;
@@ -160,7 +170,7 @@ export class AnalyserComponent extends Component {
 
     // Column selection checkboxes
     document.querySelectorAll('.col-select-checkbox').forEach(checkbox => {
-      checkbox.addEventListener('change', (e) => {
+      checkbox.addEventListener('change', e => {
         const colName = (e.target as HTMLInputElement).dataset.col!;
         const isChecked = (e.target as HTMLInputElement).checked;
 
@@ -175,43 +185,54 @@ export class AnalyserComponent extends Component {
 
     // Row actions (Active, Impute, Round, etc.)
     document.querySelectorAll('.row-action').forEach(el => {
-      el.addEventListener('change', (e) => {
+      el.addEventListener('change', e => {
         const target = e.target as HTMLInputElement | HTMLSelectElement;
         const colName = target.dataset.col!;
         const prop = target.dataset.prop as keyof ColumnCleanConfig;
-        
-        if (!state.cleaningConfigs[colName]) return;
-        
+
+        const config = state.cleaningConfigs[colName];
+        if (!config) return;
+
         if (target.type === 'checkbox') {
-          (state.cleaningConfigs[colName] as any)[prop] = (target as HTMLInputElement).checked;
+          const checked = (target as HTMLInputElement).checked;
+          if (prop === 'active') config.active = checked;
+          else if (prop === 'one_hot_encode') config.one_hot_encode = checked;
+          else if (prop === 'clip_outliers') config.clip_outliers = checked;
         } else {
-          let value: any = target.value;
+          const value = target.value;
           if (prop === 'rounding') {
-            value = value === 'none' ? null : parseInt(value);
+            config.rounding = value === 'none' ? null : parseInt(value);
+          } else if (prop === 'impute_mode') {
+            config.impute_mode = value as ColumnCleanConfig['impute_mode'];
+          } else if (prop === 'normalisation') {
+            config.normalisation = value as ColumnCleanConfig['normalisation'];
+          } else if (prop === 'text_case') {
+            config.text_case = value as ColumnCleanConfig['text_case'];
+          } else if (prop === 'new_name') {
+            config.new_name = value;
           }
-          (state.cleaningConfigs[colName] as any)[prop] = value;
         }
-        
+
         this.actions.onStateChange();
       });
     });
 
     // Header actions (Bulk changes)
     document.querySelectorAll('.header-action').forEach(el => {
-      el.addEventListener('change', (e) => {
+      el.addEventListener('change', e => {
         const target = e.target as HTMLInputElement | HTMLSelectElement;
         const action = target.dataset.action!;
-        
+
         if (action === 'active-all') {
           const checked = (target as HTMLInputElement).checked;
           state.cleanAllActive = checked;
-          Object.values(state.cleaningConfigs).forEach(c => c.active = checked);
+          Object.values(state.cleaningConfigs).forEach(c => (c.active = checked));
         } else if (action === 'use-original-names') {
           const checked = (target as HTMLInputElement).checked;
           state.useOriginalColumnNames = checked;
           // Update all configs to use either original or standardized names
           if (state.analysisResponse) {
-            state.analysisResponse.summary.forEach((s) => {
+            state.analysisResponse.summary.forEach(s => {
               const config = state.cleaningConfigs[s.name];
               if (config) {
                 config.new_name = checked ? s.name : s.standardized_name;
@@ -220,19 +241,25 @@ export class AnalyserComponent extends Component {
           }
         } else if (action === 'impute-all') {
           const val = target.value;
-          Object.values(state.cleaningConfigs).forEach(c => c.impute_mode = val as any);
+          Object.values(state.cleaningConfigs).forEach(
+            c => (c.impute_mode = val as ColumnCleanConfig['impute_mode'])
+          );
         } else if (action === 'round-all') {
           const val = target.value === 'none' ? null : parseInt(target.value);
-          Object.values(state.cleaningConfigs).forEach(c => c.rounding = val);
+          Object.values(state.cleaningConfigs).forEach(c => (c.rounding = val));
         } else if (action === 'norm-all') {
           const val = target.value;
-          Object.values(state.cleaningConfigs).forEach(c => c.normalisation = val as any);
+          Object.values(state.cleaningConfigs).forEach(
+            c => (c.normalisation = val as ColumnCleanConfig['normalisation'])
+          );
         } else if (action === 'case-all') {
           const val = target.value;
-          Object.values(state.cleaningConfigs).forEach(c => c.text_case = val as any);
+          Object.values(state.cleaningConfigs).forEach(
+            c => (c.text_case = val as ColumnCleanConfig['text_case'])
+          );
         } else if (action === 'onehot-all') {
           const checked = (target as HTMLInputElement).checked;
-          Object.values(state.cleaningConfigs).forEach(c => c.one_hot_encode = checked);
+          Object.values(state.cleaningConfigs).forEach(c => (c.one_hot_encode = checked));
         }
 
         // Re-render to update UI with new config values
@@ -242,17 +269,17 @@ export class AnalyserComponent extends Component {
     });
 
     document.querySelectorAll('.header-action-icon').forEach(el => {
-      el.addEventListener('click', async (e) => {
+      el.addEventListener('click', e => {
         const target = e.currentTarget as HTMLElement;
         const action = target.dataset.action!;
         if (action === 'standardize-all' && state.analysisResponse) {
-          state.analysisResponse.summary.forEach((s) => {
+          state.analysisResponse.summary.forEach(s => {
             const config = state.cleaningConfigs[s.name];
             if (config) {
               config.new_name = s.standardized_name;
             }
           });
-          this.actions.showToast("Headers standardized", "success");
+          this.actions.showToast('Headers standardized', 'success');
           this.render(state);
           this.actions.onStateChange();
         }
@@ -260,11 +287,13 @@ export class AnalyserComponent extends Component {
     });
 
     // Header buttons
-    document.getElementById('btn-open-file')?.addEventListener('click', async () => {
-      const path = await api.openFileDialog();
-      if (path) {
-        this.actions.runAnalysis(path);
-      }
+    document.getElementById('btn-open-file')?.addEventListener('click', () => {
+      void (async () => {
+        const path = await api.openFileDialog();
+        if (path) {
+          this.actions.runAnalysis(path);
+        }
+      })();
     });
 
     document.getElementById('btn-reanalyze')?.addEventListener('click', () => {
@@ -274,80 +303,90 @@ export class AnalyserComponent extends Component {
     });
 
     document.getElementById('btn-export')?.addEventListener('click', () => {
-      this.handleExport(state);
+      void this.handleExport(state);
     });
 
     document.getElementById('btn-export-analyser')?.addEventListener('click', () => {
-      this.handleExport(state);
+      void this.handleExport(state);
     });
 
     const btnBeginCleaning = document.getElementById('btn-begin-cleaning') as HTMLButtonElement;
-    btnBeginCleaning?.addEventListener('click', async () => {
-      if (this.isTransitioning) return;
-      btnBeginCleaning.disabled = true;
+    btnBeginCleaning?.addEventListener('click', () => {
+      void (async () => {
+        if (this.isTransitioning) return;
+        btnBeginCleaning.disabled = true;
 
-      // Start timer
-      const startTime = Date.now();
-      const updateTimer = () => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        btnBeginCleaning.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
-      };
-      updateTimer();
-      const timerInterval = setInterval(updateTimer, 1000);
+        // Start timer
+        const startTime = Date.now();
+        const updateTimer = (): void => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          btnBeginCleaning.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
+        };
+        updateTimer();
+        const timerInterval = setInterval(updateTimer, 1000);
 
-      try {
-        await this.handleBeginCleaning(state);
-      } finally {
-        clearInterval(timerInterval);
-        btnBeginCleaning.disabled = false;
-        btnBeginCleaning.innerHTML = '<i class="ph ph-broom"></i> Begin Cleaning';
-      }
+        try {
+          await this.handleBeginCleaning(state);
+        } finally {
+          clearInterval(timerInterval);
+          btnBeginCleaning.disabled = false;
+          btnBeginCleaning.innerHTML = '<i class="ph ph-broom"></i> Begin Cleaning';
+        }
+      })();
     });
 
-    const btnContinueAdvanced = document.getElementById('btn-continue-advanced') as HTMLButtonElement;
-    btnContinueAdvanced?.addEventListener('click', async () => {
-      if (this.isTransitioning) return;
-      btnContinueAdvanced.disabled = true;
+    const btnContinueAdvanced = document.getElementById(
+      'btn-continue-advanced'
+    ) as HTMLButtonElement;
+    btnContinueAdvanced?.addEventListener('click', () => {
+      void (async () => {
+        if (this.isTransitioning) return;
+        btnContinueAdvanced.disabled = true;
 
-      // Start timer
-      const startTime = Date.now();
-      const updateTimer = () => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        btnContinueAdvanced.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
-      };
-      updateTimer();
-      const timerInterval = setInterval(updateTimer, 1000);
+        // Start timer
+        const startTime = Date.now();
+        const updateTimer = (): void => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          btnContinueAdvanced.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
+        };
+        updateTimer();
+        const timerInterval = setInterval(updateTimer, 1000);
 
-      try {
-        await this.handleContinueToAdvanced(state);
-      } finally {
-        clearInterval(timerInterval);
-        btnContinueAdvanced.disabled = false;
-        btnContinueAdvanced.innerHTML = '<i class="ph ph-arrow-right"></i> Continue to Advanced';
-      }
+        try {
+          await this.handleContinueToAdvanced(state);
+        } finally {
+          clearInterval(timerInterval);
+          btnContinueAdvanced.disabled = false;
+          btnContinueAdvanced.innerHTML = '<i class="ph ph-arrow-right"></i> Continue to Advanced';
+        }
+      })();
     });
 
-    const btnMoveToValidated = document.getElementById('btn-move-to-validated') as HTMLButtonElement;
-    btnMoveToValidated?.addEventListener('click', async () => {
-      if (this.isTransitioning) return;
-      btnMoveToValidated.disabled = true;
+    const btnMoveToValidated = document.getElementById(
+      'btn-move-to-validated'
+    ) as HTMLButtonElement;
+    btnMoveToValidated?.addEventListener('click', () => {
+      void (async () => {
+        if (this.isTransitioning) return;
+        btnMoveToValidated.disabled = true;
 
-      // Start timer
-      const startTime = Date.now();
-      const updateTimer = () => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        btnMoveToValidated.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
-      };
-      updateTimer();
-      const timerInterval = setInterval(updateTimer, 1000);
+        // Start timer
+        const startTime = Date.now();
+        const updateTimer = (): void => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          btnMoveToValidated.innerHTML = `<i class="ph ph-circle-notch ph-spin"></i> Transitioning... ${elapsed}s`;
+        };
+        updateTimer();
+        const timerInterval = setInterval(updateTimer, 1000);
 
-      try {
-        await this.handleMoveToValidated(state);
-      } finally {
-        clearInterval(timerInterval);
-        btnMoveToValidated.disabled = false;
-        btnMoveToValidated.innerHTML = '<i class="ph ph-check-circle"></i> Move to Validated';
-      }
+        try {
+          await this.handleMoveToValidated(state);
+        } finally {
+          clearInterval(timerInterval);
+          btnMoveToValidated.disabled = false;
+          btnMoveToValidated.innerHTML = '<i class="ph ph-check-circle"></i> Move to Validated';
+        }
+      })();
     });
 
     // Cleaning info box toggle
@@ -362,19 +401,19 @@ export class AnalyserComponent extends Component {
     // Handle link to reference page in cleaning info box
     const cleaningInfoLink = document.querySelector('.cleaning-info-link');
     if (cleaningInfoLink) {
-      cleaningInfoLink.addEventListener('click', (e) => {
+      cleaningInfoLink.addEventListener('click', e => {
         e.preventDefault();
         this.actions.navigateTo?.('reference');
       });
     }
   }
 
-  private async handleExport(state: AppState) {
+  private async handleExport(state: AppState): Promise<void> {
     if (!state.analysisResponse) return;
 
     const modal = new ExportModal('modal-container', this.actions, {
       type: 'Analyser',
-      path: state.analysisResponse.path
+      path: state.analysisResponse.path,
     });
 
     document.getElementById('modal-container')?.classList.add('active');
@@ -382,7 +421,7 @@ export class AnalyserComponent extends Component {
     document.getElementById('modal-container')?.classList.remove('active');
   }
 
-  private async handleBeginCleaning(state: AppState) {
+  private async handleBeginCleaning(state: AppState): Promise<void> {
     if (!state.currentDataset) {
       this.actions.showToast('No dataset loaded', 'error');
       return;
@@ -393,7 +432,7 @@ export class AnalyserComponent extends Component {
       this.actions.showToast('Transitioning to Cleaning stage...', 'info');
 
       // Build pipeline with column selection if columns were excluded
-      const pipeline: { transforms: any[] } = { transforms: [] };
+      const pipeline: { transforms: unknown[] } = { transforms: [] };
 
       if (state.selectedColumns.size > 0 && state.analysisResponse) {
         const allColumns = state.analysisResponse.summary.map(c => c.name);
@@ -404,8 +443,8 @@ export class AnalyserComponent extends Component {
           pipeline.transforms.push({
             transform_type: 'select_columns',
             parameters: {
-              columns: selectedCols
-            }
+              columns: selectedCols,
+            },
           });
         }
       }
@@ -423,20 +462,20 @@ export class AnalyserComponent extends Component {
       const versionsJson = await api.listVersions(state.currentDataset.id);
 
       // Update state
-      state.currentDataset.versions = JSON.parse(versionsJson);
+      state.currentDataset.versions = JSON.parse(versionsJson) as DatasetVersion[];
       state.currentDataset.activeVersionId = newVersionId;
 
       // Re-render to show cleaning controls and update lifecycle rail
       this.actions.onStateChange();
       this.actions.showToast('Cleaning stage unlocked', 'success');
     } catch (err) {
-      this.actions.showToast(`Failed to transition: ${err}`, 'error');
+      this.actions.showToast(`Failed to transition: ${String(err)}`, 'error');
     } finally {
       this.isTransitioning = false;
     }
   }
 
-  private async handleContinueToAdvanced(state: AppState) {
+  private async handleContinueToAdvanced(state: AppState): Promise<void> {
     if (!state.currentDataset) {
       this.actions.showToast('No dataset loaded', 'error');
       return;
@@ -447,7 +486,7 @@ export class AnalyserComponent extends Component {
       this.actions.showToast('Transitioning to Advanced stage...', 'info');
 
       // Build pipeline from current cleaning configs
-      const pipeline: { transforms: any[] } = { transforms: [] };
+      const pipeline: { transforms: unknown[] } = { transforms: [] };
 
       // Add clean transform with current configs
       const activeConfigs = Object.fromEntries(
@@ -459,8 +498,8 @@ export class AnalyserComponent extends Component {
           transform_type: 'clean',
           parameters: {
             configs: activeConfigs,
-            restricted: true  // Cleaned stage uses restricted mode
-          }
+            restricted: true, // Cleaned stage uses restricted mode
+          },
         });
       }
 
@@ -477,20 +516,20 @@ export class AnalyserComponent extends Component {
       const versionsJson = await api.listVersions(state.currentDataset.id);
 
       // Update state
-      state.currentDataset.versions = JSON.parse(versionsJson);
+      state.currentDataset.versions = JSON.parse(versionsJson) as DatasetVersion[];
       state.currentDataset.activeVersionId = newVersionId;
 
       // Re-render to show advanced controls and update lifecycle rail
       this.actions.onStateChange();
       this.actions.showToast('Advanced stage unlocked - ML preprocessing now available', 'success');
     } catch (err) {
-      this.actions.showToast(`Failed to transition: ${err}`, 'error');
+      this.actions.showToast(`Failed to transition: ${String(err)}`, 'error');
     } finally {
       this.isTransitioning = false;
     }
   }
 
-  private async handleMoveToValidated(state: AppState) {
+  private async handleMoveToValidated(state: AppState): Promise<void> {
     if (!state.currentDataset) {
       this.actions.showToast('No dataset loaded', 'error');
       return;
@@ -501,7 +540,7 @@ export class AnalyserComponent extends Component {
       this.actions.showToast('Transitioning to Validated stage...', 'info');
 
       // Build empty pipeline - validation is non-mutating
-      const pipeline: { transforms: any[] } = { transforms: [] };
+      const pipeline: { transforms: unknown[] } = { transforms: [] };
       const pipelineJson = JSON.stringify(pipeline);
 
       // Apply transforms (creates new version in Validated stage)
@@ -515,68 +554,70 @@ export class AnalyserComponent extends Component {
       const versionsJson = await api.listVersions(state.currentDataset.id);
 
       // Update state
-      state.currentDataset.versions = JSON.parse(versionsJson);
+      state.currentDataset.versions = JSON.parse(versionsJson) as DatasetVersion[];
       state.currentDataset.activeVersionId = newVersionId;
 
       // Re-render to show validation summary
       this.actions.onStateChange();
       this.actions.showToast('Validated stage unlocked - ready for publishing', 'success');
     } catch (err) {
-      this.actions.showToast(`Failed to transition: ${err}`, 'error');
+      this.actions.showToast(`Failed to transition: ${String(err)}`, 'error');
     } finally {
       this.isTransitioning = false;
     }
   }
 
-  private bindValidatedEvents(state: AppState) {
+  private bindValidatedEvents(state: AppState): void {
     // Back to Advanced button
     const btnBackToAdvanced = document.getElementById('btn-back-to-advanced');
-    btnBackToAdvanced?.addEventListener('click', async () => {
-      if (!state.currentDataset) return;
+    btnBackToAdvanced?.addEventListener('click', () => {
+      void (async () => {
+        if (!state.currentDataset) return;
 
-      // Find the Advanced stage version
-      const advancedVersion = state.currentDataset.versions.find(v => v.stage === 'Advanced');
-      if (!advancedVersion) {
-        this.actions.showToast('Advanced version not found', 'error');
-        return;
-      }
+        // Find the Advanced stage version
+        const advancedVersion = state.currentDataset.versions.find(v => v.stage === 'Advanced');
+        if (!advancedVersion) {
+          this.actions.showToast('Advanced version not found', 'error');
+          return;
+        }
 
-      try {
-        // Set active version back to Advanced
-        await api.setActiveVersion(state.currentDataset.id, advancedVersion.id);
-        state.currentDataset.activeVersionId = advancedVersion.id;
+        try {
+          // Set active version back to Advanced
+          await api.setActiveVersion(state.currentDataset.id, advancedVersion.id);
+          state.currentDataset.activeVersionId = advancedVersion.id;
 
-        // Re-render
-        this.actions.onStateChange();
-        this.actions.showToast('Returned to Advanced stage', 'success');
-      } catch (err) {
-        this.actions.showToast(`Failed to switch version: ${err}`, 'error');
-      }
+          // Re-render
+          this.actions.onStateChange();
+          this.actions.showToast('Returned to Advanced stage', 'success');
+        } catch (err) {
+          this.actions.showToast(`Failed to switch version: ${String(err)}`, 'error');
+        }
+      })();
     });
 
     // Publish Dataset button
     const btnPublish = document.getElementById('btn-publish-dataset');
-    btnPublish?.addEventListener('click', async () => {
-      if (!state.currentDataset || !state.analysisResponse) return;
+    btnPublish?.addEventListener('click', () => {
+      void (async () => {
+        if (!state.currentDataset || !state.analysisResponse) return;
 
-      // Open export modal
-      const modal = new ExportModal(
-        'modal-container',
-        this.actions,
-        {
+        // Open export modal
+        const modal = new ExportModal('modal-container', this.actions, {
           type: 'Analyser',
-          path: state.analysisResponse.path
-        }
-      );
+          path: state.analysisResponse.path,
+        });
 
-      document.getElementById('modal-container')?.classList.add('active');
-      await modal.show(state);
-      document.getElementById('modal-container')?.classList.remove('active');
+        document.getElementById('modal-container')?.classList.add('active');
+        await modal.show(state);
+        document.getElementById('modal-container')?.classList.remove('active');
+      })();
     });
   }
 
-  private initCharts(state: AppState) {
-    this.charts.forEach(c => c.destroy());
+  private initCharts(state: AppState): void {
+    this.charts.forEach(c => {
+      c.destroy();
+    });
     this.charts.clear();
 
     if (!state.analysisResponse) return;
@@ -591,35 +632,67 @@ export class AnalyserComponent extends Component {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      let chartConfig: any = null;
+      let chartConfig: ChartConfiguration | null = null;
 
       if (col.stats.Numeric?.histogram) {
         chartConfig = {
           type: 'bar',
           data: {
             labels: col.stats.Numeric.histogram.map(s => s[0].toFixed(2)),
-            datasets: [{
-              label: 'Frequency',
-              data: col.stats.Numeric.histogram.map(d => d[1]),
-              backgroundColor: 'rgba(52, 152, 219, 0.5)',
-              borderColor: 'rgba(52, 152, 219, 1)',
-              borderWidth: 1
-            }]
-          }
+            datasets: [
+              {
+                label: 'Frequency',
+                data: col.stats.Numeric.histogram.map(d => d[1]),
+                backgroundColor: 'rgba(52, 152, 219, 0.5)',
+                borderColor: 'rgba(52, 152, 219, 1)',
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: context => {
+                    return `Value: ${context.label}, Count: ${String(context.parsed.y)}`;
+                  },
+                },
+              },
+            },
+          },
         };
       } else if (col.stats.Temporal?.histogram) {
         chartConfig = {
           type: 'bar',
           data: {
             labels: col.stats.Temporal.histogram.map(d => new Date(d[0]).toLocaleDateString()),
-            datasets: [{
-              label: 'Frequency',
-              data: col.stats.Temporal.histogram.map(d => d[1]),
-              backgroundColor: 'rgba(46, 204, 113, 0.5)',
-              borderColor: 'rgba(46, 204, 113, 1)',
-              borderWidth: 1
-            }]
-          }
+            datasets: [
+              {
+                label: 'Frequency',
+                data: col.stats.Temporal.histogram.map(d => d[1]),
+                backgroundColor: 'rgba(46, 204, 113, 0.5)',
+                borderColor: 'rgba(46, 204, 113, 1)',
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: context => {
+                    return `Value: ${context.label}, Count: ${String(context.parsed.y)}`;
+                  },
+                },
+              },
+            },
+          },
         };
       } else if (col.stats.Categorical) {
         const entries = Object.entries(col.stats.Categorical)
@@ -629,30 +702,42 @@ export class AnalyserComponent extends Component {
           type: 'doughnut',
           data: {
             labels: entries.map(e => e[0]),
-            datasets: [{
-              data: entries.map(e => e[1]),
-              backgroundColor: [
-                '#3498db', '#2ecc71', '#e67e22', '#e74c3c', '#9b59b6',
-                '#1abc9c', '#f1c40f', '#34495e', '#95a5a6', '#d35400'
-              ]
-            }]
-          }
+            datasets: [
+              {
+                data: entries.map(e => e[1]),
+                backgroundColor: [
+                  '#3498db',
+                  '#2ecc71',
+                  '#e67e22',
+                  '#e74c3c',
+                  '#9b59b6',
+                  '#1abc9c',
+                  '#f1c40f',
+                  '#34495e',
+                  '#95a5a6',
+                  '#d35400',
+                ],
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true },
+              tooltip: {
+                callbacks: {
+                  label: context => {
+                    return `Value: ${context.label}, Count: ${String(context.raw)}`;
+                  },
+                },
+              },
+            },
+          },
         };
       }
 
       if (chartConfig) {
-        chartConfig.options = {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: col.stats.Categorical !== undefined },
-            tooltip: {
-              callbacks: {
-                label: (context: any) => `Value: ${context.label}, Count: ${context.parsed.y ?? context.parsed}`
-              }
-            }
-          }
-        };
         this.charts.set(colName, new Chart(ctx, chartConfig));
       }
     });

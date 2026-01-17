@@ -1,4 +1,4 @@
-import { AppState, View } from "../types";
+import { AppState, View } from '../types';
 
 export interface ComponentActions {
   switchView: (view: View) => void;

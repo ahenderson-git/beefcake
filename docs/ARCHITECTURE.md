@@ -211,15 +211,134 @@ src-frontend/
 PipelineComponent (manager)
     │
     ├─> PipelineLibrary (list view)
-    │     └─> Template cards with "Use Template" action
+    │     ├─> My Pipelines tab
+    │     │     ├─> Search/filter
+    │     │     ├─> Pipeline cards (edit/execute/delete actions)
+    │     │     └─> Empty state with "Create Pipeline" button
+    │     │
+    │     └─> Templates tab
+    │           ├─> 8 pre-built templates
+    │           ├─> Template categories (cleaning, ML, dates, etc.)
+    │           └─> "Use Template" action
     │
-    └─> PipelineEditor (edit view)
-          ├─> StepPalette (left sidebar)
-          │     └─> 11 step types in 5 categories
-          ├─> Pipeline Canvas (centre)
-          │     └─> Drag-and-drop step cards
-          └─> StepConfigPanel (right sidebar)
-                └─> Dynamic forms per step type
+    ├─> PipelineEditor (edit view)
+    │     ├─> StepPalette (left sidebar - 250px)
+    │     │     ├─> Column Management (drop, rename)
+    │     │     ├─> Text Processing (trim, regex)
+    │     │     ├─> Type Conversion (cast, parse dates)
+    │     │     ├─> Missing Values (impute)
+    │     │     └─> Machine Learning (normalize, one-hot, clip, extract)
+    │     │
+    │     ├─> Pipeline Canvas (center - flexible)
+    │     │     ├─> Step cards with drag handles (⋮⋮)
+    │     │     ├─> HTML5 Drag-and-Drop API
+    │     │     ├─> Visual feedback (opacity, borders)
+    │     │     ├─> Selection tracking
+    │     │     └─> Up/Down reorder buttons (fallback)
+    │     │
+    │     ├─> StepConfigPanel (right sidebar - 350px)
+    │     │     ├─> Step-specific forms
+    │     │     ├─> Column multi-select dropdowns
+    │     │     ├─> Parameter validation
+    │     │     └─> Help text and examples
+    │     │
+    │     └─> Toolbar
+    │           ├─> Save button
+    │           ├─> Execute button
+    │           ├─> Back to library
+    │           └─> Pipeline name/description
+    │
+    └─> PipelineExecutor (modal overlay)
+          ├─> File selection (input/output)
+          ├─> Progress tracking
+          ├─> Step-by-step feedback
+          └─> Success/error results
+```
+
+**Pipeline Data Flow**:
+```
+User clicks "New Pipeline" in Library
+    ↓
+PipelineComponent.showEditor() with empty spec
+    ↓
+PipelineEditor renders with empty canvas
+    ↓
+User drags step from StepPalette to canvas
+    ↓
+PipelineEditor.addStep(stepType)
+    ↓
+Canvas re-renders with new step card
+    ↓
+User clicks step card
+    ↓
+StepConfigPanel renders step-specific form
+    ↓
+User configures parameters (columns, strategy, etc.)
+    ↓
+StepConfigPanel.updateStepParams()
+    ↓
+Pipeline spec updated in editor state
+    ↓
+User clicks "Save"
+    ↓
+api-pipeline.savePipeline(spec, path)
+    ↓
+Tauri invokes Rust "save_pipeline" command
+    ↓
+JSON written to disk
+    ↓
+PipelineLibrary refreshed
+```
+
+**Drag-and-Drop Implementation**:
+```typescript
+// PipelineEditor.ts
+class PipelineEditor {
+  private draggedStepIndex: number | null = null;
+
+  // Attach drag event handlers
+  private attachDragHandlers(card: HTMLElement, index: number) {
+    card.addEventListener('dragstart', (e) => {
+      this.draggedStepIndex = index;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      card.classList.add('drag-over');
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const dropIndex = parseInt(card.dataset.index);
+      this.moveStepToIndex(this.draggedStepIndex, dropIndex);
+      card.classList.remove('drag-over');
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      this.draggedStepIndex = null;
+    });
+  }
+
+  // Reorder steps and update selection
+  private moveStepToIndex(from: number, to: number) {
+    const steps = [...this.state.pipeline.steps];
+    const [movedStep] = steps.splice(from, 1);
+    steps.splice(to, 0, movedStep);
+
+    this.state.pipeline.steps = steps;
+
+    // Update selected index if necessary
+    if (this.state.selectedStepIndex === from) {
+      this.state.selectedStepIndex = to;
+    }
+
+    this.render();
+  }
+}
 ```
 
 **Architecture**: Component-based with centralized state management.

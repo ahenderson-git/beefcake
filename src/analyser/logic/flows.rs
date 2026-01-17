@@ -10,6 +10,36 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use uuid::Uuid;
 
+/// Stratified sampling: Sample evenly across the entire file
+/// For 1B rows, 500K sample: Takes rows at regular intervals across entire dataset
+fn stratified_sample(
+    lf: LazyFrame,
+    total_rows: usize,
+    sample_size: u32,
+) -> Result<DataFrame> {
+    // Calculate stride (how many rows to skip between samples)
+    let stride = (total_rows / sample_size as usize).max(1);
+
+    crate::utils::log_event(
+        "Analyser",
+        &format!(
+            "Using stratified sampling: every {}th row from {} total rows",
+            stride,
+            crate::utils::fmt_count(total_rows)
+        ),
+    );
+
+    // Add row index and filter every Nth row
+    let sampled = lf
+        .with_row_index("__sample_idx__", None)
+        .filter((col("__sample_idx__").cast(DataType::Int64) % lit(stride as i64)).eq(lit(0)))
+        .limit(sample_size)
+        .select([col("*").exclude(["__sample_idx__"])])
+        .collect()?;
+
+    Ok(sampled)
+}
+
 pub async fn push_to_db_flow(
     path: PathBuf,
     opts: PgConnectOptions,
@@ -50,7 +80,7 @@ pub async fn push_to_db_flow(
 }
 
 pub fn generate_auto_clean_configs(lf: LazyFrame) -> Result<HashMap<String, ColumnCleanConfig>> {
-    let summaries = analyse_df_lazy(lf, 0.0).context("Failed to analyse for auto-cleaning")?;
+    let summaries = analyse_df_lazy(lf, 0.0, 10_000).context("Failed to analyse for auto-cleaning")?;
 
     let mut configs = HashMap::new();
     for summary in summaries {
@@ -68,6 +98,10 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
     let start = std::time::Instant::now();
     let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     let path_str = path.to_string_lossy().to_string();
+
+    // Load config to get custom sample size
+    let config = crate::utils::load_app_config();
+    let custom_sample_size = config.settings().analysis_sample_size as usize;
 
     let lf = load_df_lazy(&path).context("Failed to probe file")?;
     let mut lf_for_schema = lf.clone();
@@ -100,30 +134,73 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
         Err(_) => 0,
     };
 
-    let max_cells = 5_000_000;
-    let (lf_for_analysis, is_sampled, sampled_rows_count) = if should_sample {
-        let sample_rows = if col_count > 0 {
-            std::cmp::min(500_000, (max_cells / col_count) as u32)
+    // Use custom sample size as the target, but scale for very wide datasets to prevent OOM
+    let target_sample_rows = custom_sample_size;
+    let sampling_strategy = config.settings().sampling_strategy.as_str();
+
+    let (lf_for_analysis, is_sampled, sampled_rows_count, sampling_method) = if should_sample {
+        let sample_rows = if col_count > 100 {
+            // For extremely wide datasets (>100 cols), use memory-safe formula
+            // But ensure we meet at least 50% of user's target
+            let memory_safe_rows = std::cmp::min(500_000, (5_000_000 / col_count) as u32);
+            std::cmp::max(memory_safe_rows, (target_sample_rows / 2) as u32)
+        } else if col_count > 50 {
+            // For wide datasets (50-100 cols), use 75% of target
+            std::cmp::min(500_000, ((target_sample_rows * 3) / 4) as u32)
         } else {
-            500_000
+            // For normal datasets, use full target
+            std::cmp::min(500_000, target_sample_rows as u32)
         };
-        crate::utils::log_event(
-            "Analyser",
-            &format!(
-                "Large dataset detected, using random sampling ({sample_rows} rows) for representative analysis..."
-            ),
-        );
-        // Use random sampling for better representativeness
-        // Note: We need to collect, sample, and convert back to lazy for random sampling
-        // For very large datasets, this may use more memory than .limit(), but provides
-        // statistically better results. Consider using .limit() for datasets > 10M rows.
-        let df = lf.clone().limit(sample_rows * 2).collect()?; // Collect 2x for sampling pool
-        let n_series = Series::new("n".into(), &[sample_rows as i64]);
-        // Use a fixed seed (42) to ensure deterministic sampling for consistent health scores
-        let sampled_df = df.sample_n(&n_series, false, false, Some(42))?;
-        (sampled_df.lazy(), true, sample_rows)
+
+        // Select sampling method based on strategy and file size
+        let (sampled_df, method_used) = match (sampling_strategy, true_total_rows) {
+            // Small files: Use fast method regardless of strategy
+            (_, n) if n < 10_000_000 => {
+                crate::utils::log_event(
+                    "Analyser",
+                    &format!("Small dataset ({}), using fast sequential sampling", crate::utils::fmt_count(n)),
+                );
+                let df = lf.clone().limit(sample_rows * 2).collect()?;
+                let n_series = Series::new("n".into(), &[sample_rows as i64]);
+                let sampled = df.sample_n(&n_series, false, false, Some(42))?;
+                (sampled, "fast")
+            },
+
+            // Fast strategy: Always use current method
+            ("fast", _) => {
+                crate::utils::log_event(
+                    "Analyser",
+                    &format!(
+                        "Using fast sequential sampling: {sample_rows} from first {} rows",
+                        sample_rows * 2
+                    ),
+                );
+                let df = lf.clone().limit(sample_rows * 2).collect()?;
+                let n_series = Series::new("n".into(), &[sample_rows as i64]);
+                let sampled = df.sample_n(&n_series, false, false, Some(42))?;
+                (sampled, "fast (sequential)")
+            },
+
+            // Balanced strategy (default): Use stratified for medium/large files
+            ("balanced", _) | (_, _) => {
+                crate::utils::log_event(
+                    "Analyser",
+                    &format!(
+                        "Using stratified sampling: {} rows from {} total",
+                        sample_rows,
+                        crate::utils::fmt_count(true_total_rows)
+                    ),
+                );
+                let sampled = stratified_sample(lf.clone(), true_total_rows, sample_rows)?;
+                (sampled, "stratified")
+            },
+
+            // Note: "accurate" (reservoir) sampling will be implemented in Phase 2
+        };
+
+        (sampled_df.lazy(), true, sample_rows, method_used)
     } else {
-        (lf.clone(), false, 0)
+        (lf.clone(), false, 0, "none")
     };
 
     // Count sampled rows (what we're actually analyzing)
@@ -141,13 +218,34 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
         true_total_rows,
         sampled_rows,
         0.05,
+        custom_sample_size,
         start,
     )?;
 
     if is_sampled && let Some(first_col) = response.summary.get_mut(0) {
-        first_col.business_summary.insert(0, format!("NOTE: This analysis is based on a sample of {} rows due to large dataset size ({})",
-                crate::utils::fmt_count(sampled_rows_count as usize),
-                crate::utils::fmt_bytes(file_size)));
+        let sampling_description = match sampling_method {
+            "fast" | "fast (sequential)" => "sequential sample from start of file",
+            "stratified" => "stratified sample across entire file",
+            "reservoir" => "random reservoir sample across entire file",
+            _ => "sample",
+        };
+
+        let stats_note = if sampled_rows_count as usize != custom_sample_size {
+            format!(" Statistics calculated from up to {} rows.", crate::utils::fmt_count(custom_sample_size))
+        } else {
+            String::new()
+        };
+
+        first_col.business_summary.insert(0, format!(
+            "NOTE: This analysis is based on a {} of {} rows ({} columns) from {} total rows ({}). Sampling method: {}.{}",
+            sampling_description,
+            crate::utils::fmt_count(sampled_rows_count as usize),
+            col_count,
+            crate::utils::fmt_count(true_total_rows),
+            crate::utils::fmt_bytes(file_size),
+            sampling_method,
+            stats_note
+        ));
     }
 
     Ok(response)

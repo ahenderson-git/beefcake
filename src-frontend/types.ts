@@ -59,9 +59,9 @@ export interface ColumnSummary {
   samples: string[];
 }
 
-export type NormalisationMethod = "None" | "ZScore" | "MinMax";
-export type ImputeMode = "None" | "Mean" | "Median" | "Zero" | "Mode";
-export type TextCase = "None" | "Lowercase" | "Uppercase" | "TitleCase";
+export type NormalisationMethod = 'None' | 'ZScore' | 'MinMax';
+export type ImputeMode = 'None' | 'Mean' | 'Median' | 'Zero' | 'Mode';
+export type TextCase = 'None' | 'Lowercase' | 'Uppercase' | 'TitleCase';
 
 export interface ColumnCleanConfig {
   new_name: string;
@@ -116,11 +116,30 @@ export interface AuditEntry {
   details: string;
 }
 
-export type View = "Dashboard" | "Analyser" | "PowerShell" | "Python" | "SQL" | "Settings" | "CLI" | "ActivityLog" | "Reference" | "Lifecycle" | "Pipeline" | "Watcher" | "Dictionary";
+export type View =
+  | 'Dashboard'
+  | 'Analyser'
+  | 'PowerShell'
+  | 'Python'
+  | 'SQL'
+  | 'Settings'
+  | 'CLI'
+  | 'ActivityLog'
+  | 'Reference'
+  | 'Lifecycle'
+  | 'Pipeline'
+  | 'Watcher'
+  | 'Dictionary';
 
 // Dataset Lifecycle Types
-export type LifecycleStage = "Raw" | "Profiled" | "Cleaned" | "Advanced" | "Validated" | "Published";
-export type PublishMode = "View" | "Snapshot";
+export type LifecycleStage =
+  | 'Raw'
+  | 'Profiled'
+  | 'Cleaned'
+  | 'Advanced'
+  | 'Validated'
+  | 'Published';
+export type PublishMode = 'View' | 'Snapshot';
 
 export interface VersionMetadata {
   description: string;
@@ -129,7 +148,7 @@ export interface VersionMetadata {
   column_count: number | null;
   file_size_bytes: number | null;
   created_by: string;
-  custom_fields: Record<string, any>;
+  custom_fields: Record<string, unknown>;
 }
 
 export interface DataLocation {
@@ -139,7 +158,7 @@ export interface DataLocation {
 
 export interface TransformSpec {
   transform_type: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
 }
 
 export interface TransformPipeline {
@@ -213,12 +232,12 @@ export interface CurrentDataset {
 export interface ExportSource {
   type: 'Analyser' | 'Python' | 'SQL';
   content?: string; // The script or query
-  path?: string;    // Original data path
+  path?: string; // Original data path
 }
 
 export interface ExportDestination {
   type: 'File' | 'Database';
-  target: string;   // File path or Connection ID
+  target: string; // File path or Connection ID
   format?: 'csv' | 'json' | 'parquet';
 }
 
@@ -251,6 +270,8 @@ export interface AppConfig {
   powershell_font_size: number;
   python_font_size: number;
   sql_font_size: number;
+  analysis_sample_size?: number;
+  sampling_strategy?: string;
   audit_log: AuditEntry[];
 }
 
@@ -275,6 +296,7 @@ export interface AppState {
   cleanAllActive: boolean;
   watcherState: WatcherState | null;
   watcherActivities: WatcherActivity[];
+  polarsVersion?: string;
 }
 
 export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConfig {
@@ -286,20 +308,20 @@ export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConf
     ml_preprocessing: false,
     trim_whitespace: true,
     remove_special_chars: false,
-    text_case: "None",
+    text_case: 'None',
     standardise_nulls: true,
     remove_non_ascii: false,
-    regex_find: "",
-    regex_replace: "",
+    regex_find: '',
+    regex_replace: '',
     rounding: null,
     extract_numbers: false,
     clip_outliers: false,
-    temporal_format: "",
+    temporal_format: '',
     timezone_utc: false,
     freq_threshold: null,
-    normalisation: "None",
+    normalisation: 'None',
     one_hot_encode: false,
-    impute_mode: "None"
+    impute_mode: 'None',
   };
 }
 
@@ -318,9 +340,19 @@ export interface WatcherActivity {
   path: string;
   status: 'detected' | 'ingesting' | 'success' | 'failed';
   message?: string;
-  datasetId?: string;
+  datasetId?: string | undefined;
+  rows?: number | undefined;
+  cols?: number | undefined;
+}
+
+export interface WatcherEventPayload {
+  path?: string;
+  timestamp?: string;
+  status?: string;
   rows?: number;
   cols?: number;
+  datasetId?: string;
+  message?: string;
 }
 
 // Data Dictionary Types

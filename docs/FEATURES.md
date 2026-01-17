@@ -170,7 +170,7 @@ Raw → Profiled → Cleaned → Advanced → Validated → Published
 - Export query results to new dataset
 
 **Example:**
-```sql
+```text
 SELECT column1, AVG(column2)
 FROM dataset_v3
 WHERE column1 > 100
@@ -297,6 +297,52 @@ Each step has a dedicated configuration panel:
 }
 ```
 
+### Pipeline UI Components
+
+**PipelineLibrary:**
+- Grid view of saved pipelines with metadata
+- Search and filter by pipeline name
+- Two-tab interface: "My Pipelines" and "Templates"
+- Quick actions: Edit, Execute, Delete
+- Empty state with "Create Pipeline" CTA
+
+**PipelineEditor:**
+- Three-panel layout: Palette (left), Canvas (center), Config (right)
+- Visual drag-and-drop with HTML5 API
+- Step reordering with drag handles (⋮⋮) or Up/Down buttons
+- Real-time step configuration validation
+- Save/Execute directly from editor
+- Dirty state tracking (warns before closing with unsaved changes)
+
+**StepPalette:**
+- 11 transformation types in 5 categories
+- Click to add step to pipeline
+- Category icons and descriptions
+- Collapsible category groups
+
+**StepConfigPanel:**
+- Dynamic forms based on selected step type
+- Column multi-select dropdowns
+- Strategy/method selection (dropdowns)
+- Parameter validation with error messages
+- Help text and examples for each parameter
+
+**PipelineExecutor:**
+- Modal overlay for execution
+- Input/output file selection
+- Progress tracking with step-by-step feedback
+- Execution metrics (duration, rows processed)
+- Success/error result display
+- Close and retry capabilities
+
+**Supported Interactions:**
+- Drag steps from palette to canvas
+- Drag steps within canvas to reorder
+- Click step to select and configure
+- Delete step via trash icon
+- Keyboard navigation (Tab, Enter, Arrow keys)
+- Form auto-save (parameters saved as you type)
+
 ---
 
 ## 4. Embedded Development Environments
@@ -363,8 +409,10 @@ Each step has a dedicated configuration panel:
 
 **Usage:**
 ```rust
-// In ML workflow
-let (train, test) = split_train_test(df, 0.8);
+fn example(df: DataFrame) {
+    // In ML workflow
+    let (train, test) = split_train_test(df, 0.8);
+}
 ```
 
 ### Model Types
@@ -671,7 +719,11 @@ Automatically monitor a folder for new data files and ingest them into the lifec
 | Visual Pipeline Builder | ✅ Implemented | Good | 11 step types, 8 templates |
 | Drag-and-Drop Editor | ✅ Implemented | Good | Reorder steps, visual feedback |
 | Pipeline Templates | ✅ Implemented | Good | 8 pre-configured workflows |
+| Pipeline Executor | ✅ Implemented | Good | Modal with progress tracking |
+| Step Palette | ✅ Implemented | Good | 11 steps in 5 categories |
+| Step Config Panel | ✅ Implemented | Good | Dynamic parameter forms |
 | Filesystem Watcher | ✅ Implemented | Good | Auto-ingest with stability detection |
+| Watcher Activity Feed | ✅ Implemented | Good | Real-time ingestion status |
 | SQL IDE | ✅ Implemented | Fair | Limited SQL dialect |
 | Python IDE | ✅ Implemented | Fair | Requires manual Python install |
 | ML Preprocessing | ✅ Implemented | Fair | Basic models only |

@@ -40,7 +40,7 @@ pub fn profile_data(
     lf: LazyFrame,
     trim_pct: f64,
 ) -> Result<Vec<crate::analyser::logic::ColumnSummary>> {
-    crate::analyser::logic::analyse_df_lazy(lf, trim_pct)
+    crate::analyser::logic::analyse_df_lazy(lf, trim_pct, 10_000)
 }
 
 /// Generate auto-clean configurations from profile results

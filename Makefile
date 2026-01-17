@@ -2,6 +2,8 @@
 #
 # Common development tasks for building docs, running tests, etc.
 # For Windows, install Make via chocolatey: choco install make
+# Alternatively, use the PowerShell shim: .\make.ps1 quality
+# Or import the module: Import-Module ./Beefcake.psm1; make quality
 
 .PHONY: help docs docs-rust docs-ts docs-open test build dev clean
 
@@ -24,8 +26,10 @@ help:
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make clippy        - Run Clippy lints"
-	@echo "  make fmt           - Format code"
+	@echo "  make fmt           - Format code (Rust + TypeScript)"
 	@echo "  make check         - Check compilation without building"
+	@echo "  make lint          - Run ESLint on TypeScript code"
+	@echo "  make quality       - Run all quality checks (lint, format, type-check)"
 
 # Generate all documentation
 docs: docs-rust docs-ts
@@ -68,10 +72,12 @@ clippy:
 	@echo "Running Clippy..."
 	cargo clippy --all-targets --all-features
 
-# Format code
+# Format code (Rust and TypeScript)
 fmt:
 	@echo "Formatting Rust code..."
 	cargo fmt
+	@echo "Formatting TypeScript code..."
+	npm run format
 	@echo "✓ Code formatted!"
 
 # Check compilation
@@ -100,3 +106,26 @@ doc-coverage:
 	@echo "Checking documentation coverage..."
 	@cargo doc --document-private-items 2>&1 | grep -i "warning: missing documentation"
 	@echo "Run 'cargo doc' to see full documentation warnings"
+
+# Run ESLint on TypeScript code
+lint:
+	@echo "Running ESLint..."
+	npm run lint
+
+# Run all quality checks
+quality:
+	@echo "Running all quality checks..."
+	@echo "1/4: Running ESLint..."
+	npm run lint
+	@echo "2/4: Checking formatting..."
+	npm run format:check
+	@echo "3/4: Type checking..."
+	npm run type-check
+	@echo "4/4: Type coverage..."
+	npm run type-coverage
+	@echo "✓ All quality checks passed!"
+
+# Run frontend tests with coverage
+test-ts:
+	@echo "Running TypeScript tests with coverage..."
+	npm run test:coverage

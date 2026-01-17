@@ -178,6 +178,40 @@ Beefcake is developed with the following principles:
 
 ---
 
+### Phase 6: Filesystem Watcher ✅ (Implemented)
+
+**Goal**: Automatically detect and ingest new data files
+
+**Features:**
+- [x] Folder monitoring with OS-level filesystem events
+- [x] File stability detection (prevents incomplete reads)
+- [x] Auto-ingestion to lifecycle system (Raw stage)
+- [x] Real-time activity feed with status indicators
+- [x] Persistent configuration (auto-start on launch)
+- [x] Support for CSV, JSON, and Parquet files
+
+**Outcomes:**
+- Watcher service running in background thread
+- Stable file detection prevents corruption
+- Activity feed provides visibility into ingestion
+- Configuration persists across app restarts
+
+**Key Learnings:**
+- OS-level file events vary by platform (inotify/FSEvents/ReadDirectoryChangesW)
+- File stability detection critical for large file writes
+- Single folder limitation acceptable for MVP
+- Event-driven architecture keeps UI responsive
+
+**Potential Improvements:**
+- Add multi-folder support
+- Implement file pattern filtering (glob patterns)
+- Add deduplication for repeated filenames
+- Support recursive directory monitoring
+
+**Timeline**: January 2025 (v0.2.0)
+
+---
+
 ## Current Focus
 
 ### Stability & Polish (Ongoing)
@@ -200,7 +234,7 @@ Beefcake is developed with the following principles:
 
 ---
 
-### Phase 6: Advanced Features 🔮 (Exploratory)
+### Phase 7: Advanced Features 🔮 (Exploratory)
 
 **Potential Features:**
 - [ ] **Real-Time Collaboration**: Share datasets and pipelines across teams
@@ -246,7 +280,7 @@ Beefcake is developed with the following principles:
 
 ---
 
-### Phase 7: Enterprise Features 🔮 (Speculative)
+### Phase 8: Enterprise Features 🔮 (Speculative)
 
 **Potential Features:**
 - [ ] **Role-Based Access Control**: User permissions and team management
@@ -340,7 +374,7 @@ If you're using Beefcake and have feature requests:
 | v0.1.5 | Dec 2024 | Lifecycle Management | ✅ Released |
 | v0.1.6 | Dec 2024 | Database Integration | ✅ Released |
 | v0.1.7 | Dec 2024 | Python IDE | ✅ Released |
-| v0.2.0 | Jan 2025 | Pipeline Automation | ✅ Released |
+| v0.2.0 | Jan 2025 | Pipeline Automation + Watcher | ✅ Released |
 | v0.2.x | Q1 2025 | Stability & Polish | 🚧 In Progress |
 | v0.3.0 | TBD | TBD | 🔮 Exploratory |
 

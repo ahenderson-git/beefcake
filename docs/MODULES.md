@@ -118,9 +118,12 @@ beefcake analyze data.csv
 
 **API**:
 ```rust
-let registry = DatasetRegistry::new(base_path)?;
-let dataset_id = registry.create_dataset(name, path)?;
-let version_id = registry.apply_transforms(dataset_id, pipeline, stage)?;
+fn example(base_path: PathBuf, name: String, path: PathBuf, pipeline: TransformPipeline, stage: LifecycleStage) -> Result<()> {
+    let registry = DatasetRegistry::new(base_path)?;
+    let dataset_id = registry.create_dataset(name, path)?;
+    let version_id = registry.apply_transforms(dataset_id, pipeline, stage)?;
+    Ok(())
+}
 ```
 
 ##### `version.rs`
@@ -179,9 +182,11 @@ data/
 
 **Example**:
 ```rust
-let query = VersionQuery::new(dataset_id)
-    .filter_by_stage(LifecycleStage::Cleaned)
-    .latest();
+fn example(dataset_id: String) {
+    let query = VersionQuery::new(dataset_id)
+        .filter_by_stage(LifecycleStage::Cleaned)
+        .latest();
+}
 ```
 
 ##### `stages/`
@@ -562,14 +567,198 @@ fn load() -> Result<Data, BeefcakeError> {
 - `render(state)` - Update DOM (abstract)
 - `getContainer()` - Find DOM element
 
+#### Pipeline Components
+
+##### `PipelineComponent.ts`
+**Purpose**: Top-level pipeline manager that coordinates library, editor, and executor
+**Key Responsibilities**:
+- Route between pipeline list view and editor view
+- Handle pipeline creation, editing, execution events
+- Manage active pipeline state
+- Integration point for all pipeline sub-components
+
+**API**:
+```typescript
+abstract class PipelineComponent {
+  abstract render(state: AppState): void;
+  abstract showLibrary(): void;
+  abstract showEditor(spec?: PipelineSpec): void;
+  abstract executePipeline(spec: PipelineSpec): Promise<void>;
+}
+```
+
+##### `PipelineLibrary.ts`
+**Purpose**: Browse and manage saved pipelines and templates
+**Key Features**:
+- Grid view of saved pipelines with metadata
+- Search and filter functionality
+- Template library with 8 pre-built pipelines
+- Tab switcher between "My Pipelines" and "Templates"
+- Pipeline actions (edit, execute, delete)
+
+**Events Emitted**:
+- `pipeline:new` - User clicked "New Pipeline"
+- `pipeline:edit` - User clicked edit on existing pipeline
+- `pipeline:execute` - User clicked execute
+- `pipeline:deleted` - Pipeline was deleted
+- `pipeline:new-from-template` - User selected a template
+
+##### `PipelineEditor.ts`
+**Purpose**: Visual drag-and-drop pipeline builder
+**Key Features**:
+- Canvas showing ordered pipeline steps
+- Drag handles (⋮⋮) for step reordering
+- Step selection with detail panel
+- Add step from palette
+- Remove/reorder steps via buttons
+- Save pipeline as JSON
+
+**State Management**:
+```typescript
+interface EditorState {
+  pipeline: PipelineSpec | null;
+  selectedStepIndex: number | null;
+  draggedStepIndex: number | null;
+  isDirty: boolean;
+}
+```
+
+**Drag-and-Drop**:
+- HTML5 Drag and Drop API
+- Visual feedback (opacity, borders) during drag
+- Smart selection tracking (selection follows dragged step)
+- Fallback: Up/Down buttons for keyboard users
+
+##### `PipelineExecutor.ts`
+**Purpose**: Modal dialog for executing pipelines with progress tracking
+**Key Features**:
+- File selection (input/output paths)
+- Execution progress with step-by-step feedback
+- Success/error result display
+- Execution metrics (duration, rows processed)
+- Close and retry capabilities
+
+**Execution States**:
+- `idle` - Waiting for input file selection
+- `selecting` - File picker open
+- `running` - Pipeline executing
+- `success` - Execution completed successfully
+- `error` - Execution failed with error
+
+##### `StepPalette.ts`
+**Purpose**: Library of available transformation step types
+**Key Features**:
+- 11 transformation step types organized in 5 categories:
+  - Column Management (drop, rename)
+  - Text Processing (trim, regex replace)
+  - Type Conversion (cast, parse dates)
+  - Missing Values (impute)
+  - Machine Learning (normalize, one-hot encode, clip outliers)
+  - Number Extraction (extract numbers)
+- Click to add step to pipeline
+- Step descriptions and icons
+- Collapsible category groups
+
+**Step Types**:
+```typescript
+type StepType =
+  | 'drop_columns'
+  | 'rename_columns'
+  | 'trim_whitespace'
+  | 'cast_types'
+  | 'parse_dates'
+  | 'impute'
+  | 'normalize_columns'
+  | 'clip_outliers'
+  | 'one_hot_encode'
+  | 'extract_numbers'
+  | 'regex_replace';
+```
+
+##### `StepConfigPanel.ts`
+**Purpose**: Dynamic configuration form for selected pipeline step
+**Key Features**:
+- Step-specific parameter forms
+- Column multi-select dropdowns
+- Type selection (for cast_types)
+- Strategy selection (for impute, normalize)
+- Real-time validation
+- Parameter help text and examples
+
+**Rendering**:
+- Generates form dynamically based on step type
+- Binds input changes to pipeline spec
+- Updates parent editor when parameters change
+
+#### Watcher Component
+
+##### `WatcherComponent.ts`
+**Purpose**: Filesystem watcher UI with activity feed
+**Key Features**:
+- Enable/disable watcher toggle
+- Folder selection via system dialog
+- Real-time activity feed showing:
+  - File detected events
+  - Ingestion started/completed/failed
+  - Dataset links for successful ingestions
+  - Timestamps for all events
+- Auto-scroll to latest activity
+- Persistent configuration (saved to config file)
+
+**Event Handling**:
+- Listens to Tauri events from watcher backend:
+  - `watcher:status` - Service state change
+  - `watcher:file_detected` - New file found
+  - `watcher:ingest_started` - Ingestion began
+  - `watcher:ingest_succeeded` - Success with dataset ID
+  - `watcher:ingest_failed` - Error with message
+- Updates UI in real-time as events arrive
+
+**Configuration**:
+```typescript
+interface WatcherConfig {
+  enabled: boolean;
+  folder: string;
+  auto_start: boolean;
+}
+```
+
+#### Data Management Components
+
+##### `DictionaryComponent.ts`
+**Purpose**: Browse and search data dictionary (column metadata)
+**Key Features**:
+- Searchable list of all columns across datasets
+- Column metadata (type, description, statistics)
+- Usage tracking (which datasets use this column)
+- Edit column descriptions and tags
+
+##### `ExportModal.ts`
+**Purpose**: Export dataset to various formats
+**Key Features**:
+- Format selection (CSV, JSON, Parquet, Excel)
+- Output path picker
+- Export options (compression, delimiter, etc.)
+- Progress tracking for large exports
+- Success/error handling
+
 #### Individual Components
 - `DashboardComponent.ts` - Home screen
 - `AnalyserComponent.ts` - Analysis view
 - `LifecycleComponent.ts` - Dataset lifecycle UI
 - `LifecycleRailComponent.ts` - Sidebar lifecycle tracker
+- `PipelineComponent.ts` - Pipeline manager wrapper
+- `PipelineLibrary.ts` - Pipeline browser with templates
+- `PipelineEditor.ts` - Visual drag-and-drop pipeline editor
+- `PipelineExecutor.ts` - Pipeline execution modal with progress
+- `StepPalette.ts` - Transformation step type library (11 steps)
+- `StepConfigPanel.ts` - Dynamic step configuration forms
+- `WatcherComponent.ts` - Filesystem watcher UI with activity feed
 - `PowerShellComponent.ts` - PowerShell IDE
 - `PythonComponent.ts` - Python IDE
 - `SQLComponent.ts` - SQL IDE
+- `DictionaryComponent.ts` - Data dictionary browser
+- `ExportModal.ts` - Dataset export functionality
 - `SettingsComponent.ts` - Configuration
 - `ActivityLogComponent.ts` - Audit log
 - `ReferenceComponent.ts` - Help/documentation

@@ -15,3 +15,21 @@ target_wasm
 # Generated documentation
 docs/typescript/
 target/doc/
+
+# Coverage reports
+coverage/
+.nyc_output/
+*.lcov
+
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettiercache
+
+# Test results
+test-results/
+playwright-report/
+
+# Husky
+.husky/_/

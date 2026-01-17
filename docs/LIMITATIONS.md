@@ -197,6 +197,85 @@ For a summary of what Beefcake **can** do, see [FEATURES.md](FEATURES.md).
 - Doesn't detect sentinel values (e.g., -999, "N/A")
 - No configurable missing value patterns
 
+### Pipeline Automation
+
+**Concurrent Execution:**
+- Cannot execute multiple pipelines simultaneously in GUI
+- Each execution blocks the UI thread
+- Only one pipeline executor modal open at a time
+
+**Workaround:**
+- Use CLI mode for parallel execution
+- Run multiple `beefcake pipeline execute` commands in separate terminals
+
+**Step Limitations:**
+- No conditional logic (if/else)
+- No loops or iterations
+- No step parameter templating (variables)
+- Cannot reference outputs from previous steps
+
+**Error Handling:**
+- Pipeline stops at first error
+- No retry mechanism for failed steps
+- Partial results not saved
+- Must restart from beginning
+
+**Drag-and-Drop:**
+- Requires mouse (keyboard-only users use Up/Down buttons)
+- No touch screen support
+- Can only drag one step at a time
+- No multi-select for bulk operations
+
+**Template Limitations:**
+- Templates are read-only (cannot edit and save back)
+- Must copy template to new pipeline first
+- No template categorization beyond names
+- Cannot create custom templates from UI (must edit JSON)
+
+### Filesystem Watcher
+
+**Single Folder:**
+- Can only watch one folder at a time
+- No support for multiple watched folders
+- No recursive directory monitoring (subdirectories ignored)
+
+**File Filtering:**
+- All supported files are ingested (CSV, JSON, Parquet)
+- No pattern matching or glob filters
+- Cannot exclude specific files or patterns
+- No file size limits (large files may cause issues)
+
+**Deduplication:**
+- Same filename ingested multiple times creates duplicate datasets
+- No content-based deduplication
+- No automatic cleanup of duplicates
+- User must manually manage duplicate datasets
+
+**Platform Differences:**
+- File notification timing varies by OS
+- Windows: ReadDirectoryChangesW
+- macOS: FSEvents
+- Linux: inotify
+- Edge cases may behave differently across platforms
+
+**Activity Feed:**
+- Activity log not persisted (lost on app restart)
+- No pagination for long activity lists
+- No filtering or search in activity feed
+- Timestamps use local timezone (not UTC)
+
+**Stability Detection:**
+- 2-second default window may be too short for very large files
+- No progress indicator during file writes
+- Cannot adjust stability window from UI
+- May incorrectly flag completed files as unstable
+
+**Error Recovery:**
+- Failed ingestions logged but not auto-retried
+- Manual retry button requires re-selecting file
+- Original file preserved (no cleanup)
+- No notification system for failures (must check activity feed)
+
 ### Lifecycle Management
 
 **Storage Growth:**

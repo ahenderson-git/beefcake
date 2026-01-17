@@ -45,36 +45,37 @@
  * @see Architecture Documentation: ../docs/ARCHITECTURE.md
  */
 
-import "@phosphor-icons/web/regular";
-import "@fontsource/fira-code/300.css";
-import "@fontsource/fira-code/400.css";
-import "@fontsource/fira-code/500.css";
+import '@phosphor-icons/web/regular';
+import '@fontsource/fira-code/300.css';
+import '@fontsource/fira-code/400.css';
+import '@fontsource/fira-code/500.css';
 
+import * as api from './api';
+import { ActivityLogComponent } from './components/ActivityLogComponent';
+import { AnalyserComponent } from './components/AnalyserComponent';
+import { CliHelpComponent } from './components/CliHelpComponent';
+import { Component } from './components/Component';
+import { DashboardComponent } from './components/DashboardComponent';
+import { DictionaryComponent } from './components/DictionaryComponent';
+import { LifecycleComponent } from './components/LifecycleComponent';
+import { LifecycleRailComponent } from './components/LifecycleRailComponent';
+import { PipelineComponent } from './components/PipelineComponent';
+import { PowerShellComponent } from './components/PowerShellComponent';
+import { PythonComponent } from './components/PythonComponent';
+import { ReferenceComponent } from './components/ReferenceComponent';
+import { SettingsComponent } from './components/SettingsComponent';
+import { SQLComponent } from './components/SQLComponent';
+import { WatcherComponent } from './components/WatcherComponent';
+import * as renderers from './renderers';
 import {
   View,
   AppState,
   AppConfig,
-  getDefaultColumnCleanConfig
+  getDefaultColumnCleanConfig,
+  WatcherState,
+  WatcherActivity,
+  DatasetVersion,
 } from './types';
-
-import * as api from './api';
-import * as renderers from './renderers';
-
-import { Component } from './components/Component';
-import { DashboardComponent } from './components/DashboardComponent';
-import { AnalyserComponent } from './components/AnalyserComponent';
-import { PowerShellComponent } from './components/PowerShellComponent';
-import { PythonComponent } from './components/PythonComponent';
-import { SQLComponent } from './components/SQLComponent';
-import { SettingsComponent } from './components/SettingsComponent';
-import { CliHelpComponent } from './components/CliHelpComponent';
-import { ActivityLogComponent } from './components/ActivityLogComponent';
-import { ReferenceComponent } from './components/ReferenceComponent';
-import { LifecycleComponent } from './components/LifecycleComponent';
-import { LifecycleRailComponent } from './components/LifecycleRailComponent';
-import { PipelineComponent } from './components/PipelineComponent';
-import { WatcherComponent } from './components/WatcherComponent';
-import { DictionaryComponent } from './components/DictionaryComponent';
 
 /**
  * Main application controller for Beefcake frontend.
@@ -138,70 +139,58 @@ class BeefcakeApp {
     useOriginalColumnNames: false,
     cleanAllActive: true,
     watcherState: null,
-    watcherActivities: []
+    watcherActivities: [],
   };
 
   private components: Partial<Record<View, Component>> = {};
   private lifecycleRail: LifecycleRailComponent | null = null;
 
   constructor() {
-    this.init().catch(err => {
-      console.error('Failed to initialize BeefcakeApp:', err);
+    this.init().catch(() => {
+      // Error is handled inside init
     });
   }
 
-  async init() {
-    console.log('BeefcakeApp: Initializing...');
+  async init(): Promise<void> {
     this.renderInitialLayout();
 
     try {
-      console.log('BeefcakeApp: Loading initial data...');
       // Set a timeout for the initial data load to prevent permanent hang
-      const timeoutPromise = new Promise((_, reject) =>
+      const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Initialization timeout')), 5000)
       );
 
-      const dataPromise = (async () => {
+      const dataPromise = (async (): Promise<[AppConfig, string]> => {
         const config = await api.loadAppConfig();
-        console.log('BeefcakeApp: Config loaded');
         const version = await api.getAppVersion();
-        console.log('BeefcakeApp: Version loaded');
         return [config, version];
       })();
 
-      const [config, version] = await Promise.race([dataPromise, timeoutPromise]) as [AppConfig, string];
+      const [config, version] = await Promise.race([dataPromise, timeoutPromise]);
 
       this.state.config = config;
       this.state.version = version;
-      console.log('BeefcakeApp: Data loaded successfully');
     } catch (err) {
-      console.error('BeefcakeApp: Failed to load initial app data:', err);
       // We still proceed so the UI renders, but we show a toast
       setTimeout(() => {
-        this.showToast('Initialization error: ' + err, 'error');
+        this.showToast('Initialization error: ' + String(err), 'error');
       }, 1000);
     }
 
     try {
-      console.log('BeefcakeApp: Initializing components...');
       this.initComponents();
-      console.log('BeefcakeApp: Setting up navigation...');
       this.setupNavigation();
-      console.log('BeefcakeApp: Setting up watcher events...');
-      this.setupWatcherEvents();
-      console.log('BeefcakeApp: Rendering...');
+      void this.setupWatcherEvents();
       this.render();
-      console.log('BeefcakeApp: Initialization complete');
     } catch (err) {
-      console.error('BeefcakeApp: Error during component initialization:', err);
+      this.showToast(`Initialization error: ${String(err)}`, 'error');
     } finally {
       // Hide loading screen after app is ready, even if there was an error
-      console.log('BeefcakeApp: Hiding loading screen');
       this.hideLoadingScreen();
     }
   }
 
-  private hideLoadingScreen() {
+  private hideLoadingScreen(): void {
     const loadingScreen = document.getElementById('loading-screen');
     if (loadingScreen) {
       loadingScreen.classList.add('hidden');
@@ -212,19 +201,23 @@ class BeefcakeApp {
     }
   }
 
-  private renderInitialLayout() {
+  private renderInitialLayout(): void {
     const app = document.getElementById('app');
     if (app) {
       app.innerHTML = renderers.renderLayout();
     }
   }
 
-  private initComponents() {
+  private initComponents(): void {
     const actions = {
       onStateChange: () => this.render(),
-      showToast: (msg: string, type?: any) => this.showToast(msg, type),
-      runAnalysis: (path: string) => this.handleAnalysis(path),
-      switchView: (view: View) => { this.switchView(view); },
+      showToast: (msg: string, type?: 'info' | 'error' | 'success') => this.showToast(msg, type),
+      runAnalysis: (path: string) => {
+        void this.handleAnalysis(path);
+      },
+      switchView: (view: View) => {
+        void this.switchView(view);
+      },
       navigateTo: async (view: string, datasetId?: string) => {
         if (view === 'analyser' && datasetId) {
           // Load dataset and switch to analyser
@@ -232,39 +225,39 @@ class BeefcakeApp {
         } else {
           await this.switchView(view as View);
         }
-      }
+      },
     };
 
     this.components = {
-      'Dashboard': new DashboardComponent('view-container', actions),
-      'Analyser': new AnalyserComponent('view-container', actions),
-      'PowerShell': new PowerShellComponent('view-container', actions),
-      'Python': new PythonComponent('view-container', actions),
-      'SQL': new SQLComponent('view-container', actions),
-      'Settings': new SettingsComponent('view-container', actions),
-      'CLI': new CliHelpComponent('view-container', actions),
-      'ActivityLog': new ActivityLogComponent('view-container', actions),
-      'Reference': new ReferenceComponent('view-container', actions),
-      'Lifecycle': new LifecycleComponent('view-container', actions),
-      'Pipeline': new PipelineComponent('view-container', actions),
-      'Watcher': new WatcherComponent('view-container', actions),
-      'Dictionary': new DictionaryComponent('view-container', actions)
+      Dashboard: new DashboardComponent('view-container', actions),
+      Analyser: new AnalyserComponent('view-container', actions),
+      PowerShell: new PowerShellComponent('view-container', actions),
+      Python: new PythonComponent('view-container', actions),
+      SQL: new SQLComponent('view-container', actions),
+      Settings: new SettingsComponent('view-container', actions),
+      CLI: new CliHelpComponent('view-container', actions),
+      ActivityLog: new ActivityLogComponent('view-container', actions),
+      Reference: new ReferenceComponent('view-container', actions),
+      Lifecycle: new LifecycleComponent('view-container', actions),
+      Pipeline: new PipelineComponent('view-container', actions),
+      Watcher: new WatcherComponent('view-container', actions),
+      Dictionary: new DictionaryComponent('view-container', actions),
     };
 
     // Initialize lifecycle rail component
     this.lifecycleRail = new LifecycleRailComponent('lifecycle-rail-container', actions);
   }
 
-  private setupNavigation() {
+  private setupNavigation(): void {
     document.querySelectorAll('.nav-item').forEach(item => {
-      item.addEventListener('click', async (e) => {
+      item.addEventListener('click', e => {
         const view = (e.currentTarget as HTMLElement).dataset.view as View;
-        await this.switchView(view);
+        void this.switchView(view);
       });
     });
   }
 
-  private async switchView(view: View) {
+  private async switchView(view: View): Promise<void> {
     this.state.currentView = view;
     this.state.isAddingConnection = false;
 
@@ -295,7 +288,7 @@ class BeefcakeApp {
     this.render();
   }
 
-  private render() {
+  private render(): void {
     try {
       const component = this.components[this.state.currentView];
       if (component) {
@@ -304,19 +297,18 @@ class BeefcakeApp {
 
       // Always render lifecycle rail if dataset is loaded and we're in analyser view
       if (this.lifecycleRail && this.state.currentView === 'Analyser') {
-        console.log('Rendering lifecycle rail. currentDataset:', this.state.currentDataset);
         this.lifecycleRail.render(this.state);
       }
     } catch (err) {
-      console.error('BeefcakeApp: Error during render:', err);
+      this.showToast(`Render error: ${String(err)}`, 'error');
     }
   }
 
-  public async handleAnalysis(path: string) {
+  public async handleAnalysis(path: string): Promise<void> {
     try {
       this.state.isLoading = true;
       this.state.isAborting = false;
-      this.state.loadingMessage = `Analyzing ${path}...`;
+      this.state.loadingMessage = `Analyzing...`;
       await this.switchView('Analyser');
 
       this.showToast(`Analyzing ${path}...`, 'info');
@@ -336,35 +328,31 @@ class BeefcakeApp {
 
       // Create lifecycle dataset asynchronously in background
       // This avoids blocking the UI for large file operations
-      this.createLifecycleDatasetAsync(response.file_name, path);
+      void this.createLifecycleDatasetAsync(response.file_name, path);
     } catch (err) {
       this.state.isLoading = false;
       this.render();
-      this.showToast(`Analysis failed: ${err}`, 'error');
+      this.showToast(`Analysis failed: ${String(err)}`, 'error');
     }
   }
 
-  private async createLifecycleDatasetAsync(fileName: string, path: string) {
+  private async createLifecycleDatasetAsync(fileName: string, path: string): Promise<void> {
     try {
-      console.log('Creating lifecycle dataset for:', fileName);
       const datasetId = await api.createDataset(fileName, path);
-      console.log('Dataset created with ID:', datasetId);
 
-      let versionsJson = await api.listVersions(datasetId);
-      console.log('Versions JSON:', versionsJson);
+      const versionsJson = await api.listVersions(datasetId);
 
-      let versions = JSON.parse(versionsJson);
-      console.log('Parsed versions:', versions);
+      const versions = JSON.parse(versionsJson) as DatasetVersion[];
 
-      this.state.currentDataset = {
-        id: datasetId,
-        name: fileName,
-        versions: versions,
-        activeVersionId: versions[0].id, // Raw version
-        rawVersionId: versions[0].id
-      };
-
-      console.log('Lifecycle dataset created successfully:', this.state.currentDataset);
+      if (versions.length > 0 && versions[0]) {
+        this.state.currentDataset = {
+          id: datasetId,
+          name: fileName,
+          versions: versions,
+          activeVersionId: versions[0].id, // Raw version
+          rawVersionId: versions[0].id,
+        };
+      }
 
       // Re-render to show lifecycle rail with Raw stage
       this.render();
@@ -372,37 +360,35 @@ class BeefcakeApp {
       // Automatically create Profiled version since we already ran analysis
       // Profiled stage just captures analysis metadata without transforming data
       try {
-        console.log('Creating Profiled version...');
         const emptyPipeline = { transforms: [] };
         const profiledVersionId = await api.applyTransforms(
           datasetId,
           JSON.stringify(emptyPipeline),
           'Profiled'
         );
-        console.log('Profiled version created:', profiledVersionId);
 
         // Refresh versions list
-        versionsJson = await api.listVersions(datasetId);
-        versions = JSON.parse(versionsJson);
+        const updatedVersionsJson = await api.listVersions(datasetId);
+        const updatedVersions = JSON.parse(updatedVersionsJson) as DatasetVersion[];
 
         // Update state with new versions
-        this.state.currentDataset.versions = versions;
-        this.state.currentDataset.activeVersionId = profiledVersionId;
+        if (this.state.currentDataset) {
+          this.state.currentDataset.versions = updatedVersions;
+          this.state.currentDataset.activeVersionId = profiledVersionId;
+        }
 
         // Re-render to show Profiled stage completed
         this.render();
       } catch (profileErr) {
-        console.error('Failed to create Profiled version:', profileErr);
         // Not critical - user can still use Raw version
       }
     } catch (lifecycleErr) {
-      console.error('Failed to create lifecycle dataset:', lifecycleErr);
-      this.showToast(`Lifecycle creation failed: ${lifecycleErr}`, 'error');
+      this.showToast(`Lifecycle creation failed: ${String(lifecycleErr)}`, 'error');
       // Analysis still succeeds, just no lifecycle tracking
     }
   }
 
-  private showToast(message: string, type: 'info' | 'error' | 'success' = 'info') {
+  private showToast(message: string, type: 'info' | 'error' | 'success' = 'info'): void {
     const container = document.getElementById('toast-container');
     if (!container) return;
 
@@ -418,18 +404,18 @@ class BeefcakeApp {
     }, duration);
   }
 
-  private async setupWatcherEvents() {
+  private async setupWatcherEvents(): Promise<void> {
     try {
       const { listen } = await import('@tauri-apps/api/event');
 
       // Listen for watcher status updates
-      listen('watcher:status', (event: any) => {
+      void listen<WatcherState>('watcher:status', event => {
         this.state.watcherState = event.payload;
         this.render();
       });
 
       // Listen for file detected
-      listen('watcher:file_detected', (event: any) => {
+      void listen<WatcherActivity>('watcher:file_detected', event => {
         const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
         if (watcherComp) {
           watcherComp.handleWatcherEvent(this.state, 'watcher:file_detected', event.payload);
@@ -437,7 +423,7 @@ class BeefcakeApp {
       });
 
       // Listen for file ready
-      listen('watcher:file_ready', (event: any) => {
+      void listen<WatcherActivity>('watcher:file_ready', event => {
         const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
         if (watcherComp) {
           watcherComp.handleWatcherEvent(this.state, 'watcher:file_ready', event.payload);
@@ -445,7 +431,7 @@ class BeefcakeApp {
       });
 
       // Listen for ingest started
-      listen('watcher:ingest_started', (event: any) => {
+      void listen<WatcherActivity>('watcher:ingest_started', event => {
         const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
         if (watcherComp) {
           watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_started', event.payload);
@@ -453,7 +439,7 @@ class BeefcakeApp {
       });
 
       // Listen for ingest succeeded
-      listen('watcher:ingest_succeeded', (event: any) => {
+      void listen<WatcherActivity>('watcher:ingest_succeeded', event => {
         const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
         if (watcherComp) {
           watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_succeeded', event.payload);
@@ -461,7 +447,7 @@ class BeefcakeApp {
       });
 
       // Listen for ingest failed
-      listen('watcher:ingest_failed', (event: any) => {
+      void listen<WatcherActivity>('watcher:ingest_failed', event => {
         const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
         if (watcherComp) {
           watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_failed', event.payload);
@@ -472,25 +458,25 @@ class BeefcakeApp {
       try {
         this.state.watcherState = await api.watcherGetState();
       } catch (err) {
-        console.error('Failed to load watcher state:', err);
+        this.showToast(`Failed to load watcher state: ${String(err)}`, 'error');
       }
     } catch (err) {
-      console.error('Failed to setup watcher events:', err);
+      this.showToast(`Failed to setup watcher events: ${String(err)}`, 'error');
     }
   }
 
-  private async loadDatasetById(_datasetId: string) {
+  private async loadDatasetById(_datasetId: string): Promise<void> {
     try {
       // This would need to be implemented to load a dataset by ID
       // For now, just switch to analyser view
-      this.switchView('Analyser');
+      await this.switchView('Analyser');
       this.showToast('Dataset loaded', 'success');
     } catch (err) {
-      this.showToast(`Failed to load dataset: ${err}`, 'error');
+      this.showToast(`Failed to load dataset: ${String(err)}`, 'error');
     }
   }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  new BeefcakeApp();
+  void new BeefcakeApp();
 });

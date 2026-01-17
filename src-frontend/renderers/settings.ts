@@ -1,5 +1,5 @@
-import { AppConfig } from "../types";
-import { escapeHtml } from "../utils";
+import { AppConfig } from '../types';
+import { escapeHtml } from '../utils';
 
 export function renderSettingsView(config: AppConfig, isAddingConnection: boolean): string {
   return `
@@ -8,7 +8,9 @@ export function renderSettingsView(config: AppConfig, isAddingConnection: boolea
         <h3><i class="ph ph-plug-connect"></i> Database Connections</h3>
         <div class="connections-list">
           ${config.connections.length === 0 ? '<p class="empty-msg">No connections configured.</p>' : ''}
-          ${config.connections.map(conn => `
+          ${config.connections
+            .map(
+              conn => `
             <div class="connection-card">
               <div class="conn-info">
                 <strong>${escapeHtml(conn.name)}</strong>
@@ -19,10 +21,14 @@ export function renderSettingsView(config: AppConfig, isAddingConnection: boolea
                 <button class="btn-danger btn-small btn-delete-conn" data-id="${conn.id}"><i class="ph ph-trash"></i></button>
               </div>
             </div>
-          `).join('')}
+          `
+            )
+            .join('')}
         </div>
         
-        ${isAddingConnection ? `
+        ${
+          isAddingConnection
+            ? `
           <div class="connection-form active">
             <h4>Add New Connection</h4>
             <div class="form-grid">
@@ -41,9 +47,11 @@ export function renderSettingsView(config: AppConfig, isAddingConnection: boolea
               <button id="btn-cancel-new-conn" class="btn-secondary">Cancel</button>
             </div>
           </div>
-        ` : `
+        `
+            : `
           <button id="btn-add-conn" class="btn-secondary"><i class="ph ph-plus"></i> Add Connection</button>
-        `}
+        `
+        }
       </div>
 
       <div class="settings-section">
@@ -52,20 +60,64 @@ export function renderSettingsView(config: AppConfig, isAddingConnection: boolea
           <label>Default Import Connection</label>
           <select id="select-import-id">
             <option value="">None</option>
-            ${config.connections.map(c => `
+            ${config.connections
+              .map(
+                c => `
               <option value="${c.id}" ${config.active_import_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>
-            `).join('')}
+            `
+              )
+              .join('')}
           </select>
         </div>
         <div class="pref-item">
           <label>Default Export Connection</label>
           <select id="select-export-id">
             <option value="">None</option>
-            ${config.connections.map(c => `
+            ${config.connections
+              .map(
+                c => `
               <option value="${c.id}" ${config.active_export_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>
-            `).join('')}
+            `
+              )
+              .join('')}
           </select>
         </div>
+
+        <div class="pref-subsection">
+          <h4><i class="ph ph-gauge"></i> Performance & Sampling</h4>
+          <p class="subsection-description">Configure how data is sampled and analyzed for large files</p>
+
+          <div class="pref-item">
+            <label for="analysis-sample-size">
+              Statistical Sample Size
+              <i class="ph ph-info help-icon" title="Number of rows used for histograms, quantiles, and distribution statistics" aria-label="Help: Number of rows used for histograms, quantiles, and distribution statistics"></i>
+            </label>
+            <input type="number" id="analysis-sample-size"
+              min="1000" max="500000" step="1000"
+              value="${config.analysis_sample_size ?? 10000}"
+              aria-describedby="sample-size-warning">
+            <div id="sample-size-warning" class="sample-size-warning" role="status" aria-live="polite"></div>
+          </div>
+          <div class="pref-item">
+            <label for="sampling-strategy">
+              Sampling Strategy for Large Files
+              <i class="ph ph-info help-icon" title="How to sample data from billion-row files" aria-label="Help: How to sample data from billion-row files"></i>
+            </label>
+            <select id="sampling-strategy" aria-describedby="sampling-strategy-info">
+              <option value="fast" ${(config.sampling_strategy ?? 'balanced') === 'fast' ? 'selected' : ''}>
+                Fast (samples from start - fastest, may be biased)
+              </option>
+              <option value="balanced" ${(config.sampling_strategy ?? 'balanced') === 'balanced' ? 'selected' : ''}>
+                Balanced (stratified sampling - recommended)
+              </option>
+              <option value="accurate" disabled>
+                Accurate (reservoir sampling - Phase 2)
+              </option>
+            </select>
+            <div id="sampling-strategy-info" class="sampling-strategy-info" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+
         <div class="pref-item">
           <label>Auto-archive processed files</label>
           <input type="checkbox" checked disabled>

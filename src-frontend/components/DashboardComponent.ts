@@ -1,7 +1,8 @@
-import { Component, ComponentActions } from "./Component";
-import { AppState } from "../types";
-import * as renderers from "../renderers";
-import * as api from "../api";
+import * as api from '../api';
+import * as renderers from '../renderers';
+import { AppState } from '../types';
+
+import { Component, ComponentActions } from './Component';
 
 export class DashboardComponent extends Component {
   constructor(containerId: string, actions: ComponentActions) {
@@ -16,7 +17,7 @@ export class DashboardComponent extends Component {
 
   override bindEvents(_state: AppState): void {
     document.getElementById('btn-open-file')?.addEventListener('click', () => {
-      this.handleOpenFile();
+      void this.handleOpenFile();
     });
 
     document.getElementById('btn-powershell')?.addEventListener('click', () => {
@@ -32,14 +33,14 @@ export class DashboardComponent extends Component {
     });
   }
 
-  private async handleOpenFile() {
+  private async handleOpenFile(): Promise<void> {
     try {
       const path = await api.openFileDialog();
       if (path) {
         this.actions.runAnalysis(path);
       }
     } catch (err) {
-      this.actions.showToast(`Error opening file: ${err}`, 'error');
+      this.actions.showToast(`Error opening file: ${String(err)}`, 'error');
     }
   }
 }

@@ -122,7 +122,7 @@ Beefcake is best understood as an **experimental toolkit** for exploring modern 
 - ✅ **Phase 3: Database Integration** - PostgreSQL connectivity, SQL IDE, import/export
 - ✅ **Phase 4: Embedded Python** - Python script execution, Polars integration, diagnostics
 - ✅ **Phase 5: Pipeline Automation** - Visual builder with 11 step types, 8 templates, CLI mode, PowerShell export
-- ✅ **Phase 6: Filesystem Watcher** - Auto-detection and ingestion of new data files
+- ✅ **Phase 6: Filesystem Watcher** - Auto-detection and ingestion of new data files with real-time monitoring
 
 ### Future Directions (Exploratory)
 
@@ -141,7 +141,7 @@ Beefcake is best understood as an **experimental toolkit** for exploring modern 
 
 ### Recent Milestones
 
-- ✅ **v0.2.0** (Jan 2025): Pipeline Builder with 11 step types, 8 templates, drag-and-drop editor, and filesystem watcher
+- ✅ **v0.2.0** (Jan 2025): Pipeline Builder with 11 step types, 8 templates, drag-and-drop editor, filesystem watcher, and pipeline executor
 - ✅ **v0.1.5** (Dec 2024): Lifecycle management with immutable version control and diff engine
 - ✅ **v0.1.0** (Nov 2024): Initial release with data profiling and SQL IDE
 

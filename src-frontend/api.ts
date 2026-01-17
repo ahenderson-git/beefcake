@@ -54,8 +54,9 @@
  * @see TypeScript Patterns: ../docs/TYPESCRIPT_PATTERNS.md
  */
 
-import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { invoke } from '@tauri-apps/api/core';
+import { open, save } from '@tauri-apps/plugin-dialog';
+
 import {
   AnalysisResponse,
   AppConfig,
@@ -65,8 +66,10 @@ import {
   DataDictionary,
   DatasetBusinessMetadata,
   ColumnBusinessMetadata,
-  SnapshotMetadata
-} from "./types";
+  SnapshotMetadata,
+  DbConnection,
+  DiffSummary,
+} from './types';
 
 /**
  * Analyzes a data file (CSV, JSON, or Parquet) and returns statistics.
@@ -97,90 +100,113 @@ import {
  * ```
  */
 export async function analyseFile(path: string): Promise<AnalysisResponse> {
-  return await invoke("analyze_file", { path });
+  return await invoke('analyze_file', { path });
 }
 
 export async function getAppVersion(): Promise<string> {
-  return await invoke("get_app_version");
+  return await invoke('get_app_version');
 }
 
 export async function loadAppConfig(): Promise<AppConfig> {
-  return await invoke("get_config");
+  return await invoke('get_config');
 }
 
 export async function saveAppConfig(config: AppConfig): Promise<void> {
-  await invoke("save_config", { config });
+  await invoke('save_config', { config });
 }
 
 export async function runPowerShell(script: string): Promise<string> {
-  return await invoke("run_powershell", { script });
+  return await invoke('run_powershell', { script });
 }
 
-export async function runPython(script: string, dataPath?: string, configs?: Record<string, ColumnCleanConfig>): Promise<string> {
-  return await invoke("run_python", { script, dataPath, configs });
+export async function runPython(
+  script: string,
+  dataPath?: string,
+  configs?: Record<string, ColumnCleanConfig>
+): Promise<string> {
+  return await invoke('run_python', { script, dataPath, configs });
 }
 
-export async function runSql(query: string, dataPath?: string, configs?: Record<string, ColumnCleanConfig>): Promise<string> {
-  return await invoke("run_sql", { query, dataPath, configs });
+export async function runSql(
+  query: string,
+  dataPath?: string,
+  configs?: Record<string, ColumnCleanConfig>
+): Promise<string> {
+  return await invoke('run_sql', { query, dataPath, configs });
 }
 
 export async function installPythonPackage(pkg: string): Promise<string> {
-  return await invoke("install_python_package", { package: pkg });
+  return await invoke('install_python_package', { package: pkg });
 }
 
-export async function pushToDb(path: string, connectionId: string, configs: Record<string, ColumnCleanConfig>): Promise<void> {
-  await invoke("push_to_db", { path, connectionId, configs });
+export async function pushToDb(
+  path: string,
+  connectionId: string,
+  configs: Record<string, ColumnCleanConfig>
+): Promise<void> {
+  await invoke('push_to_db', { path, connectionId, configs });
 }
 
-export async function testConnection(settings: any, connectionId?: string): Promise<string> {
-  return await invoke("test_connection", { settings, connectionId });
+export async function testConnection(
+  settings: DbConnection['settings'],
+  connectionId?: string
+): Promise<string> {
+  return await invoke('test_connection', { settings, connectionId });
 }
 
 export async function deleteConnection(id: string): Promise<void> {
-  await invoke("delete_connection", { id });
+  await invoke('delete_connection', { id });
 }
 
 export async function exportData(options: ExportOptions): Promise<void> {
-  await invoke("export_data", { options });
+  await invoke('export_data', { options });
 }
 
 export async function abortProcessing(): Promise<void> {
-  await invoke("abort_processing");
+  await invoke('abort_processing');
 }
 
 export async function resetAbortSignal(): Promise<void> {
-  await invoke("reset_abort_signal");
+  await invoke('reset_abort_signal');
 }
 
 export async function readTextFile(path: string): Promise<string> {
-  return await invoke("read_text_file", { path });
+  return await invoke('read_text_file', { path });
 }
 
 export async function writeTextFile(path: string, contents: string): Promise<void> {
-  await invoke("write_text_file", { path, contents });
+  await invoke('write_text_file', { path, contents });
 }
 
 export async function sanitizeHeaders(names: string[]): Promise<string[]> {
-  return await invoke("sanitize_headers", { names });
+  return await invoke('sanitize_headers', { names });
 }
 
-export async function openFileDialog(filters?: { name: string, extensions: string[] }[]): Promise<string | null> {
+export async function openFileDialog(
+  filters?: { name: string; extensions: string[] }[]
+): Promise<string | null> {
   const selected = await open({
     multiple: false,
-    filters: filters || [{
-      name: 'Data Files',
-      extensions: ['csv', 'json', 'parquet']
-    }]
+    filters: filters ?? [
+      {
+        name: 'Data Files',
+        extensions: ['csv', 'json', 'parquet'],
+      },
+    ],
   });
   return typeof selected === 'string' ? selected : null;
 }
 
-export async function saveFileDialog(filters?: { name: string, extensions: string[] }[]): Promise<string | null> {
+export async function saveFileDialog(
+  filters?: { name: string; extensions: string[] }[]
+): Promise<string | null> {
   return await save({
-    filters: filters || [{
-      name: 'Data Files',
-      extensions: ['csv', 'json', 'parquet']
-    }]
+    filters: filters ?? [
+      {
+        name: 'Data Files',
+        extensions: ['csv', 'json', 'parquet'],
+      },
+    ],
   });
 }
 
@@ -189,8 +215,8 @@ export async function saveFileDialog(filters?: { name: string, extensions: strin
 // ============================================================================
 
 export async function createDataset(name: string, path: string): Promise<string> {
-  return await invoke("lifecycle_create_dataset", {
-    request: { name, path }
+  return await invoke('lifecycle_create_dataset', {
+    request: { name, path },
   });
 }
 
@@ -199,14 +225,14 @@ export async function applyTransforms(
   pipelineJson: string,
   stage: string
 ): Promise<string> {
-  return await invoke("lifecycle_apply_transforms", {
-    request: { dataset_id: datasetId, pipeline_json: pipelineJson, stage }
+  return await invoke('lifecycle_apply_transforms', {
+    request: { dataset_id: datasetId, pipeline_json: pipelineJson, stage },
   });
 }
 
 export async function setActiveVersion(datasetId: string, versionId: string): Promise<void> {
-  await invoke("lifecycle_set_active_version", {
-    request: { dataset_id: datasetId, version_id: versionId }
+  await invoke('lifecycle_set_active_version', {
+    request: { dataset_id: datasetId, version_id: versionId },
   });
 }
 
@@ -215,8 +241,8 @@ export async function publishVersion(
   versionId: string,
   mode: 'view' | 'snapshot'
 ): Promise<string> {
-  return await invoke("lifecycle_publish_version", {
-    request: { dataset_id: datasetId, version_id: versionId, mode }
+  return await invoke('lifecycle_publish_version', {
+    request: { dataset_id: datasetId, version_id: versionId, mode },
   });
 }
 
@@ -224,15 +250,15 @@ export async function getVersionDiff(
   datasetId: string,
   version1Id: string,
   version2Id: string
-): Promise<any> {
-  return await invoke("lifecycle_get_version_diff", {
-    request: { dataset_id: datasetId, version1_id: version1Id, version2_id: version2Id }
+): Promise<DiffSummary> {
+  return await invoke('lifecycle_get_version_diff', {
+    request: { dataset_id: datasetId, version1_id: version1Id, version2_id: version2Id },
   });
 }
 
 export async function listVersions(datasetId: string): Promise<string> {
-  return await invoke("lifecycle_list_versions", {
-    request: { dataset_id: datasetId }
+  return await invoke('lifecycle_list_versions', {
+    request: { dataset_id: datasetId },
   });
 }
 
@@ -241,19 +267,19 @@ export async function listVersions(datasetId: string): Promise<string> {
 // ============================================================================
 
 export async function savePipelineSpec(specJson: string, path: string): Promise<void> {
-  await invoke("save_pipeline_spec", { specJson, path });
+  await invoke('save_pipeline_spec', { specJson, path });
 }
 
 export async function loadPipelineSpec(path: string): Promise<string> {
-  return await invoke("load_pipeline_spec", { path });
+  return await invoke('load_pipeline_spec', { path });
 }
 
 export async function validatePipelineSpec(specJson: string, inputPath: string): Promise<string[]> {
-  return await invoke("validate_pipeline_spec", { specJson, inputPath });
+  return await invoke('validate_pipeline_spec', { specJson, inputPath });
 }
 
 export async function generatePowerShell(specJson: string, outputPath: string): Promise<string> {
-  return await invoke("generate_powershell", { specJson, outputPath });
+  return await invoke('generate_powershell', { specJson, outputPath });
 }
 
 export async function pipelineFromConfigs(
@@ -262,37 +288,37 @@ export async function pipelineFromConfigs(
   inputFormat: string,
   outputPath: string
 ): Promise<string> {
-  return await invoke("pipeline_from_configs", { name, configsJson, inputFormat, outputPath });
+  return await invoke('pipeline_from_configs', { name, configsJson, inputFormat, outputPath });
 }
 
 // Watcher API
 export async function watcherGetState(): Promise<WatcherState> {
-  return await invoke("watcher_get_state");
+  return await invoke('watcher_get_state');
 }
 
 export async function watcherStart(folder: string): Promise<WatcherState> {
-  return await invoke("watcher_start", { folder });
+  return await invoke('watcher_start', { folder });
 }
 
 export async function watcherStop(): Promise<WatcherState> {
-  return await invoke("watcher_stop");
+  return await invoke('watcher_stop');
 }
 
 export async function watcherSetFolder(folder: string): Promise<WatcherState> {
-  return await invoke("watcher_set_folder", { folder });
+  return await invoke('watcher_set_folder', { folder });
 }
 
 export async function watcherIngestNow(path: string): Promise<void> {
-  return await invoke("watcher_ingest_now", { path });
+  return await invoke('watcher_ingest_now', { path });
 }
 
 // Data Dictionary API
 export async function dictionaryLoadSnapshot(snapshotId: string): Promise<DataDictionary> {
-  return await invoke("dictionary_load_snapshot", { snapshotId });
+  return await invoke('dictionary_load_snapshot', { snapshotId });
 }
 
 export async function dictionaryListSnapshots(datasetHash?: string): Promise<SnapshotMetadata[]> {
-  return await invoke("dictionary_list_snapshots", { datasetHash });
+  return await invoke('dictionary_list_snapshots', { datasetHash });
 }
 
 export async function dictionaryUpdateBusinessMetadata(
@@ -300,15 +326,18 @@ export async function dictionaryUpdateBusinessMetadata(
   datasetBusiness?: DatasetBusinessMetadata,
   columnBusinessUpdates?: Record<string, ColumnBusinessMetadata>
 ): Promise<string> {
-  return await invoke("dictionary_update_business_metadata", {
+  return await invoke('dictionary_update_business_metadata', {
     request: {
       snapshot_id: snapshotId,
       dataset_business: datasetBusiness,
       column_business_updates: columnBusinessUpdates,
-    }
+    },
   });
 }
 
-export async function dictionaryExportMarkdown(snapshotId: string, outputPath: string): Promise<void> {
-  return await invoke("dictionary_export_markdown", { snapshotId, outputPath });
+export async function dictionaryExportMarkdown(
+  snapshotId: string,
+  outputPath: string
+): Promise<void> {
+  return await invoke('dictionary_export_markdown', { snapshotId, outputPath });
 }

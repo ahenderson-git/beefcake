@@ -1,6 +1,15 @@
-import { AnalysisResponse, ColumnCleanConfig, ColumnSummary, LifecycleStage } from "../types";
-import { escapeHtml, fmtBytes, fmtDuration } from "../utils";
-import { CASE_OPTIONS, IMPUTE_OPTIONS, NORM_OPTIONS, renderSelect, ROUND_OPTIONS } from "./common";
+import {
+  AnalysisResponse,
+  ColumnCleanConfig,
+  ColumnSummary,
+  CurrentDataset,
+  DatasetVersion,
+  LifecycleStage,
+  TransformSpec,
+} from '../types';
+import { escapeHtml, fmtBytes, fmtDuration } from '../utils';
+
+import { CASE_OPTIONS, IMPUTE_OPTIONS, NORM_OPTIONS, renderSelect, ROUND_OPTIONS } from './common';
 
 function renderCleaningInfoBox(): string {
   return `
@@ -60,19 +69,23 @@ export function renderAnalyserHeader(
 ): string {
   const isSampled = response.total_row_count > response.row_count;
   const rowDisplay = isSampled
-    ? `${response.total_row_count.toLocaleString()} rows <small>(Sampled ${response.row_count.toLocaleString()} for analysis)</small>`
+    ? `${response.total_row_count.toLocaleString()} rows <small>(Analyzed ${response.row_count.toLocaleString()} rows)</small>`
     : `${response.row_count.toLocaleString()} rows`;
 
   return `
-    ${isReadOnly ? `
+    ${
+      isReadOnly
+        ? `
       <div class="stage-banner stage-banner-readonly">
         <i class="ph ph-lock-key"></i>
         <div>
           <strong>Read-Only Analysis Mode</strong>
-          <span>Review statistics and data quality – remove unnecessary columns. No modifications available in ${currentStage || 'current'} stage.</span>
+          <span>Review statistics and data quality – remove unnecessary columns. No modifications available in ${currentStage ?? 'current'} stage.</span>
         </div>
       </div>
-    ` : ''}
+    `
+        : ''
+    }
     ${currentStage === 'Cleaned' && !isReadOnly ? renderCleaningInfoBox() : ''}
     <div class="analyser-header">
       <div class="header-main">
@@ -88,36 +101,54 @@ export function renderAnalyserHeader(
           <i class="ph ph-file-plus"></i> Select File
         </button>
         <button id="btn-reanalyze" class="btn-secondary btn-small">Re-analyze</button>
-        ${currentStage === 'Profiled' || currentStage === 'Raw' ? `
+        ${
+          currentStage === 'Profiled' || currentStage === 'Raw'
+            ? `
           <button id="btn-begin-cleaning" class="btn-primary btn-small">
             <i class="ph ph-broom"></i> Begin Cleaning
           </button>
-        ` : currentStage === 'Cleaned' ? `
+        `
+            : currentStage === 'Cleaned'
+              ? `
           <button id="btn-continue-advanced" class="btn-primary btn-small">
             <i class="ph ph-arrow-right"></i> Continue to Advanced
           </button>
-        ` : currentStage === 'Advanced' ? `
+        `
+              : currentStage === 'Advanced'
+                ? `
           <button id="btn-move-to-validated" class="btn-primary btn-small">
             <i class="ph ph-check-circle"></i> Move to Validated
           </button>
-        ` : `
+        `
+                : `
           <button id="btn-export" class="btn-primary btn-small">
             <i class="ph ph-export"></i> Export / ETL
           </button>
-        `}
+        `
+        }
       </div>
     </div>
-    ${!isReadOnly ? `
+    ${
+      !isReadOnly
+        ? `
       <div class="bulk-actions">
-        ${currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw' ? `
+        ${
+          currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw'
+            ? `
           <div class="bulk-group">
             <label><input type="checkbox" name="clean-all" class="header-action" data-action="active-all" ${cleanAllActive ? 'checked' : ''}> Clean All</label>
           </div>
           <div class="bulk-group">
             <label><input type="checkbox" name="use-original-names" class="header-action" data-action="use-original-names" id="toggle-original-names" ${useOriginalColumnNames ? 'checked' : ''}> Original Names</label>
           </div>
-        ` : ''}
-        ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
+        `
+            : ''
+        }
+        ${
+          currentStage === 'Advanced' ||
+          currentStage === 'Validated' ||
+          currentStage === 'Published'
+            ? `
           <div class="bulk-group">
             <label>Impute All:</label>
             ${renderSelect(IMPUTE_OPTIONS, 'None', 'header-action', { action: 'impute-all' }, 'Mixed')}
@@ -126,15 +157,23 @@ export function renderAnalyserHeader(
             <label>Norm All:</label>
             ${renderSelect(NORM_OPTIONS, 'None', 'header-action', { action: 'norm-all' }, 'Mixed')}
           </div>
-        ` : ''}
-        ${currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw' ? `
+        `
+            : ''
+        }
+        ${
+          currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw'
+            ? `
           <div class="bulk-group">
             <label>Round All:</label>
             ${renderSelect(ROUND_OPTIONS, 'none', 'header-action', { action: 'round-all' }, 'Mixed')}
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
-    ` : ''}
+    `
+        : ''
+    }
   `;
 }
 
@@ -157,7 +196,7 @@ function computeDatasetStats(response: AnalysisResponse): DatasetStats {
 
   response.summary.forEach(col => {
     // Type breakdown
-    typeBreakdown[col.kind] = (typeBreakdown[col.kind] || 0) + 1;
+    typeBreakdown[col.kind] = (typeBreakdown[col.kind] ?? 0) + 1;
 
     // Null percentage
     const nullPct = (col.nulls / col.count) * 100;
@@ -184,7 +223,7 @@ function computeDatasetStats(response: AnalysisResponse): DatasetStats {
     avgCardinalityPct: totalCardinalityPct / response.summary.length,
     highCardinalityCols,
     highQualityCols,
-    needsAttentionCols
+    needsAttentionCols,
   };
 }
 
@@ -194,15 +233,15 @@ function renderDatasetOverview(response: AnalysisResponse): string {
 
   const typeOrder = ['Numeric', 'Text', 'Categorical', 'Temporal', 'Boolean', 'Nested'];
   const typeColors: Record<string, string> = {
-    'Numeric': '#3b82f6',
-    'Text': '#8b5cf6',
-    'Categorical': '#ec4899',
-    'Temporal': '#10b981',
-    'Boolean': '#f59e0b',
-    'Nested': '#6b7280'
+    Numeric: '#3b82f6',
+    Text: '#8b5cf6',
+    Categorical: '#ec4899',
+    Temporal: '#10b981',
+    Boolean: '#f59e0b',
+    Nested: '#6b7280',
   };
 
-  const orderedTypes = typeOrder.filter(t => (stats.typeBreakdown[t] || 0) > 0);
+  const orderedTypes = typeOrder.filter(t => (stats.typeBreakdown[t] ?? 0) > 0);
   const otherTypes = Object.keys(stats.typeBreakdown).filter(t => !typeOrder.includes(t));
   const allTypes = [...orderedTypes, ...otherTypes];
 
@@ -210,18 +249,20 @@ function renderDatasetOverview(response: AnalysisResponse): string {
     <div class="dataset-overview-card">
       <h4><i class="ph ph-chart-bar"></i> Dataset Overview</h4>
       <div class="type-breakdown">
-        ${allTypes.map(type => {
-          const count = stats.typeBreakdown[type] || 0;
-          const pct = ((count / totalCols) * 100).toFixed(1);
-          const color = typeColors[type] || '#6b7280';
-          return `
+        ${allTypes
+          .map(type => {
+            const count = stats.typeBreakdown[type] ?? 0;
+            const pct = ((count / totalCols) * 100).toFixed(1);
+            const color = typeColors[type] ?? '#6b7280';
+            return `
             <div class="type-stat" style="border-left: 3px solid ${color}">
               <div class="type-count">${count}</div>
               <div class="type-label">${type}</div>
               <div class="type-pct">${pct}%</div>
             </div>
           `;
-        }).join('')}
+          })
+          .join('')}
       </div>
       <div class="dataset-metrics">
         <div class="metric-item">
@@ -246,18 +287,18 @@ function renderDatasetOverview(response: AnalysisResponse): string {
 
 export function renderValidatedSummary(
   response: AnalysisResponse,
-  dataset: any
+  dataset: CurrentDataset | null
 ): string {
   // Calculate transformation summary
-  const versions = dataset?.versions || [];
-  const rawVersion = versions.find((v: any) => v.stage === 'Raw');
+  const versions = dataset?.versions ?? [];
+  const rawVersion = versions.find((v: DatasetVersion) => v.stage === 'Raw');
 
-  const initialColumns = rawVersion?.metadata?.column_count || response.column_count;
+  const initialColumns = rawVersion?.metadata?.column_count ?? response.column_count;
   const currentColumns = response.column_count;
   const columnDelta = currentColumns - initialColumns;
   const columnDeltaSign = columnDelta >= 0 ? '+' : '';
 
-  const initialRows = rawVersion?.metadata?.row_count || response.total_row_count;
+  const initialRows = rawVersion?.metadata?.row_count ?? response.total_row_count;
   const currentRows = response.total_row_count;
   const rowDelta = currentRows - initialRows;
   const rowDeltaSign = rowDelta >= 0 ? '+' : '';
@@ -267,36 +308,51 @@ export function renderValidatedSummary(
     const nullPct = (col.nulls / col.count) * 100;
     return nullPct > 0;
   });
-  const avgNullPct = nullColumns.length > 0
-    ? (nullColumns.reduce((sum, col) => sum + (col.nulls / col.count) * 100, 0) / nullColumns.length)
-    : 0;
+  const avgNullPct =
+    nullColumns.length > 0
+      ? nullColumns.reduce((sum, col) => sum + (col.nulls / col.count) * 100, 0) /
+        nullColumns.length
+      : 0;
 
   // Build transformation timeline
-  const sortedVersions = [...versions].sort((a: any, b: any) =>
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  const sortedVersions = [...versions].sort(
+    (a: DatasetVersion, b: DatasetVersion) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
-  const timelineHTML = sortedVersions.map((v: any) => {
-    const isActive = v.id === dataset?.activeVersionId;
-    const stageIcon = v.stage === 'Raw' ? 'ph-file' :
-                     v.stage === 'Profiled' ? 'ph-chart-line' :
-                     v.stage === 'Cleaned' ? 'ph-broom' :
-                     v.stage === 'Advanced' ? 'ph-gear-six' :
-                     v.stage === 'Validated' ? 'ph-check-circle' : 'ph-rocket-launch';
+  const timelineHTML = sortedVersions
+    .map((v: DatasetVersion) => {
+      const isActive = v.id === dataset?.activeVersionId;
+      const stageIcon =
+        v.stage === 'Raw'
+          ? 'ph-file'
+          : v.stage === 'Profiled'
+            ? 'ph-chart-line'
+            : v.stage === 'Cleaned'
+              ? 'ph-broom'
+              : v.stage === 'Advanced'
+                ? 'ph-gear-six'
+                : v.stage === 'Validated'
+                  ? 'ph-check-circle'
+                  : 'ph-rocket-launch';
 
-    const transformSummary = v.pipeline?.transforms?.length > 0
-      ? v.pipeline.transforms.map((t: any) => {
-          if (t.transform_type === 'select_columns') {
-            return `Selected ${t.parameters.columns?.length || 0} columns`;
-          }
-          if (t.transform_type === 'clean') {
-            return 'Applied cleaning transformations';
-          }
-          return t.transform_type;
-        }).join(', ')
-      : 'No transformations';
+      const transformSummary =
+        (v.pipeline?.transforms?.length ?? 0) > 0
+          ? (v.pipeline?.transforms ?? [])
+              .map((t: TransformSpec) => {
+                if (t.transform_type === 'select_columns') {
+                  const columns = t.parameters.columns as string[] | undefined;
+                  return `Selected ${columns?.length ?? 0} columns`;
+                }
+                if (t.transform_type === 'clean') {
+                  return 'Applied cleaning transformations';
+                }
+                return t.transform_type;
+              })
+              .join(', ')
+          : 'No transformations';
 
-    return `
+      return `
       <div class="timeline-item ${isActive ? 'timeline-item-active' : ''}">
         <div class="timeline-marker">
           <i class="ph ${stageIcon}"></i>
@@ -308,7 +364,8 @@ export function renderValidatedSummary(
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 
   return `
     <div class="validated-summary">
@@ -384,19 +441,39 @@ export function renderValidatedSummary(
                 <th>Type</th>
                 <th>Quality</th>
                 <th>Mean/Mode</th>
+                <th>Median</th>
               </tr>
             </thead>
             <tbody>
-              ${response.summary.map(col => {
-                const nullPct = (col.nulls / col.count) * 100;
-                const qualityClass = nullPct > 20 ? 'quality-poor' : nullPct > 5 ? 'quality-warn' : 'quality-good';
-                const typeIcon = col.kind === 'Numeric' ? 'ph-hash' : col.kind === 'Text' ? 'ph-text-t' : col.kind === 'Temporal' ? 'ph-calendar' : 'ph-check-square';
-                const meanOrMode = col.stats.Numeric?.mean?.toFixed(2) ||
-                                  (col.stats.Text?.top_value ? col.stats.Text.top_value[0] : null) ||
-                                  col.stats.Boolean?.true_count?.toString() ||
-                                  '-';
+              ${response.summary
+                .map(col => {
+                  const nullPct = (col.nulls / col.count) * 100;
+                  const qualityClass =
+                    nullPct > 20 ? 'quality-poor' : nullPct > 5 ? 'quality-warn' : 'quality-good';
+                  const typeIcon =
+                    col.kind === 'Numeric'
+                      ? 'ph-hash'
+                      : col.kind === 'Text'
+                        ? 'ph-text-t'
+                        : col.kind === 'Temporal'
+                          ? 'ph-calendar'
+                          : 'ph-check-square';
+                  const meanOrMode =
+                    (col.stats.Numeric?.mean !== null && col.stats.Numeric?.mean !== undefined
+                      ? col.stats.Numeric.mean.toFixed(2)
+                      : null) ??
+                    (col.stats.Text?.top_value ? col.stats.Text.top_value[0] : null) ??
+                    (col.stats.Boolean?.true_count !== null &&
+                    col.stats.Boolean?.true_count !== undefined
+                      ? col.stats.Boolean.true_count.toString()
+                      : null) ??
+                    '-';
+                  const median =
+                    col.stats.Numeric?.median !== null && col.stats.Numeric?.median !== undefined
+                      ? col.stats.Numeric.median.toFixed(2)
+                      : '-';
 
-                return `
+                  return `
                   <tr>
                     <td><i class="ph ${typeIcon}"></i> ${escapeHtml(col.name)}</td>
                     <td>${col.kind}</td>
@@ -407,9 +484,11 @@ export function renderValidatedSummary(
                       </div>
                     </td>
                     <td class="mono">${escapeHtml(meanOrMode)}</td>
+                    <td class="mono">${escapeHtml(median)}</td>
                   </tr>
                 `;
-              }).join('')}
+                })
+                .join('')}
             </tbody>
           </table>
         </div>
@@ -437,7 +516,8 @@ export function renderAnalyser(
   _useOriginalColumnNames: boolean = false
 ): string {
   const healthScore = Math.round(response.health.score * 100);
-  const healthClass = healthScore > 80 ? 'health-good' : healthScore > 50 ? 'health-warn' : 'health-poor';
+  const healthClass =
+    healthScore > 80 ? 'health-good' : healthScore > 50 ? 'health-warn' : 'health-poor';
 
   return `
     <div class="analyser-wrapper">
@@ -451,11 +531,13 @@ export function renderAnalyser(
           <span class="score-value">${healthScore}%</span>
         </div>
         <div class="health-issues">
-          ${response.health.risks.length > 0
-            ? `<ul>${response.health.risks.map(issue => `<li><i class="ph ph-warning"></i> ${escapeHtml(issue)}</li>`).join('')}</ul>`
-            : healthScore < 80
-              ? '<p><i class="ph ph-info"></i> Data quality could be improved. Expand columns for details.</p>'
-              : '<p><i class="ph ph-check-circle"></i> No critical health issues detected.</p>'}
+          ${
+            response.health.risks.length > 0
+              ? `<ul>${response.health.risks.map(issue => `<li><i class="ph ph-warning"></i> ${escapeHtml(issue)}</li>`).join('')}</ul>`
+              : healthScore < 80
+                ? '<p><i class="ph ph-info"></i> Data quality could be improved. Expand columns for details.</p>'
+                : '<p><i class="ph ph-check-circle"></i> No critical health issues detected.</p>'
+          }
         </div>
       </div>
 
@@ -469,20 +551,26 @@ export function renderAnalyser(
             <th>Type</th>
             <th>Quality</th>
             <th>Mean / Mode</th>
+            <th>Median</th>
             <th>Min</th>
             <th>Max</th>
+            <th>Std Dev</th>
             ${!isReadOnly ? '<th>Cleaning Options</th>' : '<th>Actions</th>'}
           </tr>
         </thead>
         <tbody>
-          ${response.summary.map(col => renderAnalyserRow(
-            col,
-            expandedRows.has(col.name),
-            configs[col.name],
-            isReadOnly,
-            selectedColumns.size === 0 || selectedColumns.has(col.name),
-            currentStage
-          )).join('')}
+          ${response.summary
+            .map(col =>
+              renderAnalyserRow(
+                col,
+                expandedRows.has(col.name),
+                configs[col.name],
+                isReadOnly,
+                selectedColumns.size === 0 || selectedColumns.has(col.name),
+                currentStage
+              )
+            )
+            .join('')}
         </tbody>
       </table>
       </div>
@@ -518,7 +606,10 @@ function getUniqueCount(col: ColumnSummary): number {
 }
 
 function getMeanOrMode(col: ColumnSummary): string {
-  if (col.stats.Numeric) return col.stats.Numeric.mean?.toFixed(2) || 'N/A';
+  if (col.stats.Numeric)
+    return col.stats.Numeric.mean !== null && col.stats.Numeric.mean !== undefined
+      ? col.stats.Numeric.mean.toFixed(2)
+      : 'N/A';
   if (col.stats.Text) return col.stats.Text.top_value ? col.stats.Text.top_value[0] : 'N/A';
   if (col.stats.Categorical) {
     const entries = Object.entries(col.stats.Categorical);
@@ -526,18 +617,42 @@ function getMeanOrMode(col: ColumnSummary): string {
     const firstEntry = entries.sort((a, b) => b[1] - a[1])[0];
     return firstEntry ? firstEntry[0] : 'N/A';
   }
-  if (col.stats.Boolean) return col.stats.Boolean.true_count >= col.stats.Boolean.false_count ? 'True' : 'False';
+  if (col.stats.Boolean)
+    return col.stats.Boolean.true_count >= col.stats.Boolean.false_count ? 'True' : 'False';
+  return 'N/A';
+}
+
+function getMedian(col: ColumnSummary): string {
+  if (col.stats.Numeric)
+    return col.stats.Numeric.median !== null && col.stats.Numeric.median !== undefined
+      ? col.stats.Numeric.median.toFixed(2)
+      : 'N/A';
+  return 'N/A';
+}
+
+function getStdDev(col: ColumnSummary): string {
+  if (col.stats.Numeric)
+    return col.stats.Numeric.std_dev !== null && col.stats.Numeric.std_dev !== undefined
+      ? col.stats.Numeric.std_dev.toFixed(2)
+      : 'N/A';
   return 'N/A';
 }
 
 function getMinMax(col: ColumnSummary): [string, string] {
-  if (col.stats.Numeric) return [col.stats.Numeric.min?.toString() || 'N/A', col.stats.Numeric.max?.toString() || 'N/A'];
-  if (col.stats.Temporal) return [col.stats.Temporal.min || 'N/A', col.stats.Temporal.max || 'N/A'];
-  if (col.stats.Text) return [col.stats.Text.min_length + ' chars', col.stats.Text.max_length + ' chars'];
+  if (col.stats.Numeric)
+    return [col.stats.Numeric.min?.toString() ?? 'N/A', col.stats.Numeric.max?.toString() ?? 'N/A'];
+  if (col.stats.Temporal) return [col.stats.Temporal.min ?? 'N/A', col.stats.Temporal.max ?? 'N/A'];
+  if (col.stats.Text)
+    return [col.stats.Text.min_length + ' chars', col.stats.Text.max_length + ' chars'];
   return ['N/A', 'N/A'];
 }
 
-function renderEnhancedStats(col: ColumnSummary, nullPct: number, uniqueCount: number, uniquePct: number): string {
+function renderEnhancedStats(
+  col: ColumnSummary,
+  nullPct: number,
+  uniqueCount: number,
+  uniquePct: number
+): string {
   // Base stats for all types
   let statsHTML = `
     <div class="stat-row"><span>Count</span> <span>${col.count.toLocaleString()}</span></div>
@@ -548,31 +663,35 @@ function renderEnhancedStats(col: ColumnSummary, nullPct: number, uniqueCount: n
   // Numeric-specific stats
   if (col.stats.Numeric) {
     const n = col.stats.Numeric;
-    const iqr = (n.q3 && n.q1) ? (n.q3 - n.q1).toFixed(2) : 'N/A';
+    const iqr = n.q3?.toFixed(2) && n.q1?.toFixed(2) ? (n.q3 - n.q1).toFixed(2) : 'N/A';
     statsHTML += `
       <div class="stat-section-header">Five-Number Summary</div>
-      <div class="stat-row"><span>Min</span> <span>${n.min?.toFixed(2) || 'N/A'}</span></div>
-      <div class="stat-row"><span>Q1 (25%)</span> <span>${n.q1?.toFixed(2) || 'N/A'}</span></div>
-      <div class="stat-row"><span>Median (50%)</span> <span>${n.median?.toFixed(2) || 'N/A'}</span></div>
-      <div class="stat-row"><span>Q3 (75%)</span> <span>${n.q3?.toFixed(2) || 'N/A'}</span></div>
-      <div class="stat-row"><span>Max</span> <span>${n.max?.toFixed(2) || 'N/A'}</span></div>
+      <div class="stat-row"><span>Min</span> <span>${n.min?.toFixed(2) ?? 'N/A'}</span></div>
+      <div class="stat-row"><span>Q1 (25%)</span> <span>${n.q1?.toFixed(2) ?? 'N/A'}</span></div>
+      <div class="stat-row"><span>Median (50%)</span> <span>${n.median?.toFixed(2) ?? 'N/A'}</span></div>
+      <div class="stat-row"><span>Q3 (75%)</span> <span>${n.q3?.toFixed(2) ?? 'N/A'}</span></div>
+      <div class="stat-row"><span>Max</span> <span>${n.max?.toFixed(2) ?? 'N/A'}</span></div>
       <div class="stat-row"><span>IQR</span> <span>${iqr}</span></div>
 
       <div class="stat-section-header">Distribution</div>
-      <div class="stat-row"><span>Mean</span> <span>${n.mean?.toFixed(2) || 'N/A'}</span></div>
-      <div class="stat-row"><span>Std Dev</span> <span>${n.std_dev?.toFixed(2) || 'N/A'}</span></div>
-      <div class="stat-row"><span>Skewness</span> <span>${n.skew?.toFixed(3) || 'N/A'}</span></div>
+      <div class="stat-row"><span>Mean</span> <span>${n.mean?.toFixed(2) ?? 'N/A'}</span></div>
+      <div class="stat-row"><span>Std Dev</span> <span>${n.std_dev?.toFixed(2) ?? 'N/A'}</span></div>
+      <div class="stat-row"><span>Skewness</span> <span>${n.skew?.toFixed(3) ?? 'N/A'}</span></div>
 
       <div class="stat-section-header">Value Characteristics</div>
       <div class="stat-row"><span>Zeros</span> <span>${n.zero_count.toLocaleString()} (${((n.zero_count / col.count) * 100).toFixed(1)}%)</span></div>
       <div class="stat-row"><span>Negatives</span> <span>${n.negative_count.toLocaleString()} (${((n.negative_count / col.count) * 100).toFixed(1)}%)</span></div>
       <div class="stat-row"><span>Integer Type</span> <span>${n.is_integer ? '✓ Yes' : '✗ No'}</span></div>
-      ${n.is_sorted || n.is_sorted_rev ? `
+      ${
+        n.is_sorted || n.is_sorted_rev
+          ? `
         <div class="stat-row">
           <span>Sorted</span>
           <span class="badge badge-sorted">${n.is_sorted ? '↑ Ascending' : '↓ Descending'}</span>
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     `;
   }
 
@@ -584,13 +703,17 @@ function renderEnhancedStats(col: ColumnSummary, nullPct: number, uniqueCount: n
       <div class="stat-row"><span>Min length</span> <span>${t.min_length} chars</span></div>
       <div class="stat-row"><span>Max length</span> <span>${t.max_length} chars</span></div>
       <div class="stat-row"><span>Avg length</span> <span>${t.avg_length.toFixed(1)} chars</span></div>
-      ${t.top_value ? `
+      ${
+        t.top_value
+          ? `
         <div class="stat-row">
           <span>Top value</span>
           <span title="${escapeHtml(t.top_value[0])}">"${escapeHtml(t.top_value[0].substring(0, 20))}${t.top_value[0].length > 20 ? '...' : ''}"</span>
         </div>
         <div class="stat-row"><span>Top count</span> <span>${t.top_value[1].toLocaleString()}</span></div>
-      ` : ''}
+      `
+          : ''
+      }
     `;
   }
 
@@ -599,14 +722,18 @@ function renderEnhancedStats(col: ColumnSummary, nullPct: number, uniqueCount: n
     const temp = col.stats.Temporal;
     statsHTML += `
       <div class="stat-section-header">Date Range</div>
-      <div class="stat-row"><span>Earliest</span> <span>${temp.min || 'N/A'}</span></div>
-      <div class="stat-row"><span>Latest</span> <span>${temp.max || 'N/A'}</span></div>
-      ${temp.is_sorted || temp.is_sorted_rev ? `
+      <div class="stat-row"><span>Earliest</span> <span>${temp.min ?? 'N/A'}</span></div>
+      <div class="stat-row"><span>Latest</span> <span>${temp.max ?? 'N/A'}</span></div>
+      ${
+        temp.is_sorted || temp.is_sorted_rev
+          ? `
         <div class="stat-row">
           <span>Sorted</span>
           <span class="badge badge-sorted">${temp.is_sorted ? '↑ Ascending' : '↓ Descending'}</span>
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     `;
   }
 
@@ -646,19 +773,47 @@ function renderEnhancedStats(col: ColumnSummary, nullPct: number, uniqueCount: n
   return statsHTML;
 }
 
-export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, config?: ColumnCleanConfig, isReadOnly: boolean = false, isSelected: boolean = true, currentStage: LifecycleStage | null = null): string {
+export function renderAnalyserRow(
+  col: ColumnSummary,
+  isExpanded: boolean,
+  config?: ColumnCleanConfig,
+  isReadOnly: boolean = false,
+  isSelected: boolean = true,
+  currentStage: LifecycleStage | null = null
+): string {
   const nullPct = (col.nulls / col.count) * 100;
   const uniqueCount = getUniqueCount(col);
   const uniquePct = (uniqueCount / col.count) * 100;
 
-  const qualityClass = nullPct > 20 ? 'quality-poor' : nullPct > 5 ? 'quality-warn' : 'quality-good';
-  const typeIcon = col.kind === 'Numeric' ? 'ph-hash' : col.kind === 'Text' ? 'ph-text-t' : col.kind === 'Temporal' ? 'ph-calendar' : 'ph-check-square';
+  const qualityClass =
+    nullPct > 20 ? 'quality-poor' : nullPct > 5 ? 'quality-warn' : 'quality-good';
+  const typeIcon =
+    col.kind === 'Numeric'
+      ? 'ph-hash'
+      : col.kind === 'Text'
+        ? 'ph-text-t'
+        : col.kind === 'Temporal'
+          ? 'ph-calendar'
+          : 'ph-check-square';
 
   const [min, max] = getMinMax(col);
   const meanOrMode = getMeanOrMode(col);
+  const median = getMedian(col);
+  const stdDev = getStdDev(col);
+
+  // Calculate skewness for badge display
+  const skew = col.stats.Numeric?.skew;
+  const isHighlySkewed = (skew ?? null) !== null && Math.abs(skew!) > 1;
+  const stdDevValue = col.stats.Numeric?.std_dev;
+  const meanValue = col.stats.Numeric?.mean;
+  const isHighVariance =
+    (stdDevValue ?? null) !== null &&
+    (meanValue ?? null) !== null &&
+    meanValue !== 0 &&
+    stdDevValue! / Math.abs(meanValue!) > 0.5;
 
   // Determine which name to show as primary (proposed) vs secondary (original)
-  const proposedName = config?.new_name || col.name;
+  const proposedName = config?.new_name ?? col.name;
   const hasNameChange = proposedName !== col.name;
 
   return `
@@ -666,14 +821,22 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
       <td><i class="ph ${isExpanded ? 'ph-caret-down' : 'ph-caret-right'} expand-toggle"></i></td>
       <td>
         <div class="col-name-box">
-          ${isReadOnly ? `
+          ${
+            isReadOnly
+              ? `
             <input type="checkbox" name="select-col-${escapeHtml(col.name)}" class="col-select-checkbox" data-col="${escapeHtml(col.name)}" ${isSelected ? 'checked' : ''} title="Include in cleaning">
-          ` : ''}
+          `
+              : ''
+          }
           <div class="col-name-display">
             <span class="col-name">${escapeHtml(proposedName)}</span>
-            ${hasNameChange ? `
+            ${
+              hasNameChange
+                ? `
               <span class="col-name-original">Originally: "${escapeHtml(col.name)}"</span>
-            ` : ''}
+            `
+                : ''
+            }
           </div>
         </div>
       </td>
@@ -685,24 +848,35 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
         </div>
       </td>
       <td class="mono">${escapeHtml(meanOrMode)}</td>
+      <td class="mono">${escapeHtml(median)}</td>
       <td class="mono">${escapeHtml(min)}</td>
       <td class="mono">${escapeHtml(max)}</td>
+      <td class="mono">${escapeHtml(stdDev)}</td>
       <td class="cleaning-cell">
-        ${isReadOnly ? `
+        ${
+          isReadOnly
+            ? `
           <div class="readonly-actions">
             ${nullPct > 50 ? '<span class="recommendation-badge badge-warn" title="High null percentage">High Nulls</span>' : ''}
             ${uniquePct > 95 ? '<span class="recommendation-badge badge-info" title="Highly unique - consider dropping">Unique</span>' : ''}
+            ${isHighlySkewed ? '<span class="recommendation-badge badge-warn" title="Skewed distribution">Skewed</span>' : ''}
+            ${isHighVariance ? '<span class="recommendation-badge badge-info" title="High coefficient of variation">High Variance</span>' : ''}
+            ${uniqueCount === col.count - col.nulls ? '<span class="recommendation-badge badge-info" title="All values are unique">All Unique</span>' : ''}
           </div>
-        ` : `
+        `
+            : `
           <div class="cleaning-summary">
             ${config?.active ? '<span class="active-dot" title="Cleaning Active"></span>' : ''}
             ${config?.impute_mode !== 'None' ? `<span class="clean-tag">Impute: ${config?.impute_mode}</span>` : ''}
             ${config?.normalisation !== 'None' ? `<span class="clean-tag">Norm: ${config?.normalisation}</span>` : ''}
           </div>
-        `}
+        `
+        }
       </td>
     </tr>
-    ${isExpanded ? `
+    ${
+      isExpanded
+        ? `
       <tr class="details-row">
         <td colspan="8">
           <div class="details-expanded">
@@ -714,57 +888,93 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
                 </div>
               </div>
 
-              ${!isReadOnly ? `
+              ${
+                !isReadOnly
+                  ? `
                 <div class="details-cleaning">
                   <h4>Cleaning Pipeline</h4>
                   <div class="cleaning-controls">
                     <div class="control-group">
-                      ${currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw' ? `
+                      ${
+                        currentStage === 'Cleaned' ||
+                        currentStage === 'Profiled' ||
+                        currentStage === 'Raw'
+                          ? `
                         <label><input type="checkbox" name="enable-cleaning-${escapeHtml(col.name)}" class="row-action" data-prop="active" ${config?.active ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Enable Cleaning</label>
-                      ` : `
+                      `
+                          : `
                         <div class="cleaning-status-indicator">
                           <i class="ph ${config?.active ? 'ph-check-circle' : 'ph-x-circle'}"></i>
                           <span>Cleaning is ${config?.active ? 'enabled' : 'disabled'} (change in Cleaning stage)</span>
                         </div>
-                      `}
+                      `
+                      }
                     </div>
 
                     <div class="control-grid">
-                      ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
+                      ${
+                        currentStage === 'Advanced' ||
+                        currentStage === 'Validated' ||
+                        currentStage === 'Published'
+                          ? `
                         <div class="control-item">
                           <label>Handle Nulls (Impute)</label>
-                          ${renderSelect(IMPUTE_OPTIONS, config?.impute_mode || 'None', 'row-action', { col: col.name, prop: 'impute_mode' })}
+                          ${renderSelect(IMPUTE_OPTIONS, config?.impute_mode ?? 'None', 'row-action', { col: col.name, prop: 'impute_mode' })}
                         </div>
                         <div class="control-item">
                           <label>Normalization</label>
-                          ${renderSelect(NORM_OPTIONS, config?.normalisation || 'None', 'row-action', { col: col.name, prop: 'normalisation' })}
+                          ${renderSelect(NORM_OPTIONS, config?.normalisation ?? 'None', 'row-action', { col: col.name, prop: 'normalisation' })}
                         </div>
-                      ` : ''}
-                      ${currentStage !== 'Advanced' && currentStage !== 'Validated' && currentStage !== 'Published' ? `
-                        ${col.kind === 'Text' ? `
+                      `
+                          : ''
+                      }
+                      ${
+                        currentStage !== 'Advanced' &&
+                        currentStage !== 'Validated' &&
+                        currentStage !== 'Published'
+                          ? `
+                        ${
+                          col.kind === 'Text'
+                            ? `
                           <div class="control-item">
                             <label>Text Case</label>
-                            ${renderSelect(CASE_OPTIONS, config?.text_case || 'None', 'row-action', { col: col.name, prop: 'text_case' })}
+                            ${renderSelect(CASE_OPTIONS, config?.text_case ?? 'None', 'row-action', { col: col.name, prop: 'text_case' })}
                           </div>
-                        ` : ''}
-                        ${col.kind === 'Numeric' ? `
+                        `
+                            : ''
+                        }
+                        ${
+                          col.kind === 'Numeric'
+                            ? `
                           <div class="control-item">
                             <label>Rounding</label>
-                            ${renderSelect(ROUND_OPTIONS, config?.rounding?.toString() || 'none', 'row-action', { col: col.name, prop: 'rounding' })}
+                            ${renderSelect(ROUND_OPTIONS, config?.rounding?.toString() ?? 'none', 'row-action', { col: col.name, prop: 'rounding' })}
                           </div>
-                        ` : ''}
-                      ` : ''}
+                        `
+                            : ''
+                        }
+                      `
+                          : ''
+                      }
                     </div>
 
-                    ${currentStage === 'Advanced' || currentStage === 'Validated' || currentStage === 'Published' ? `
+                    ${
+                      currentStage === 'Advanced' ||
+                      currentStage === 'Validated' ||
+                      currentStage === 'Published'
+                        ? `
                       <div class="control-advanced">
                         <label title="Automatic outlier handling and normalization"><input type="checkbox" name="ml-preprocessing-${escapeHtml(col.name)}" class="row-action" data-prop="ml_preprocessing" ${config?.ml_preprocessing ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> ML Preprocessing</label>
                         <label title="Clip values to 3x std dev"><input type="checkbox" name="clip-outliers-${escapeHtml(col.name)}" class="row-action" data-prop="clip_outliers" ${config?.clip_outliers ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Clip Outliers</label>
                       </div>
-                    ` : ''}
+                    `
+                        : ''
+                    }
                   </div>
                 </div>
-              ` : ''}
+              `
+                  : ''
+              }
 
               ${renderDistribution(col)}
               ${renderInsights(col)}
@@ -772,12 +982,14 @@ export function renderAnalyserRow(col: ColumnSummary, isExpanded: boolean, confi
           </div>
         </td>
       </tr>
-    ` : ''}
+    `
+        : ''
+    }
   `;
 }
 
 export function renderDistribution(col: ColumnSummary): string {
-  if (col.stats.Numeric && col.stats.Numeric.histogram) {
+  if (col.stats.Numeric?.histogram) {
     const hist = col.stats.Numeric.histogram;
     const maxCount = Math.max(...hist.map(h => h[1]));
     return `
@@ -785,9 +997,13 @@ export function renderDistribution(col: ColumnSummary): string {
         <h4>Distribution</h4>
         <div class="histogram">
           <div class="hist-bars">
-            ${hist.map(([val, count]) => `
+            ${hist
+              .map(
+                ([val, count]) => `
               <div class="hist-bar" style="height: ${(count / maxCount) * 100}%" title="${val.toFixed(2)}: ${count}"></div>
-            `).join('')}
+            `
+              )
+              .join('')}
           </div>
         </div>
       </div>
@@ -801,7 +1017,9 @@ export function renderDistribution(col: ColumnSummary): string {
       <div class="details-distribution">
         <h4>Top Categories</h4>
         <div class="top-values">
-          ${top.map(([val, count]) => `
+          ${top
+            .map(
+              ([val, count]) => `
             <div class="top-val-row">
               <span class="top-val-label" title="${escapeHtml(val)}">${escapeHtml(val || '(empty)')}</span>
               <div class="top-val-bar-container">
@@ -809,7 +1027,9 @@ export function renderDistribution(col: ColumnSummary): string {
               </div>
               <span class="top-val-count">${count}</span>
             </div>
-          `).join('')}
+          `
+            )
+            .join('')}
         </div>
       </div>
     `;
@@ -833,7 +1053,10 @@ export function renderInsights(col: ColumnSummary): string {
   return '';
 }
 
-export function renderSchemaSidebar(response: AnalysisResponse, configs: Record<string, ColumnCleanConfig>): string {
+export function renderSchemaSidebar(
+  response: AnalysisResponse,
+  configs: Record<string, ColumnCleanConfig>
+): string {
   return `
     <div class="schema-sidebar">
       <h3>Cleaning Schema</h3>
@@ -841,10 +1064,11 @@ export function renderSchemaSidebar(response: AnalysisResponse, configs: Record<
         <span>${Object.values(configs).filter(c => c.active).length} active transforms</span>
       </div>
       <div class="schema-list">
-        ${response.summary.map(col => {
-          const config = configs[col.name];
-          if (!config || !config.active) return '';
-          return `
+        ${response.summary
+          .map(col => {
+            const config = configs[col.name];
+            if (!config || !config.active) return '';
+            return `
             <div class="schema-item">
               <span class="schema-col-name">${escapeHtml(col.name)}</span>
               <div class="schema-badges">
@@ -855,7 +1079,8 @@ export function renderSchemaSidebar(response: AnalysisResponse, configs: Record<
               </div>
             </div>
           `;
-        }).join('')}
+          })
+          .join('')}
       </div>
       <div class="schema-actions">
         <button id="btn-clear-schema" class="btn-secondary btn-block">Clear All</button>

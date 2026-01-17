@@ -1,4 +1,4 @@
-import { escapeHtml } from "../utils";
+import { escapeHtml } from '../utils';
 
 export const IMPUTE_OPTIONS = [
   { value: 'None', label: 'None' },
@@ -30,15 +30,28 @@ export const ROUND_OPTIONS = [
   { value: '4', label: '4' },
 ];
 
-export function renderSelect(options: { value: string, label: string }[], selectedValue: string, className: string, dataAttrs: Record<string, string>, placeholder?: string, disabled?: boolean): string {
-  const attrs = Object.entries(dataAttrs).map(([k, v]) => `data-${k}="${escapeHtml(v)}"`).join(' ');
+export function renderSelect(
+  options: { value: string; label: string }[],
+  selectedValue: string,
+  className: string,
+  dataAttrs: Record<string, string>,
+  placeholder?: string,
+  disabled?: boolean
+): string {
+  const attrs = Object.entries(dataAttrs)
+    .map(([k, v]) => `data-${k}="${escapeHtml(v)}"`)
+    .join(' ');
   const placeholderHtml = placeholder ? `<option value="">${escapeHtml(placeholder)}</option>` : '';
   return `
     <select class="${className}" ${attrs} ${disabled ? 'disabled' : ''}>
       ${placeholderHtml}
-      ${options.map(opt => `
+      ${options
+        .map(
+          opt => `
         <option value="${escapeHtml(opt.value)}" ${opt.value === selectedValue ? 'selected' : ''}>${escapeHtml(opt.label)}</option>
-      `).join('')}
+      `
+        )
+        .join('')}
     </select>
   `;
 }
@@ -56,7 +69,8 @@ export function renderLoading(message: string, isAborting: boolean): string {
 }
 
 export function renderToast(message: string, type: 'success' | 'error' | 'info' = 'info'): string {
-  const icon = type === 'success' ? 'ph-check-circle' : type === 'error' ? 'ph-x-circle' : 'ph-info';
+  const icon =
+    type === 'success' ? 'ph-check-circle' : type === 'error' ? 'ph-x-circle' : 'ph-info';
   return `
     <div class="toast toast-${type}">
       <i class="ph ${icon}"></i>

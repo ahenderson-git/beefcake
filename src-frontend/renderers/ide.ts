@@ -1,4 +1,5 @@
-import { escapeHtml } from "../utils";
+import { AppState, ColumnSummary } from '../types';
+import { escapeHtml } from '../utils';
 
 export function renderPowerShellView(fontSize: number): string {
   return `
@@ -26,13 +27,13 @@ export function renderPowerShellView(fontSize: number): string {
   `;
 }
 
-export function renderPythonView(state: any): string {
-  const fontSize = state.config?.python_font_size || 14;
+export function renderPythonView(state: AppState): string {
+  const fontSize = state.config?.python_font_size ?? 14;
   return `
     <div class="ide-layout">
       <div class="ide-main">
         <div class="ide-toolbar">
-          <div class="ide-title"><i class="ph ph-code"></i> Python IDE <small>(Polars v${state.polarsVersion || 'unknown'})</small></div>
+          <div class="ide-title"><i class="ph ph-code"></i> Python IDE <small>(Polars v${state.polarsVersion ?? 'unknown'})</small></div>
           <div class="ide-actions">
             <button id="btn-run-py" class="btn-primary btn-small"><i class="ph ph-play"></i> Run Script</button>
             <button id="btn-clear-py" class="btn-secondary btn-small">Clear</button>
@@ -67,13 +68,13 @@ export function renderPythonView(state: any): string {
   `;
 }
 
-export function renderSQLView(state: any): string {
-  const fontSize = state.config?.sql_font_size || 14;
+export function renderSQLView(state: AppState): string {
+  const fontSize = state.config?.sql_font_size ?? 14;
   return `
     <div class="ide-layout">
       <div class="ide-main">
         <div class="ide-toolbar">
-          <div class="ide-title"><i class="ph ph-database"></i> SQL Lab <small>(Polars v${state.polarsVersion || 'unknown'})</small></div>
+          <div class="ide-title"><i class="ph ph-database"></i> SQL Lab <small>(Polars v${state.polarsVersion ?? 'unknown'})</small></div>
           <div class="ide-actions">
             <button id="btn-run-sql" class="btn-primary btn-small"><i class="ph ph-play"></i> Execute Query</button>
             <button id="btn-clear-sql" class="btn-secondary btn-small">Clear</button>
@@ -109,7 +110,7 @@ export function renderSQLView(state: any): string {
   `;
 }
 
-function renderColumnSidebar(state: any): string {
+function renderColumnSidebar(state: AppState): string {
   if (!state.analysisResponse) {
     return `
       <div class="ide-sidebar">
@@ -122,14 +123,18 @@ function renderColumnSidebar(state: any): string {
     <div class="ide-sidebar">
       <div class="sidebar-header">Columns</div>
       <div class="sidebar-list">
-        ${state.analysisResponse.summary.map((col: any) => `
+        ${state.analysisResponse.summary
+          .map(
+            (col: ColumnSummary) => `
           <div class="sidebar-item">
             <span class="col-name" title="${escapeHtml(col.name)}">${escapeHtml(col.name)}</span>
             <button class="btn-insert-col btn-ghost btn-xs" data-col="${escapeHtml(col.name)}" title="Insert into editor">
               <i class="ph ph-plus-circle"></i>
             </button>
           </div>
-        `).join('')}
+        `
+          )
+          .join('')}
       </div>
     </div>
   `;

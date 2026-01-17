@@ -35,23 +35,23 @@ import { invoke } from '@tauri-apps/api/core';
  * Information about a saved pipeline file.
  */
 export interface PipelineInfo {
-    /** Pipeline display name */
-    name: string;
+  /** Pipeline display name */
+  name: string;
 
-    /** Full path to pipeline JSON file */
-    path: string;
+  /** Full path to pipeline JSON file */
+  path: string;
 
-    /** ISO 8601 creation timestamp */
-    created: string;
+  /** ISO 8601 creation timestamp */
+  created: string;
 
-    /** ISO 8601 last modified timestamp */
-    modified: string;
+  /** ISO 8601 last modified timestamp */
+  modified: string;
 
-    /** Number of transformation steps */
-    step_count: number;
+  /** Number of transformation steps */
+  step_count: number;
 
-    /** Optional pipeline description */
-    description?: string;
+  /** Optional pipeline description */
+  description?: string;
 }
 
 /**
@@ -61,29 +61,29 @@ export interface PipelineInfo {
  * to JSON and can be saved, loaded, and executed.
  */
 export interface PipelineSpec {
-    /** Pipeline name (used for display and file naming) */
-    name: string;
+  /** Pipeline name (used for display and file naming) */
+  name: string;
 
-    /** Optional description of pipeline purpose */
-    description?: string;
+  /** Optional description of pipeline purpose */
+  description?: string;
 
-    /** Ordered list of transformation steps */
-    steps: PipelineStep[];
+  /** Ordered list of transformation steps */
+  steps: PipelineStep[];
 
-    /** Input configuration */
-    input?: {
-        format?: string;
-        path?: string;
-    };
+  /** Input configuration */
+  input?: {
+    format?: string;
+    path?: string;
+  };
 
-    /** Output configuration */
-    output?: {
-        format?: string;
-        path?: string;
-    };
+  /** Output configuration */
+  output?: {
+    format?: string;
+    path?: string;
+  };
 
-    /** Spec version */
-    version?: string;
+  /** Spec version */
+  version?: string;
 }
 
 /**
@@ -92,48 +92,48 @@ export interface PipelineSpec {
  * Each step has a specific type and associated parameters.
  */
 export interface PipelineStep {
-    /** Step type (e.g., "Clean", "Filter", "Select") */
-    [key: string]: unknown;
+  /** Step type (e.g., "Clean", "Filter", "Select") */
+  [key: string]: unknown;
 }
 
 /**
  * Result of pipeline execution.
  */
 export interface ExecutionResult {
-    /** Whether execution completed successfully */
-    success: boolean;
+  /** Whether execution completed successfully */
+  success: boolean;
 
-    /** Number of rows before execution */
-    rows_before: number;
+  /** Number of rows before execution */
+  rows_before: number;
 
-    /** Number of rows after execution */
-    rows_after: number;
+  /** Number of rows after execution */
+  rows_after: number;
 
-    /** Number of columns before execution */
-    columns_before: number;
+  /** Number of columns before execution */
+  columns_before: number;
 
-    /** Number of columns after execution */
-    columns_after: number;
+  /** Number of columns after execution */
+  columns_after: number;
 
-    /** Number of steps successfully applied */
-    steps_applied: number;
+  /** Number of steps successfully applied */
+  steps_applied: number;
 
-    /** Warning messages generated during execution */
-    warnings: string[];
+  /** Warning messages generated during execution */
+  warnings: string[];
 
-    /** Total execution time in seconds */
-    duration_secs: number;
+  /** Total execution time in seconds */
+  duration_secs: number;
 
-    /** Human-readable summary */
-    summary: string;
+  /** Human-readable summary */
+  summary: string;
 }
 
 /**
  * Pipeline validation result.
  */
 export interface ValidationResult {
-    /** List of validation errors (empty if valid) */
-    errors: string[];
+  /** List of validation errors (empty if valid) */
+  errors: string[];
 }
 
 /**
@@ -148,13 +148,13 @@ export interface ValidationResult {
  * @throws Error string if pipelines directory cannot be accessed
  */
 export async function listPipelines(): Promise<PipelineInfo[]> {
-    try {
-        const json = await invoke<string>('list_pipeline_specs');
-        return JSON.parse(json);
-    } catch (error) {
-        console.error('Failed to list pipelines:', error);
-        throw error;
-    }
+  try {
+    const json = await invoke<string>('list_pipeline_specs');
+    return JSON.parse(json) as PipelineInfo[];
+  } catch (error) {
+    console.error('Failed to list pipelines:', error);
+    throw error;
+  }
 }
 
 /**
@@ -175,13 +175,13 @@ export async function listPipelines(): Promise<PipelineInfo[]> {
  * ```
  */
 export async function loadPipeline(path: string): Promise<PipelineSpec> {
-    try {
-        const json = await invoke<string>('load_pipeline_spec', { path });
-        return JSON.parse(json);
-    } catch (error) {
-        console.error(`Failed to load pipeline from ${path}:`, error);
-        throw error;
-    }
+  try {
+    const json = await invoke<string>('load_pipeline_spec', { path });
+    return JSON.parse(json) as PipelineSpec;
+  } catch (error) {
+    console.error(`Failed to load pipeline from ${path}:`, error);
+    throw error;
+  }
 }
 
 /**
@@ -208,17 +208,14 @@ export async function loadPipeline(path: string): Promise<PipelineSpec> {
  * await savePipeline('pipelines/my_pipeline.json', spec);
  * ```
  */
-export async function savePipeline(
-    path: string,
-    spec: PipelineSpec
-): Promise<void> {
-    try {
-        const specJson = JSON.stringify(spec);
-        await invoke('save_pipeline_spec', { specJson, path });
-    } catch (error) {
-        console.error(`Failed to save pipeline to ${path}:`, error);
-        throw error;
-    }
+export async function savePipeline(path: string, spec: PipelineSpec): Promise<void> {
+  try {
+    const specJson = JSON.stringify(spec);
+    await invoke<void>('save_pipeline_spec', { specJson, path });
+  } catch (error) {
+    console.error(`Failed to save pipeline to ${path}:`, error);
+    throw error;
+  }
 }
 
 /**
@@ -245,20 +242,20 @@ export async function savePipeline(
  * ```
  */
 export async function validatePipeline(
-    spec: PipelineSpec,
-    inputPath: string
+  spec: PipelineSpec,
+  inputPath: string
 ): Promise<ValidationResult> {
-    try {
-        const specJson = JSON.stringify(spec);
-        const errors = await invoke<string[]>('validate_pipeline_spec', {
-            specJson,
-            inputPath,
-        });
-        return { errors };
-    } catch (error) {
-        console.error('Failed to validate pipeline:', error);
-        throw error;
-    }
+  try {
+    const specJson = JSON.stringify(spec);
+    const errors = await invoke<string[]>('validate_pipeline_spec', {
+      specJson,
+      inputPath,
+    });
+    return { errors };
+  } catch (error) {
+    console.error('Failed to validate pipeline:', error);
+    throw error;
+  }
 }
 
 /**
@@ -298,22 +295,22 @@ export async function validatePipeline(
  * ```
  */
 export async function executePipeline(
-    spec: PipelineSpec,
-    inputPath: string,
-    outputPath?: string
+  spec: PipelineSpec,
+  inputPath: string,
+  outputPath?: string
 ): Promise<ExecutionResult> {
-    try {
-        const specJson = JSON.stringify(spec);
-        const json = await invoke<string>('execute_pipeline_spec', {
-            specJson,
-            inputPath,
-            outputPath: outputPath || null,
-        });
-        return JSON.parse(json);
-    } catch (error) {
-        console.error('Failed to execute pipeline:', error);
-        throw error;
-    }
+  try {
+    const specJson = JSON.stringify(spec);
+    const json = await invoke<string>('execute_pipeline_spec', {
+      specJson,
+      inputPath,
+      outputPath: outputPath ?? null,
+    });
+    return JSON.parse(json) as ExecutionResult;
+  } catch (error) {
+    console.error('Failed to execute pipeline:', error);
+    throw error;
+  }
 }
 
 /**
@@ -333,20 +330,17 @@ export async function executePipeline(
  * await generatePowerShell(spec, 'scripts/data_pipeline.ps1');
  * ```
  */
-export async function generatePowerShell(
-    spec: PipelineSpec,
-    outputPath: string
-): Promise<string> {
-    try {
-        const specJson = JSON.stringify(spec);
-        return await invoke<string>('generate_powershell', {
-            specJson,
-            outputPath,
-        });
-    } catch (error) {
-        console.error('Failed to generate PowerShell:', error);
-        throw error;
-    }
+export async function generatePowerShell(spec: PipelineSpec, outputPath: string): Promise<string> {
+  try {
+    const specJson = JSON.stringify(spec);
+    return await invoke<string>('generate_powershell', {
+      specJson,
+      outputPath,
+    });
+  } catch (error) {
+    console.error('Failed to generate PowerShell:', error);
+    throw error;
+  }
 }
 
 /**
@@ -364,24 +358,24 @@ export async function generatePowerShell(
  * @returns Promise resolving to pipeline spec JSON
  */
 export async function pipelineFromConfigs(
-    name: string,
-    configs: Record<string, unknown>,
-    inputFormat: string,
-    outputPath: string
+  name: string,
+  configs: Record<string, unknown>,
+  inputFormat: string,
+  outputPath: string
 ): Promise<PipelineSpec> {
-    try {
-        const configsJson = JSON.stringify(configs);
-        const json = await invoke<string>('pipeline_from_configs', {
-            name,
-            configsJson,
-            inputFormat,
-            outputPath,
-        });
-        return JSON.parse(json);
-    } catch (error) {
-        console.error('Failed to create pipeline from configs:', error);
-        throw error;
-    }
+  try {
+    const configsJson = JSON.stringify(configs);
+    const json = await invoke<string>('pipeline_from_configs', {
+      name,
+      configsJson,
+      inputFormat,
+      outputPath,
+    });
+    return JSON.parse(json) as PipelineSpec;
+  } catch (error) {
+    console.error('Failed to create pipeline from configs:', error);
+    throw error;
+  }
 }
 
 /**
@@ -396,13 +390,13 @@ export async function pipelineFromConfigs(
  * @throws Error string if templates directory cannot be accessed
  */
 export async function listTemplates(): Promise<PipelineInfo[]> {
-    try {
-        const json = await invoke<string>('list_pipeline_templates');
-        return JSON.parse(json);
-    } catch (error) {
-        console.error('Failed to list templates:', error);
-        throw error;
-    }
+  try {
+    const json = await invoke<string>('list_pipeline_templates');
+    return JSON.parse(json) as PipelineInfo[];
+  } catch (error) {
+    console.error('Failed to list templates:', error);
+    throw error;
+  }
 }
 
 /**
@@ -425,13 +419,13 @@ export async function listTemplates(): Promise<PipelineInfo[]> {
  * ```
  */
 export async function loadTemplate(templateName: string): Promise<PipelineSpec> {
-    try {
-        const json = await invoke<string>('load_pipeline_template', {
-            templateName,
-        });
-        return JSON.parse(json);
-    } catch (error) {
-        console.error(`Failed to load template ${templateName}:`, error);
-        throw error;
-    }
+  try {
+    const json = await invoke<string>('load_pipeline_template', {
+      templateName,
+    });
+    return JSON.parse(json) as PipelineSpec;
+  } catch (error) {
+    console.error(`Failed to load template ${templateName}:`, error);
+    throw error;
+  }
 }

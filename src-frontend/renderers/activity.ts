@@ -1,9 +1,9 @@
-import { AppConfig } from "../types";
-import { escapeHtml } from "../utils";
+import { AppConfig } from '../types';
+import { escapeHtml } from '../utils';
 
 export function renderActivityLogView(config: AppConfig): string {
   const auditLogs = [...(config.audit_log || [])].reverse();
-  
+
   return `
     <div class="activity-view">
       <div class="activity-header">
@@ -12,7 +12,9 @@ export function renderActivityLogView(config: AppConfig): string {
       </div>
       <div class="activity-list">
         ${auditLogs.length === 0 ? '<p class="empty-msg">No recent activity.</p>' : ''}
-        ${auditLogs.map(entry => `
+        ${auditLogs
+          .map(
+            entry => `
           <div class="activity-entry">
             <div class="entry-icon">
               <i class="ph ${entry.action === 'Database' ? 'ph-database' : entry.action === 'Export' ? 'ph-export' : 'ph-info'}"></i>
@@ -25,7 +27,9 @@ export function renderActivityLogView(config: AppConfig): string {
               <div class="entry-details">${escapeHtml(entry.details)}</div>
             </div>
           </div>
-        `).join('')}
+        `
+          )
+          .join('')}
       </div>
     </div>
   `;

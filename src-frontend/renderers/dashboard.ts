@@ -1,6 +1,7 @@
-import { escapeHtml, fmtBytes } from "../utils";
+import { AppState } from '../types';
+import { escapeHtml, fmtBytes } from '../utils';
 
-export function renderDashboardView(state: any): string {
+export function renderDashboardView(state: AppState): string {
   return `
     <div class="dashboard" data-testid="dashboard-view">
       <div class="hero">
@@ -50,7 +51,7 @@ export function renderDashboardView(state: any): string {
         </div>
         <div class="stat-card">
           <h3>Connections</h3>
-          <div class="stat-value">${state.config?.connections.length || 0}</div>
+          <div class="stat-value">${state.config?.connections.length ?? 0}</div>
           <p>Configured Endpoints</p>
         </div>
         <div class="stat-card">

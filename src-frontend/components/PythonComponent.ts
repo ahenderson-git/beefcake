@@ -1,10 +1,12 @@
-import { Component, ComponentActions } from "./Component";
-import { AppState, ExportSource } from "../types";
-import * as renderers from "../renderers";
-import * as api from "../api";
-import * as monaco from 'monaco-editor';
-import { ExportModal } from "./ExportModal";
 import { AnsiUp } from 'ansi_up';
+import * as monaco from 'monaco-editor';
+
+import * as api from '../api';
+import * as renderers from '../renderers';
+import { AppState, ExportSource } from '../types';
+
+import { Component, ComponentActions } from './Component';
+import { ExportModal } from './ExportModal';
 
 const DEFAULT_PYTHON_SCRIPT = `# Python script
 import os
@@ -65,10 +67,9 @@ export class PythonComponent extends Component {
     }, 0);
   }
 
-  private initMonaco(state: AppState) {
+  private initMonaco(state: AppState): void {
     const editorContainer = document.getElementById('py-editor');
     if (!editorContainer) {
-      console.error('PythonComponent: py-editor container not found');
       return;
     }
 
@@ -77,7 +78,7 @@ export class PythonComponent extends Component {
       try {
         this.editor.dispose();
       } catch (e) {
-        console.warn('Failed to dispose Monaco editor:', e);
+        // Ignore dispose errors
       }
       this.editor = null;
     }
@@ -85,47 +86,61 @@ export class PythonComponent extends Component {
     try {
       // Create new editor instance
       this.editor = monaco.editor.create(editorContainer, {
-        value: state.pythonScript || DEFAULT_PYTHON_SCRIPT,
+        value: state.pythonScript ?? DEFAULT_PYTHON_SCRIPT,
         language: 'python',
         theme: 'vs-dark',
         automaticLayout: true,
-        fontSize: state.config?.python_font_size || 14,
+        fontSize: state.config?.python_font_size ?? 14,
         fontFamily: "'Fira Code', monospace",
         fontLigatures: true,
-        minimap: { enabled: false }
+        minimap: { enabled: false },
       });
 
       this.editor.onDidChangeModelContent(() => {
-        state.pythonScript = this.editor?.getValue() || null;
+        state.pythonScript = this.editor?.getValue() ?? null;
       });
-
-      console.log('Monaco editor created successfully');
     } catch (e) {
-      console.error('Failed to create Monaco editor:', e);
+      // Failed to create editor
     }
   }
 
   override bindEvents(state: AppState): void {
-    document.getElementById('btn-run-py')?.addEventListener('click', () => this.runPython(state));
+    document.getElementById('btn-run-py')?.addEventListener('click', () => {
+      void this.runPython(state);
+    });
     document.getElementById('btn-clear-py')?.addEventListener('click', () => {
       const output = document.getElementById('py-output');
       if (output) output.textContent = '';
     });
-    document.getElementById('btn-export-py')?.addEventListener('click', () => this.handleExport(state));
-    document.getElementById('btn-inc-font-py')?.addEventListener('click', () => this.updateFontSize(state, 1));
-    document.getElementById('btn-dec-font-py')?.addEventListener('click', () => this.updateFontSize(state, -1));
-    document.getElementById('btn-load-py')?.addEventListener('click', () => this.handleLoadScript());
-    document.getElementById('btn-save-py')?.addEventListener('click', () => this.handleSaveScript());
-    document.getElementById('btn-install-polars')?.addEventListener('click', () => this.handleInstallPolars());
-    document.getElementById('btn-copy-output-py')?.addEventListener('click', () => this.handleCopyOutput());
-    document.getElementById('py-skip-cleaning')?.addEventListener('change', (e) => {
+    document.getElementById('btn-export-py')?.addEventListener('click', () => {
+      void this.handleExport(state);
+    });
+    document.getElementById('btn-inc-font-py')?.addEventListener('click', () => {
+      void this.updateFontSize(state, 1);
+    });
+    document.getElementById('btn-dec-font-py')?.addEventListener('click', () => {
+      void this.updateFontSize(state, -1);
+    });
+    document.getElementById('btn-load-py')?.addEventListener('click', () => {
+      void this.handleLoadScript();
+    });
+    document.getElementById('btn-save-py')?.addEventListener('click', () => {
+      void this.handleSaveScript();
+    });
+    document.getElementById('btn-install-polars')?.addEventListener('click', () => {
+      void this.handleInstallPolars();
+    });
+    document.getElementById('btn-copy-output-py')?.addEventListener('click', () => {
+      void this.handleCopyOutput();
+    });
+    document.getElementById('py-skip-cleaning')?.addEventListener('change', e => {
       state.pythonSkipCleaning = (e.target as HTMLInputElement).checked;
     });
   }
 
-  private bindSidebarEvents() {
+  private bindSidebarEvents(): void {
     document.querySelectorAll('.btn-insert-col').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', e => {
         const colName = (e.currentTarget as HTMLElement).dataset.col;
         if (colName) {
           this.insertColumnName(colName);
@@ -134,7 +149,7 @@ export class PythonComponent extends Component {
     });
   }
 
-  private insertColumnName(colName: string) {
+  private insertColumnName(colName: string): void {
     if (!this.editor) return;
 
     const selection = this.editor.getSelection();
@@ -150,19 +165,19 @@ export class PythonComponent extends Component {
     // In Python, we might want it quoted if it contains spaces or just as a string
     // But usually in code we just want the name. Let's provide it as a string literal.
     const text = `"${colName}"`;
-    
+
     this.editor.executeEdits('insert-column', [
       {
         range: range,
         text: text,
-        forceMoveMarkers: true
-      }
+        forceMoveMarkers: true,
+      },
     ]);
-    
+
     this.editor.focus();
   }
 
-  private async handleInstallPolars() {
+  private async handleInstallPolars(): Promise<void> {
     const output = document.getElementById('py-output');
     if (!output) return;
 
@@ -171,26 +186,28 @@ export class PythonComponent extends Component {
       output.textContent = await api.installPythonPackage('polars');
       this.actions.showToast('Polars installed successfully', 'success');
     } catch (err) {
-      output.textContent = `Error installing polars: ${err}`;
+      output.textContent = `Error installing polars: ${String(err)}`;
       this.actions.showToast('Failed to install polars', 'error');
     }
   }
 
-  private async runPython(state: AppState) {
+  private async runPython(state: AppState): Promise<void> {
     if (!this.editor) return;
     const script = this.editor.getValue();
     const output = document.getElementById('py-output');
     if (!output) return;
 
     if (!state.analysisResponse) {
-      output.textContent = 'Error: No dataset loaded in Beefcake Analyser.\nPlease go to Dashboard or Analyser to load a file first.';
+      output.textContent =
+        'Error: No dataset loaded in Beefcake Analyser.\nPlease go to Dashboard or Analyser to load a file first.';
       this.actions.showToast('No dataset loaded', 'error');
       return;
     }
 
     const dataPath = state.analysisResponse.path;
     if (!dataPath) {
-      output.textContent = 'Error: Dataset path is missing from analysis response.\nThis might be a bug. Try re-loading the file in the Analyser.';
+      output.textContent =
+        'Error: Dataset path is missing from analysis response.\nThis might be a bug. Try re-loading the file in the Analyser.';
       this.actions.showToast('Dataset path missing', 'error');
       return;
     }
@@ -205,14 +222,15 @@ export class PythonComponent extends Component {
     } catch (err) {
       let errorMsg = String(err);
       if (errorMsg.includes("ModuleNotFoundError: No module named 'polars'")) {
-        errorMsg += "\n\nTip: Click the 'Install Polars' button in the toolbar to install the required library.";
+        errorMsg +=
+          "\n\nTip: Click the 'Install Polars' button in the toolbar to install the required library.";
       }
       // Also convert errors to HTML (they might have ANSI codes too)
       output.innerHTML = this.ansiConverter.ansi_to_html(errorMsg);
     }
   }
 
-  private async handleExport(state: AppState) {
+  private async handleExport(state: AppState): Promise<void> {
     if (!this.editor) return;
 
     const source: ExportSource = {
@@ -230,11 +248,14 @@ export class PythonComponent extends Component {
     document.getElementById('modal-container')?.classList.remove('active');
   }
 
-  private async updateFontSize(state: AppState, delta: number) {
+  private async updateFontSize(state: AppState, delta: number): Promise<void> {
     if (state.config) {
-      state.config.python_font_size = Math.max(8, Math.min(32, state.config.python_font_size + delta));
+      state.config.python_font_size = Math.max(
+        8,
+        Math.min(32, state.config.python_font_size + delta)
+      );
       this.editor?.updateOptions({ fontSize: state.config.python_font_size });
-      
+
       const label = document.getElementById('py-font-size-label');
       if (label) label.textContent = state.config.python_font_size.toString();
 
@@ -243,7 +264,7 @@ export class PythonComponent extends Component {
     }
   }
 
-  private async handleLoadScript() {
+  private async handleLoadScript(): Promise<void> {
     try {
       const path = await api.openFileDialog([{ name: 'Python', extensions: ['py'] }]);
       if (path) {
@@ -252,30 +273,30 @@ export class PythonComponent extends Component {
         this.actions.showToast('Script loaded', 'success');
       }
     } catch (err) {
-      this.actions.showToast(`Error loading script: ${err}`, 'error');
+      this.actions.showToast(`Error loading script: ${String(err)}`, 'error');
     }
   }
 
-  private async handleSaveScript() {
+  private async handleSaveScript(): Promise<void> {
     try {
       const path = await api.saveFileDialog([{ name: 'Python', extensions: ['py'] }]);
       if (path) {
-        const content = this.editor?.getValue() || '';
+        const content = this.editor?.getValue() ?? '';
         await api.writeTextFile(path, content);
         this.actions.showToast('Script saved', 'success');
       }
     } catch (err) {
-      this.actions.showToast(`Error saving script: ${err}`, 'error');
+      this.actions.showToast(`Error saving script: ${String(err)}`, 'error');
     }
   }
 
-  private async handleCopyOutput() {
+  private async handleCopyOutput(): Promise<void> {
     const output = document.getElementById('py-output');
     if (!output) return;
 
     try {
       // Get plain text content (strips HTML/ANSI formatting)
-      const text = output.textContent || '';
+      const text = output.textContent ?? '';
 
       if (!text || text === 'Running script...') {
         this.actions.showToast('No output to copy', 'info');
@@ -285,7 +306,7 @@ export class PythonComponent extends Component {
       await navigator.clipboard.writeText(text);
       this.actions.showToast('Output copied to clipboard', 'success');
     } catch (err) {
-      this.actions.showToast(`Failed to copy: ${err}`, 'error');
+      this.actions.showToast(`Failed to copy: ${String(err)}`, 'error');
     }
   }
 }

@@ -6,132 +6,134 @@
  */
 
 import { PipelineSpec, PipelineStep } from '../api-pipeline';
+
 import { StepConfigPanel } from './StepConfigPanel';
 import { StepPalette } from './StepPalette';
 
 export interface PipelineEditorState {
-    /** Current pipeline being edited */
-    spec: PipelineSpec;
+  /** Current pipeline being edited */
+  spec: PipelineSpec;
 
-    /** Index of currently selected step for configuration */
-    selectedStepIndex: number | null;
+  /** Index of currently selected step for configuration */
+  selectedStepIndex: number | null;
 
-    /** Whether pipeline has unsaved changes */
-    isDirty: boolean;
+  /** Whether pipeline has unsaved changes */
+  isDirty: boolean;
 
-    /** Validation errors */
-    errors: string[];
+  /** Validation errors */
+  errors: string[];
 }
 
 export class PipelineEditor {
-    private state: PipelineEditorState;
-    private container: HTMLElement;
-    private stepPalette: StepPalette | null = null;
-    private configPanel: StepConfigPanel | null = null;
-    private onSave?: (spec: PipelineSpec) => void;
-    private onBack?: () => void;
-    private onExecute?: (spec: PipelineSpec) => void;
+  private state: PipelineEditorState;
+  private container: HTMLElement;
+  private stepPalette: StepPalette | null = null;
+  private configPanel: StepConfigPanel | null = null;
+  private onSave?: (spec: PipelineSpec) => void;
+  private onBack?: () => void;
+  private onExecute?: (spec: PipelineSpec) => void;
 
-    constructor(container: HTMLElement, spec?: PipelineSpec) {
-        this.container = container;
-        this.state = {
-            spec: spec || this.createEmptyPipeline(),
-            selectedStepIndex: null,
-            isDirty: false,
-            errors: [],
-        };
+  constructor(container: HTMLElement, spec?: PipelineSpec) {
+    this.container = container;
+    this.state = {
+      spec: spec ?? this.createEmptyPipeline(),
+      selectedStepIndex: null,
+      isDirty: false,
+      errors: [],
+    };
+  }
+
+  /**
+   * Create an empty pipeline spec
+   */
+  private createEmptyPipeline(): PipelineSpec {
+    return {
+      name: 'New Pipeline',
+      version: '0.1',
+      steps: [],
+      input: {
+        format: 'csv',
+      },
+      output: {
+        format: 'parquet',
+        path: '',
+      },
+    };
+  }
+
+  /**
+   * Initialize the editor
+   */
+  init(): void {
+    this.render();
+    this.attachEventListeners();
+    this.initializePalette();
+    this.initializeConfigPanel();
+  }
+
+  /**
+   * Initialize step palette
+   */
+  private initializePalette(): void {
+    const paletteContainer = this.container.querySelector('#step-palette-container') as HTMLElement;
+    if (paletteContainer) {
+      this.stepPalette = new StepPalette(paletteContainer);
+      this.stepPalette.setOnStepAdd(step => {
+        this.addStep(step);
+      });
+      this.stepPalette.init();
+    } else {
+      console.error('Step palette container not found');
     }
+  }
 
-    /**
-     * Create an empty pipeline spec
-     */
-    private createEmptyPipeline(): PipelineSpec {
-        return {
-            name: 'New Pipeline',
-            version: '0.1',
-            steps: [],
-            input: {
-                format: 'csv'
-            },
-            output: {
-                format: 'parquet',
-                path: ''
-            }
-        };
+  /**
+   * Initialize config panel
+   */
+  private initializeConfigPanel(): void {
+    const configContainer = this.container.querySelector('#step-config-container') as HTMLElement;
+    if (configContainer) {
+      this.configPanel = new StepConfigPanel(configContainer);
+      this.configPanel.setOnUpdate((updatedStep: PipelineStep) => {
+        this.handleStepUpdate(updatedStep);
+      });
+      // Update with current selection
+      const selectedStep =
+        this.state.selectedStepIndex !== null
+          ? (this.state.spec.steps[this.state.selectedStepIndex] ?? null)
+          : null;
+      this.configPanel.setStep(selectedStep, this.state.selectedStepIndex);
+    } else {
+      console.error('Config panel container not found');
     }
+  }
 
-    /**
-     * Initialize the editor
-     */
-    init(): void {
-        this.render();
-        this.attachEventListeners();
-        this.initializePalette();
-        this.initializeConfigPanel();
-    }
+  /**
+   * Set save callback
+   */
+  setOnSave(callback: (spec: PipelineSpec) => void): void {
+    this.onSave = callback;
+  }
 
-    /**
-     * Initialize step palette
-     */
-    private initializePalette(): void {
-        const paletteContainer = this.container.querySelector('#step-palette-container') as HTMLElement;
-        if (paletteContainer) {
-            this.stepPalette = new StepPalette(paletteContainer);
-            this.stepPalette.setOnStepAdd((step) => {
-                this.addStep(step);
-            });
-            this.stepPalette.init();
-        } else {
-            console.error('Step palette container not found');
-        }
-    }
+  /**
+   * Set back callback
+   */
+  setOnBack(callback: () => void): void {
+    this.onBack = callback;
+  }
 
-    /**
-     * Initialize config panel
-     */
-    private initializeConfigPanel(): void {
-        const configContainer = this.container.querySelector('#step-config-container') as HTMLElement;
-        if (configContainer) {
-            this.configPanel = new StepConfigPanel(configContainer);
-            this.configPanel.setOnUpdate((updatedStep: PipelineStep) => {
-                this.handleStepUpdate(updatedStep);
-            });
-            // Update with current selection
-            const selectedStep = this.state.selectedStepIndex !== null
-                ? this.state.spec.steps[this.state.selectedStepIndex] || null
-                : null;
-            this.configPanel.setStep(selectedStep, this.state.selectedStepIndex);
-        } else {
-            console.error('Config panel container not found');
-        }
-    }
+  /**
+   * Set execute callback
+   */
+  setOnExecute(callback: (spec: PipelineSpec) => void): void {
+    this.onExecute = callback;
+  }
 
-    /**
-     * Set save callback
-     */
-    setOnSave(callback: (spec: PipelineSpec) => void): void {
-        this.onSave = callback;
-    }
-
-    /**
-     * Set back callback
-     */
-    setOnBack(callback: () => void): void {
-        this.onBack = callback;
-    }
-
-    /**
-     * Set execute callback
-     */
-    setOnExecute(callback: (spec: PipelineSpec) => void): void {
-        this.onExecute = callback;
-    }
-
-    /**
-     * Render the editor UI
-     */
-    render(): void {
-        this.container.innerHTML = `
+  /**
+   * Render the editor UI
+   */
+  render(): void {
+    this.container.innerHTML = `
             <div class="pipeline-editor">
                 <div class="editor-header">
                     <button id="editor-back-btn" class="btn-secondary">← Back to Library</button>
@@ -169,41 +171,41 @@ export class PipelineEditor {
                 ${this.renderErrors()}
             </div>
         `;
-    }
+  }
 
-    /**
-     * Render pipeline steps
-     */
-    private renderPipelineSteps(): string {
-        if (this.state.spec.steps.length === 0) {
-            return `
+  /**
+   * Render pipeline steps
+   */
+  private renderPipelineSteps(): string {
+    if (this.state.spec.steps.length === 0) {
+      return `
                 <div class="empty-pipeline">
                     <p>No steps yet</p>
                     <p class="hint">Add steps from the palette to build your pipeline</p>
                 </div>
             `;
-        }
+    }
 
-        const stepCards = this.state.spec.steps.map((step, index) =>
-            this.renderStepCard(step, index)
-        ).join('');
+    const stepCards = this.state.spec.steps
+      .map((step, index) => this.renderStepCard(step, index))
+      .join('');
 
-        return `
+    return `
             <div class="steps-list">
                 ${stepCards}
             </div>
         `;
-    }
+  }
 
-    /**
-     * Render a single step card
-     */
-    private renderStepCard(step: PipelineStep, index: number): string {
-        const isSelected = this.state.selectedStepIndex === index;
-        const stepType = this.getStepType(step);
-        const stepSummary = this.getStepSummary(step);
+  /**
+   * Render a single step card
+   */
+  private renderStepCard(step: PipelineStep, index: number): string {
+    const isSelected = this.state.selectedStepIndex === index;
+    const stepType = this.getStepType(step);
+    const stepSummary = this.getStepSummary(step);
 
-        return `
+    return `
             <div class="step-card ${isSelected ? 'selected' : ''}"
                  data-index="${index}">
                 <div class="step-card-header">
@@ -220,62 +222,72 @@ export class PipelineEditor {
                 </div>
             </div>
         `;
+  }
+
+  /**
+   * Get step type from step object
+   */
+  private getStepType(step: PipelineStep): string {
+    // Step is a tagged enum with "op" field
+    const stepObj = step as Record<string, unknown>;
+    if (stepObj.op) {
+      return String(stepObj.op)
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+    }
+    // Fallback: get first key
+    const keys = Object.keys(step);
+    return keys[0] ?? 'Unknown';
+  }
+
+  /**
+   * Get human-readable summary of step
+   */
+  private getStepSummary(step: PipelineStep): string {
+    const stepObj = step as Record<string, unknown>;
+    const op = stepObj.op as string;
+
+    switch (op) {
+      case 'drop_columns': {
+        const dropCols = (stepObj.columns as string[]) ?? [];
+        return `Drop ${dropCols.length} column(s)`;
+      }
+      case 'rename_columns': {
+        const mapping = (stepObj.mapping as Record<string, string>) ?? {};
+        return `Rename ${Object.keys(mapping).length} column(s)`;
+      }
+      case 'trim_whitespace': {
+        const trimCols = (stepObj.columns as string[]) ?? [];
+        return `Trim whitespace in ${trimCols.length} column(s)`;
+      }
+      case 'cast_types': {
+        const castCols = (stepObj.columns as Record<string, string>) ?? {};
+        return `Cast ${Object.keys(castCols).length} column(s)`;
+      }
+      case 'impute': {
+        const strategy = stepObj.strategy ?? 'unknown';
+        const strategyStr = typeof strategy === 'string' ? strategy : JSON.stringify(strategy);
+        return `Impute using ${strategyStr}`;
+      }
+      case 'normalize_columns': {
+        const method = stepObj.method ?? 'unknown';
+        const methodStr = typeof method === 'string' ? method : JSON.stringify(method);
+        return `Normalize using ${methodStr}`;
+      }
+      default:
+        return 'Transform data';
+    }
+  }
+
+  /**
+   * Render validation errors
+   */
+  private renderErrors(): string {
+    if (this.state.errors.length === 0) {
+      return '';
     }
 
-    /**
-     * Get step type from step object
-     */
-    private getStepType(step: PipelineStep): string {
-        // Step is a tagged enum with "op" field
-        const stepObj = step as Record<string, unknown>;
-        if (stepObj.op) {
-            return String(stepObj.op).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        }
-        // Fallback: get first key
-        const keys = Object.keys(step);
-        return keys[0] || 'Unknown';
-    }
-
-    /**
-     * Get human-readable summary of step
-     */
-    private getStepSummary(step: PipelineStep): string {
-        const stepObj = step as Record<string, unknown>;
-        const op = stepObj.op as string;
-
-        switch (op) {
-            case 'drop_columns':
-                const dropCols = (stepObj.columns as string[]) || [];
-                return `Drop ${dropCols.length} column(s)`;
-            case 'rename_columns':
-                const mapping = (stepObj.mapping as Record<string, string>) || {};
-                return `Rename ${Object.keys(mapping).length} column(s)`;
-            case 'trim_whitespace':
-                const trimCols = (stepObj.columns as string[]) || [];
-                return `Trim whitespace in ${trimCols.length} column(s)`;
-            case 'cast_types':
-                const castCols = (stepObj.columns as Record<string, string>) || {};
-                return `Cast ${Object.keys(castCols).length} column(s)`;
-            case 'impute':
-                const strategy = stepObj.strategy || 'unknown';
-                return `Impute using ${strategy}`;
-            case 'normalize_columns':
-                const method = stepObj.method || 'unknown';
-                return `Normalize using ${method}`;
-            default:
-                return 'Transform data';
-        }
-    }
-
-    /**
-     * Render validation errors
-     */
-    private renderErrors(): string {
-        if (this.state.errors.length === 0) {
-            return '';
-        }
-
-        return `
+    return `
             <div class="editor-errors">
                 <h4>Validation Errors:</h4>
                 <ul>
@@ -283,225 +295,231 @@ export class PipelineEditor {
                 </ul>
             </div>
         `;
+  }
+
+  /**
+   * Escape HTML to prevent XSS
+   */
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
+   * Attach event listeners
+   */
+  private attachEventListeners(): void {
+    // Back button
+    const backBtn = this.container.querySelector('#editor-back-btn');
+    backBtn?.addEventListener('click', () => {
+      if (this.state.isDirty) {
+        const confirm = window.confirm(
+          'You have unsaved changes. Are you sure you want to go back?'
+        );
+        if (!confirm) return;
+      }
+      if (this.onBack) this.onBack();
+    });
+
+    // Save button
+    const saveBtn = this.container.querySelector('#editor-save-btn');
+    saveBtn?.addEventListener('click', () => this.handleSave());
+
+    // Execute button
+    const executeBtn = this.container.querySelector('#editor-execute-btn');
+    executeBtn?.addEventListener('click', () => {
+      if (this.onExecute) {
+        this.onExecute(this.state.spec);
+      }
+    });
+
+    // Pipeline name input
+    const nameInput = this.container.querySelector<HTMLInputElement>('#pipeline-name-input');
+    nameInput?.addEventListener('input', e => {
+      this.state.spec.name = (e.target as HTMLInputElement).value;
+      this.state.isDirty = true;
+      this.render();
+      this.attachEventListeners();
+      this.initializePalette();
+      this.initializeConfigPanel();
+    });
+
+    // Step card actions
+    this.container.querySelectorAll('.step-move-up').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const index = parseInt((e.currentTarget as HTMLElement).getAttribute('data-index') ?? '0');
+        this.moveStepUp(index);
+      });
+    });
+
+    this.container.querySelectorAll('.step-move-down').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const index = parseInt((e.currentTarget as HTMLElement).getAttribute('data-index') ?? '0');
+        this.moveStepDown(index);
+      });
+    });
+
+    this.container.querySelectorAll('.step-delete').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const index = parseInt((e.currentTarget as HTMLElement).getAttribute('data-index') ?? '0');
+        this.deleteStep(index);
+      });
+    });
+
+    // Step card selection
+    this.container.querySelectorAll('.step-card').forEach(card => {
+      card.addEventListener('click', e => {
+        // Don't select if clicking action buttons
+        if ((e.target as HTMLElement).closest('.step-card-actions')) return;
+
+        const index = parseInt((card as HTMLElement).getAttribute('data-index') ?? '0');
+        this.selectStep(index);
+      });
+    });
+  }
+
+  /**
+   * Add a step to the pipeline
+   */
+  addStep(step: PipelineStep): void {
+    this.state.spec.steps.push(step);
+    this.state.isDirty = true;
+    this.render();
+    this.attachEventListeners();
+    // Reinitialize palette and config panel after render
+    this.initializePalette();
+    this.initializeConfigPanel();
+  }
+
+  /**
+   * Move step up in pipeline
+   */
+  private moveStepUp(index: number): void {
+    if (index > 0 && this.state.spec.steps[index] && this.state.spec.steps[index - 1]) {
+      const steps = this.state.spec.steps;
+      const temp = steps[index - 1]!;
+      steps[index - 1] = steps[index]!;
+      steps[index] = temp;
+      this.state.isDirty = true;
+      this.render();
+      this.attachEventListeners();
+      this.initializePalette();
+      this.initializeConfigPanel();
+    }
+  }
+
+  /**
+   * Move step down in pipeline
+   */
+  private moveStepDown(index: number): void {
+    if (
+      index < this.state.spec.steps.length - 1 &&
+      this.state.spec.steps[index] &&
+      this.state.spec.steps[index + 1]
+    ) {
+      const steps = this.state.spec.steps;
+      const temp = steps[index]!;
+      steps[index] = steps[index + 1]!;
+      steps[index + 1] = temp;
+      this.state.isDirty = true;
+      this.render();
+      this.attachEventListeners();
+      this.initializePalette();
+      this.initializeConfigPanel();
+    }
+  }
+
+  /**
+   * Delete a step
+   */
+  private deleteStep(index: number): void {
+    const confirm = window.confirm('Delete this step?');
+    if (confirm) {
+      this.state.spec.steps.splice(index, 1);
+      this.state.isDirty = true;
+      if (this.state.selectedStepIndex === index) {
+        this.state.selectedStepIndex = null;
+      }
+      this.render();
+      this.attachEventListeners();
+      this.initializePalette();
+      this.initializeConfigPanel();
+    }
+  }
+
+  /**
+   * Handle step update from config panel
+   */
+  private handleStepUpdate(updatedStep: PipelineStep): void {
+    if (this.state.selectedStepIndex === null) return;
+
+    this.state.spec.steps[this.state.selectedStepIndex] = updatedStep;
+    this.state.isDirty = true;
+
+    // Re-render to update step card summary
+    this.render();
+    this.attachEventListeners();
+    this.initializePalette();
+    this.initializeConfigPanel();
+  }
+
+  /**
+   * Select a step for configuration
+   */
+  private selectStep(index: number): void {
+    this.state.selectedStepIndex = index;
+
+    // Update config panel
+    if (this.configPanel) {
+      const selectedStep = this.state.spec.steps[index] ?? null;
+      this.configPanel.setStep(selectedStep, index);
     }
 
-    /**
-     * Escape HTML to prevent XSS
-     */
-    private escapeHtml(text: string): string {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    this.render();
+    this.attachEventListeners();
+    this.initializePalette();
+    this.initializeConfigPanel();
+  }
+
+  /**
+   * Handle save action
+   */
+  private handleSave(): void {
+    // Basic validation
+    this.state.errors = [];
+
+    if (!this.state.spec.name || this.state.spec.name.trim() === '') {
+      this.state.errors.push('Pipeline name is required');
     }
 
-    /**
-     * Attach event listeners
-     */
-    private attachEventListeners(): void {
-        // Back button
-        const backBtn = this.container.querySelector('#editor-back-btn');
-        backBtn?.addEventListener('click', () => {
-            if (this.state.isDirty) {
-                const confirm = window.confirm('You have unsaved changes. Are you sure you want to go back?');
-                if (!confirm) return;
-            }
-            if (this.onBack) this.onBack();
-        });
-
-        // Save button
-        const saveBtn = this.container.querySelector('#editor-save-btn');
-        saveBtn?.addEventListener('click', () => this.handleSave());
-
-        // Execute button
-        const executeBtn = this.container.querySelector('#editor-execute-btn');
-        executeBtn?.addEventListener('click', () => {
-            if (this.onExecute) {
-                this.onExecute(this.state.spec);
-            }
-        });
-
-        // Pipeline name input
-        const nameInput = this.container.querySelector<HTMLInputElement>('#pipeline-name-input');
-        nameInput?.addEventListener('input', (e) => {
-            this.state.spec.name = (e.target as HTMLInputElement).value;
-            this.state.isDirty = true;
-            this.render();
-            this.attachEventListeners();
-            this.initializePalette();
-            this.initializeConfigPanel();
-        });
-
-        // Step card actions
-        this.container.querySelectorAll('.step-move-up').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const index = parseInt((e.currentTarget as HTMLElement).getAttribute('data-index') || '0');
-                this.moveStepUp(index);
-            });
-        });
-
-        this.container.querySelectorAll('.step-move-down').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const index = parseInt((e.currentTarget as HTMLElement).getAttribute('data-index') || '0');
-                this.moveStepDown(index);
-            });
-        });
-
-        this.container.querySelectorAll('.step-delete').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const index = parseInt((e.currentTarget as HTMLElement).getAttribute('data-index') || '0');
-                this.deleteStep(index);
-            });
-        });
-
-        // Step card selection
-        this.container.querySelectorAll('.step-card').forEach(card => {
-            card.addEventListener('click', (e) => {
-                // Don't select if clicking action buttons
-                if ((e.target as HTMLElement).closest('.step-card-actions')) return;
-
-                const index = parseInt((card as HTMLElement).getAttribute('data-index') || '0');
-                this.selectStep(index);
-            });
-        });
+    if (this.state.spec.steps.length === 0) {
+      this.state.errors.push('Pipeline must have at least one step');
     }
 
-    /**
-     * Add a step to the pipeline
-     */
-    addStep(step: PipelineStep): void {
-        this.state.spec.steps.push(step);
-        this.state.isDirty = true;
-        this.render();
-        this.attachEventListeners();
-        // Reinitialize palette and config panel after render
-        this.initializePalette();
-        this.initializeConfigPanel();
+    if (this.state.errors.length > 0) {
+      this.render();
+      this.attachEventListeners();
+      this.initializePalette();
+      this.initializeConfigPanel();
+      return;
     }
 
-    /**
-     * Move step up in pipeline
-     */
-    private moveStepUp(index: number): void {
-        if (index > 0 && this.state.spec.steps[index] && this.state.spec.steps[index - 1]) {
-            const steps = this.state.spec.steps;
-            const temp = steps[index - 1]!;
-            steps[index - 1] = steps[index]!;
-            steps[index] = temp;
-            this.state.isDirty = true;
-            this.render();
-            this.attachEventListeners();
-            this.initializePalette();
-            this.initializeConfigPanel();
-        }
+    // Call save callback
+    if (this.onSave) {
+      this.onSave(this.state.spec);
+      this.state.isDirty = false;
+      this.render();
+      this.attachEventListeners();
+      this.initializePalette();
+      this.initializeConfigPanel();
     }
+  }
 
-    /**
-     * Move step down in pipeline
-     */
-    private moveStepDown(index: number): void {
-        if (index < this.state.spec.steps.length - 1 && this.state.spec.steps[index] && this.state.spec.steps[index + 1]) {
-            const steps = this.state.spec.steps;
-            const temp = steps[index]!;
-            steps[index] = steps[index + 1]!;
-            steps[index + 1] = temp;
-            this.state.isDirty = true;
-            this.render();
-            this.attachEventListeners();
-            this.initializePalette();
-            this.initializeConfigPanel();
-        }
-    }
-
-    /**
-     * Delete a step
-     */
-    private deleteStep(index: number): void {
-        const confirm = window.confirm('Delete this step?');
-        if (confirm) {
-            this.state.spec.steps.splice(index, 1);
-            this.state.isDirty = true;
-            if (this.state.selectedStepIndex === index) {
-                this.state.selectedStepIndex = null;
-            }
-            this.render();
-            this.attachEventListeners();
-            this.initializePalette();
-            this.initializeConfigPanel();
-        }
-    }
-
-    /**
-     * Handle step update from config panel
-     */
-    private handleStepUpdate(updatedStep: PipelineStep): void {
-        if (this.state.selectedStepIndex === null) return;
-
-        this.state.spec.steps[this.state.selectedStepIndex] = updatedStep;
-        this.state.isDirty = true;
-
-        // Re-render to update step card summary
-        this.render();
-        this.attachEventListeners();
-        this.initializePalette();
-        this.initializeConfigPanel();
-    }
-
-    /**
-     * Select a step for configuration
-     */
-    private selectStep(index: number): void {
-        this.state.selectedStepIndex = index;
-
-        // Update config panel
-        if (this.configPanel) {
-            const selectedStep = this.state.spec.steps[index] || null;
-            this.configPanel.setStep(selectedStep, index);
-        }
-
-        this.render();
-        this.attachEventListeners();
-        this.initializePalette();
-        this.initializeConfigPanel();
-    }
-
-    /**
-     * Handle save action
-     */
-    private handleSave(): void {
-        // Basic validation
-        this.state.errors = [];
-
-        if (!this.state.spec.name || this.state.spec.name.trim() === '') {
-            this.state.errors.push('Pipeline name is required');
-        }
-
-        if (this.state.spec.steps.length === 0) {
-            this.state.errors.push('Pipeline must have at least one step');
-        }
-
-        if (this.state.errors.length > 0) {
-            this.render();
-            this.attachEventListeners();
-            this.initializePalette();
-            this.initializeConfigPanel();
-            return;
-        }
-
-        // Call save callback
-        if (this.onSave) {
-            this.onSave(this.state.spec);
-            this.state.isDirty = false;
-            this.render();
-            this.attachEventListeners();
-            this.initializePalette();
-            this.initializeConfigPanel();
-        }
-    }
-
-    /**
-     * Get current pipeline spec
-     */
-    getSpec(): PipelineSpec {
-        return this.state.spec;
-    }
+  /**
+   * Get current pipeline spec
+   */
+  getSpec(): PipelineSpec {
+    return this.state.spec;
+  }
 }

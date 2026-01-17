@@ -98,6 +98,7 @@ fn test_histogram_streaming_large() -> Result<()> {
         Some(75000.0),
         100_000,
         0,
+        10_000,  // custom_sample_size
     )?;
 
     assert!(!histogram.is_empty(), "Histogram should not be empty");
