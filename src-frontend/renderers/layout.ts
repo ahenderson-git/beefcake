@@ -60,6 +60,12 @@ export function renderLayout(): string {
         </header>
         <main id="view-container"></main>
       </div>
+      <aside class="ai-sidebar collapsed" id="ai-sidebar">
+        <div class="ai-sidebar-content" id="ai-sidebar-container"></div>
+        <div class="ai-sidebar-collapsed-tab" id="ai-collapsed-tab">
+          <i class="ph ph-robot"></i>
+        </div>
+      </aside>
     </div>
     <div id="toast-container"></div>
   `;

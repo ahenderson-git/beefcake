@@ -217,3 +217,38 @@ commands.allow = ["list_documentation_files"]
 identifier = "allow-read-documentation-file"
 description = "Allows the read_documentation_file command"
 commands.allow = ["read_documentation_file"]
+
+[[permission]]
+identifier = "allow-ai-send-query"
+description = "Allows the ai_send_query command"
+commands.allow = ["ai_send_query"]
+
+[[permission]]
+identifier = "allow-ai-set-api-key"
+description = "Allows the ai_set_api_key command"
+commands.allow = ["ai_set_api_key"]
+
+[[permission]]
+identifier = "allow-ai-delete-api-key"
+description = "Allows the ai_delete_api_key command"
+commands.allow = ["ai_delete_api_key"]
+
+[[permission]]
+identifier = "allow-ai-test-connection"
+description = "Allows the ai_test_connection command"
+commands.allow = ["ai_test_connection"]
+
+[[permission]]
+identifier = "allow-ai-get-config"
+description = "Allows the ai_get_config command"
+commands.allow = ["ai_get_config"]
+
+[[permission]]
+identifier = "allow-ai-update-config"
+description = "Allows the ai_update_config command"
+commands.allow = ["ai_update_config"]
+
+[[permission]]
+identifier = "allow-ai-has-api-key"
+description = "Allows the ai_has_api_key command"
+commands.allow = ["ai_has_api_key"]

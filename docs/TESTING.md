@@ -1,22 +1,25 @@
 # Beefcake Testing Guide
 
+> **Current Status**: 181 tests passing (91 TypeScript + 90 Rust) with 100% TypeScript coverage
+
 ## Quick Start
 
 ```bash
 # Run all unit tests (fast)
-npm test              # Frontend (vitest)
-cargo test            # Rust (cargo test)
+npm test              # Frontend (vitest) - 91 tests
+cargo test            # Rust (cargo test) - 90 tests
 
 # Run all tests including integration
 npm run test:all      # Runs Rust + TS + E2E
 
 # Run specific test suites
-npm run test:coverage          # Frontend with coverage
+npm run test:coverage          # Frontend with coverage (100%)
 npm run test:rust:integration  # Rust integration tests
-npm run test:e2e               # End-to-end GUI tests
+npm run test:e2e               # End-to-end GUI tests (skeleton only)
 
-# Interactive test UI
+# Interactive modes
 npm run test:ui       # Vitest UI for frontend tests
+npm run test:watch    # Watch mode - re-runs on file changes
 ```
 
 ## Test Structure
@@ -25,23 +28,30 @@ npm run test:ui       # Vitest UI for frontend tests
 beefcake/
 ├── src-frontend/              # TypeScript source
 │   ├── *.test.ts              # Unit tests (colocated with source)
-│   └── utils.test.ts
+│   ├── utils.test.ts          # ✅ 22 tests - utility functions
+│   ├── types.test.ts          # ✅ 4 tests - type guards
+│   ├── api.test.ts            # ✅ 55 tests - Tauri API calls
+│   └── components/
+│       └── Component.test.ts  # ✅ 10 tests - base component
 ├── src/                       # Rust source
 │   ├── analyser/
 │   │   └── logic/
-│   │       └── types_test.rs  # Unit tests (colocated)
+│   │       └── tests.rs       # ✅ 40+ tests
+│   ├── pipeline/
+│   │   └── executor.rs        # ✅ 10 tests (in #[cfg(test)])
+│   ├── error.rs               # ✅ 3 tests
 │   └── lib.rs
 ├── tests/                     # Rust integration tests
-│   └── integration_analysis.rs
+│   └── integration_analysis.rs # ✅ 15 tests
 ├── e2e/                       # End-to-end GUI tests
-│   └── example.spec.ts
+│   └── example.spec.ts        # ⚠️  Skeleton only (TODO)
 ├── testdata/                  # Test fixtures
 │   ├── clean.csv
 │   ├── missing_values.csv
 │   ├── golden/                # Expected outputs
 │   └── pipelines/             # Pipeline specs
 └── docs/
-    ├── testing.md             # Test strategy
+    ├── TESTING.md             # This file
     ├── test-matrix.md         # Feature test matrix
     └── ADDING_TEST_IDS.md     # Guide for E2E selectors
 ```
@@ -176,7 +186,9 @@ All test fixtures are in `testdata/`:
 
 ```rust
 // Rust
-let result = analyze_file("testdata/clean.csv");
+fn example() {
+    let result = analyze_file("testdata/clean.csv");
+}
 ```
 
 ```typescript
@@ -206,7 +218,17 @@ npx tsc --noEmit
 
 ## Test Coverage
 
-Generate coverage reports:
+### Current Coverage Status
+
+**TypeScript**: ✅ **100% coverage** on tested files
+- `api.ts`: 100% (55 tests)
+- `utils.ts`: 100% (22 tests)
+- `types.ts`: 100% (4 tests)
+- `Component.ts`: 100% (10 tests)
+
+**Rust**: ~70% estimated (90 tests across core modules)
+
+### Generate Coverage Reports
 
 ```bash
 # Frontend coverage (vitest)
@@ -219,10 +241,121 @@ cargo tarpaulin --out Html
 # Opens HTML report in tarpaulin-report.html
 ```
 
-**Coverage Goals**:
-- Core logic (analysis, transformations): >80%
-- UI rendering code: Not enforced
-- Integration tests: Cover all P0 workflows
+### Coverage Goals
+- ✅ Core API layer: **100%** (achieved)
+- ✅ Utility functions: **100%** (achieved)
+- 🎯 Core logic (analysis, transformations): >80% (in progress)
+- 🎯 Rust backend: >70% (current ~70%)
+- ⚠️ UI rendering code: Not enforced (complex to test)
+- 🎯 Integration tests: Cover all P0 workflows
+
+## Debugging Tests
+
+### TypeScript Tests
+
+**Interactive UI Mode**:
+```bash
+npm run test:ui
+# Opens Vitest UI at http://localhost:51204
+# Features: test filtering, coverage view, file tree, re-run on change
+```
+
+**Watch Mode**:
+```bash
+npm run test:watch
+# Re-runs tests automatically when files change
+# Press 'a' to run all tests
+# Press 'f' to run only failed tests
+# Press 'u' to update snapshots
+# Press 'q' to quit
+```
+
+**VSCode Debugging**:
+```json
+{
+  "type": "node",
+  "request": "launch",
+  "name": "Debug Vitest Tests",
+  "runtimeExecutable": "npm",
+  "runtimeArgs": ["run", "test"],
+  "console": "integratedTerminal",
+  "internalConsoleOptions": "neverOpen"
+}
+```
+
+### Rust Tests
+
+**Run specific test**:
+```bash
+cargo test test_column_summary_null_pct
+```
+
+**Show stdout output**:
+```bash
+cargo test -- --nocapture
+```
+
+**VSCode Debugging**:
+```json
+{
+  "type": "lldb",
+  "request": "launch",
+  "name": "Debug Rust Test",
+  "cargo": {
+    "args": ["test", "--no-run", "--lib"],
+    "filter": {
+      "name": "beefcake",
+      "kind": "lib"
+    }
+  },
+  "args": ["test_name", "--nocapture"],
+  "cwd": "${workspaceFolder}"
+}
+```
+
+## Quality Checks
+
+### Full CI Simulation
+
+Run everything CI runs locally:
+```bash
+# TypeScript checks
+npm test                         # Unit tests
+npm run test:coverage            # Coverage report
+npx tsc --noEmit                 # Type checking
+npm run lint                     # ESLint
+
+# Rust checks
+cargo test                       # All unit tests
+cargo test --test '*'            # Integration tests
+cargo clippy --all-targets -- -D warnings  # Lints
+cargo fmt -- --check             # Formatting
+
+# Optional: E2E tests (requires built app)
+npm run tauri build
+npm run test:e2e
+```
+
+### Pre-commit Checks
+
+Recommended pre-commit script (`.git/hooks/pre-commit`):
+```bash
+#!/bin/sh
+npm test && cargo test --lib && cargo clippy -- -D warnings
+```
+
+### Continuous Quality Monitoring
+
+```bash
+# Watch for test failures and coverage changes
+npm run test:watch
+
+# Watch for type errors
+npx tsc --noEmit --watch
+
+# Watch for linting issues
+npm run lint -- --watch
+```
 
 ## E2E Testing Setup
 
@@ -230,7 +363,7 @@ E2E tests require stable `data-testid` attributes on all UI elements.
 
 ### Adding Test IDs
 
-See [`docs/ADDING_TEST_IDS.md`](docs/ADDING_TEST_IDS.md) for detailed guide.
+See [`ADDING_TEST_IDS.md`](ADDING_TEST_IDS.md) for detailed guide.
 
 Example:
 ```typescript
@@ -257,7 +390,7 @@ await page.locator('.btn-primary').click(); // Bad!
 
 ## Test Matrix
 
-All GUI features are mapped in [`docs/test-matrix.md`](docs/test-matrix.md):
+All GUI features are mapped in [`test-matrix.md`](test-matrix.md):
 
 - 69 total features mapped
 - 28 P0 (critical) features
@@ -284,7 +417,9 @@ Each feature includes:
 
 1. Increase timeout in `playwright.config.ts`:
    ```typescript
-   timeout: 60000, // 60 seconds
+   const config = {
+     timeout: 60000, // 60 seconds
+   };
    ```
 2. Check if app is building correctly: `npm run tauri build`
 3. Verify test fixtures exist
@@ -383,7 +518,7 @@ test('error', async ({ page }) => {
 
 ## Next Steps
 
-1. **Add data-testid attributes** to all UI components (see [`ADDING_TEST_IDS.md`](docs/ADDING_TEST_IDS.md))
+1. **Add data-testid attributes** to all UI components (see [`ADDING_TEST_IDS.md`](ADDING_TEST_IDS.md))
 2. **Write unit tests** for new features as you build them
 3. **Add integration tests** for cross-module workflows
 4. **Implement E2E tests** for P0 features first, then P1
@@ -391,9 +526,9 @@ test('error', async ({ page }) => {
 
 ## Resources
 
-- [Test Strategy](docs/testing.md) - Overall test plan
-- [Test Matrix](docs/test-matrix.md) - Feature-by-feature test mapping
-- [Adding Test IDs](docs/ADDING_TEST_IDS.md) - E2E selector guide
+- [Test Strategy](TESTING.md) - Overall test plan
+- [Test Matrix](test-matrix.md) - Feature-by-feature test mapping
+- [Adding Test IDs](ADDING_TEST_IDS.md) - E2E selector guide
 - [Vitest Docs](https://vitest.dev/)
 - [Playwright Docs](https://playwright.dev/)
 - [Rust Testing](https://doc.rust-lang.org/book/ch11-00-testing.html)

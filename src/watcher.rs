@@ -91,7 +91,9 @@ pub fn init(app: AppHandle) -> Result<()> {
 
     let service = WatcherService::new(app, config.clone())?;
 
-    *WATCHER_SERVICE.lock().unwrap() = Some(service);
+    *WATCHER_SERVICE
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Failed to acquire watcher service lock: {e}"))? = Some(service);
 
     // Auto-start if configured
     if config.enabled && !config.folder.as_os_str().is_empty() {
@@ -103,7 +105,9 @@ pub fn init(app: AppHandle) -> Result<()> {
 
 /// Start watching a folder
 pub fn start(folder: PathBuf) -> Result<()> {
-    let service = WATCHER_SERVICE.lock().unwrap();
+    let service = WATCHER_SERVICE
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Failed to acquire watcher service lock: {e}"))?;
     if let Some(svc) = service.as_ref() {
         svc.send_command(WatcherMessage::Start(folder.clone()))?;
 
@@ -118,7 +122,9 @@ pub fn start(folder: PathBuf) -> Result<()> {
 
 /// Stop watching
 pub fn stop() -> Result<()> {
-    let service = WATCHER_SERVICE.lock().unwrap();
+    let service = WATCHER_SERVICE
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Failed to acquire watcher service lock: {e}"))?;
     if let Some(svc) = service.as_ref() {
         svc.send_command(WatcherMessage::Stop)?;
 
@@ -139,7 +145,9 @@ pub fn set_folder(folder: PathBuf) -> Result<()> {
 
     // Restart watcher if currently enabled
     if config.enabled {
-        let service = WATCHER_SERVICE.lock().unwrap();
+        let service = WATCHER_SERVICE
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire watcher service lock: {e}"))?;
         if let Some(svc) = service.as_ref() {
             svc.send_command(WatcherMessage::Stop)?;
             svc.send_command(WatcherMessage::Start(folder))?;
@@ -151,7 +159,9 @@ pub fn set_folder(folder: PathBuf) -> Result<()> {
 
 /// Manually trigger ingestion of a specific file
 pub fn ingest_now(path: PathBuf) -> Result<()> {
-    let service = WATCHER_SERVICE.lock().unwrap();
+    let service = WATCHER_SERVICE
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Failed to acquire watcher service lock: {e}"))?;
     if let Some(svc) = service.as_ref() {
         svc.send_command(WatcherMessage::IngestNow(path))?;
     }
@@ -162,7 +172,9 @@ pub fn ingest_now(path: PathBuf) -> Result<()> {
 pub fn get_state() -> Result<WatcherStatusPayload> {
     let config = WatcherConfig::load()?;
     let state = {
-        let service = WATCHER_SERVICE.lock().unwrap();
+        let service = WATCHER_SERVICE
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire watcher service lock: {e}"))?;
         service
             .as_ref()
             .map(|s| s.get_state())

@@ -188,6 +188,7 @@ src-frontend/
 │   ├── StepPalette.ts         # 11 transformation step types
 │   ├── StepConfigPanel.ts     # Dynamic step configuration forms
 │   ├── WatcherComponent.ts    # Filesystem watcher UI
+│   ├── AIAssistantComponent.ts  # AI-powered Q&A sidebar
 │   ├── PowerShellComponent.ts
 │   ├── PythonComponent.ts
 │   ├── SQLComponent.ts
@@ -352,7 +353,199 @@ User Event → Component → Update State → Render → Update DOM
            Rust Backend
 ```
 
-### 4. CLI Interface (`src/cli.rs`)
+### 5. AI Assistant (`src/ai/` and `AIAssistantComponent.ts`)
+
+**Purpose**: Provides context-aware AI assistance for data analysis tasks using OpenAI's API.
+
+#### Backend (`src/ai/`)
+```
+src/ai/
+├── mod.rs           # Public API & configuration
+├── client.rs        # OpenAI API client
+└── config.rs        # Settings (API key, model, temperature)
+```
+
+**Key Features**:
+- Context-aware Q&A about loaded datasets
+- OpenAI GPT integration with configurable models
+- Secure API key storage (platform keychain)
+- Markdown response formatting with clickable links
+
+#### Frontend (`src-frontend/components/AIAssistantComponent.ts`)
+
+**UI Layout**:
+```
+┌─────────────────────────────────┐
+│ 🤖 AI Assistant          ● ▸    │ ← Header (clickable/double-clickable)
+├─────────────────────────────────┤
+│                                  │
+│  👤 User: What's the mean age?   │
+│  🤖 AI: The mean age is 35.2...  │
+│                                  │ ← Message area (scrollable)
+│                                  │
+├─────────────────────────────────┤
+│ [Ask about your data...]  📧 🗑  │ ← Input area
+└─────────────────────────────────┘
+
+Collapsed state (48px width):
+┌─┐
+│🤖│ ← Vertical tab (clickable)
+│  │
+└─┘
+```
+
+**Toggle Mechanisms** (3 ways):
+1. **Chevron button** (`▸`) in sidebar header (next to status indicator)
+2. **Double-click** the sidebar header for quick collapse/expand
+3. **Collapsed tab** with robot icon when sidebar is collapsed
+
+**Architecture**:
+```typescript
+class AIAssistantComponent {
+  private messages: AIMessage[] = [];        // Chat history
+  private isEnabled: boolean;                // AI enabled/disabled
+  private currentContext: string | null;     // Dataset metadata
+
+  render() {
+    // Renders sidebar with header, messages, input
+    // Header includes chevron button and status indicator
+  }
+
+  bindEvents() {
+    // Setup event delegation for dynamic elements
+    // Handled in main.ts via setupAISidebarToggle()
+  }
+
+  private formatContent(content: string) {
+    // Markdown rendering with clickable links
+    // Converts [text](url) → <a href="url" target="_blank">text</a>
+  }
+}
+```
+
+**Main App Integration** (`main.ts`):
+```typescript
+function setupAISidebarToggle() {
+  // Event delegation for dynamically created button
+  aiSidebar.addEventListener('click', (e) => {
+    if (e.target.closest('#ai-collapse-btn') ||
+        e.target.closest('#ai-collapsed-tab')) {
+      toggleSidebar();
+    }
+  });
+
+  // Double-click header to toggle
+  aiSidebar.addEventListener('dblclick', (e) => {
+    if (e.target.closest('#ai-sidebar-header')) {
+      toggleSidebar();
+    }
+  });
+
+  // Persist collapse state
+  localStorage.setItem('ai-sidebar-collapsed', collapsed);
+}
+```
+
+**Context Passing**:
+```typescript
+class ContextManager {
+  public updateContext(state: AppState) {
+    // Build context from current analysis
+    const context = {
+      fileName: state.analysisResponse.file_name,
+      rowCount: state.analysisResponse.row_count,
+      columns: state.analysisResponse.summary.slice(0, 20).map(col => ({
+        name: col.name,
+        type: col.kind,
+        nullCount: col.nulls,
+        nullPercent: (col.nulls / rowCount * 100).toFixed(1)
+      }))
+    };
+    this.currentContext = JSON.stringify(context);
+  }
+}
+```
+
+**Data Flow**:
+```
+User types question
+    ↓
+AIAssistantComponent.sendMessage()
+    ↓
+invoke('ai_send_query', { query, context })
+    ↓
+Rust: ai::client.send_query()
+    ↓
+OpenAI API (GPT-4 / GPT-3.5-turbo)
+    ↓
+Response with markdown content
+    ↓
+formatContent() → render links as <a> tags
+    ↓
+Display in message area
+```
+
+**Markdown Link Rendering**:
+```typescript
+const rendered = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+  '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+```
+
+**Security**:
+- API key stored in platform keychain (secure storage)
+- Only summary statistics sent to OpenAI (no raw data)
+- Links open in new tab with `noopener noreferrer`
+- User must explicitly enable AI Assistant
+
+**Capabilities & Limitations**:
+
+The AI Assistant is a **read-only advisory system** with specific boundaries:
+
+**What it CAN do:**
+- Answer questions about dataset statistics and distributions
+- Explain data quality issues and recommend strategies
+- Provide guidance on using Beefcake features
+- Generate documentation links and learning resources
+- Interpret statistical patterns in natural language
+
+**What it CANNOT do:**
+- ❌ Modify, transform, or manipulate data
+- ❌ Create, execute, or save pipelines
+- ❌ Invoke Tauri commands or backend functions
+- ❌ Trigger UI actions or change application state
+- ❌ Read raw data (only summary statistics)
+- ❌ Perform multi-step workflows or automation
+
+**Architecture Constraint:**
+```typescript
+// AI Assistant has NO access to application state or actions
+class AIAssistantComponent {
+  // ✅ Can send query + context to backend
+  async sendMessage() {
+    const response = await invoke('ai_send_query', {
+      query: this.userInput,
+      context: this.currentContext  // Read-only metadata
+    });
+    this.displayResponse(response);
+  }
+
+  // ❌ Cannot invoke other Tauri commands
+  // ❌ Cannot call this.actions.* methods
+  // ❌ Cannot modify application state
+}
+```
+
+**One-Way Communication:**
+```
+User Query → AI Assistant → OpenAI API → Response → Display
+                ↑                                        ↓
+         (Read-only context)                    (Text output only)
+                                             (No side effects)
+```
+
+The AI Assistant is purely **informational**—users must manually implement its suggestions using other Beefcake features.
+
+### 6. CLI Interface (`src/cli.rs`)
 
 ```text
 Commands:
@@ -369,7 +562,7 @@ Commands:
 - Batch processing scripts
 - Automation without GUI
 
-### 5. Embedded Runtimes
+### 7. Embedded Runtimes
 
 #### Python Runner (`src/python_runner.rs`)
 - Embeds Python interpreter

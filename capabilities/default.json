@@ -55,6 +55,13 @@
     "allow-watcher-set-folder",
     "allow-watcher-ingest-now",
     "allow-list-documentation-files",
-    "allow-read-documentation-file"
+    "allow-read-documentation-file",
+    "allow-ai-send-query",
+    "allow-ai-set-api-key",
+    "allow-ai-delete-api-key",
+    "allow-ai-has-api-key",
+    "allow-ai-test-connection",
+    "allow-ai-get-config",
+    "allow-ai-update-config"
   ]
 }

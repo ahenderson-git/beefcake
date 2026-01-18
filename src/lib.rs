@@ -24,6 +24,7 @@
 //!
 //! ## Core Modules
 //!
+//! - [`ai`]: AI assistant integration for in-app support and guidance
 //! - [`analyser`]: Data analysis, profiling, and quality assessment
 //!   - [`analyser::logic`]: Core analysis algorithms
 //!   - [`analyser::lifecycle`]: Dataset version management
@@ -102,6 +103,7 @@
 // Uncomment to see which items need documentation:
 // #![warn(missing_docs)]
 
+pub mod ai;
 pub mod analyser;
 pub mod dictionary;
 pub mod error;

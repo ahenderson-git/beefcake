@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/core';
+
 import * as api from '../api';
 import * as renderers from '../renderers';
 import { AppState, DbConnection } from '../types';
@@ -14,6 +16,8 @@ export class SettingsComponent extends Component {
     const container = this.getContainer();
     container.innerHTML = renderers.renderSettingsView(state.config, state.isAddingConnection);
     this.bindEvents(state);
+    // Check and display API key status on render
+    void this.updateAPIKeyStatus();
   }
 
   override bindEvents(state: AppState): void {
@@ -147,6 +151,180 @@ export class SettingsComponent extends Component {
           });
         }
       });
+    }
+
+    // Handle AI settings
+    this.bindAISettings(state);
+  }
+
+  private bindAISettings(state: AppState): void {
+    const aiEnabled = document.getElementById('ai-enabled') as HTMLInputElement;
+    const aiApiKey = document.getElementById('ai-api-key') as HTMLInputElement;
+    const btnToggleApiKey = document.getElementById('btn-toggle-api-key');
+    const btnSaveApiKey = document.getElementById('btn-save-api-key');
+    const btnTestAI = document.getElementById('btn-test-ai');
+    const btnDeleteApiKey = document.getElementById('btn-delete-api-key');
+    const aiModel = document.getElementById('ai-model') as HTMLSelectElement;
+    const aiTemperature = document.getElementById('ai-temperature') as HTMLInputElement;
+    const aiMaxTokens = document.getElementById('ai-max-tokens') as HTMLInputElement;
+
+    // Toggle AI enabled
+    aiEnabled?.addEventListener('change', () => {
+      void (async (): Promise<void> => {
+        if (state.config) {
+          state.config.ai_config = state.config.ai_config ?? {
+            enabled: false,
+            model: 'gpt-3.5-turbo',
+            temperature: 0.7,
+            max_tokens: 1000,
+          };
+          state.config.ai_config.enabled = aiEnabled.checked;
+          await api.saveAppConfig(state.config);
+          this.actions.showToast(
+            `AI Assistant ${aiEnabled.checked ? 'enabled' : 'disabled'}`,
+            'success'
+          );
+        }
+      })();
+    });
+
+    // Toggle API key visibility
+    btnToggleApiKey?.addEventListener('click', () => {
+      if (aiApiKey) {
+        const isPassword = aiApiKey.type === 'password';
+        aiApiKey.type = isPassword ? 'text' : 'password';
+        const icon = btnToggleApiKey.querySelector('i');
+        if (icon) {
+          icon.className = isPassword ? 'ph ph-eye-slash' : 'ph ph-eye';
+        }
+      }
+    });
+
+    // Save API key
+    btnSaveApiKey?.addEventListener('click', () => {
+      void (async (): Promise<void> => {
+        const key = aiApiKey?.value.trim();
+        if (!key) {
+          this.showAIStatus('Please enter an API key', 'error');
+          return;
+        }
+
+        try {
+          await invoke<void>('ai_set_api_key', { apiKey: key });
+          if (aiApiKey) aiApiKey.value = '';
+
+          // Verify it was saved by checking keyring
+          const hasKey = await invoke<boolean>('ai_has_api_key');
+          if (hasKey) {
+            this.showAIStatus('✓ API key saved securely', 'success');
+            await this.updateAPIKeyStatus();
+          } else {
+            this.showAIStatus('Warning: API key may not have been saved correctly', 'error');
+          }
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.showAIStatus(`Failed to save API key: ${message}`, 'error');
+        }
+      })();
+    });
+
+    // Test AI connection
+    btnTestAI?.addEventListener('click', () => {
+      void (async (): Promise<void> => {
+        this.showAIStatus('Testing connection...', 'info');
+        try {
+          await invoke<void>('ai_test_connection');
+          this.showAIStatus('✓ Connection successful!', 'success');
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.showAIStatus(`Connection failed: ${message}`, 'error');
+        }
+      })();
+    });
+
+    // Delete API key
+    btnDeleteApiKey?.addEventListener('click', () => {
+      void (async (): Promise<void> => {
+        if (!confirm('Are you sure you want to delete your API key?')) {
+          return;
+        }
+
+        try {
+          await invoke<void>('ai_delete_api_key');
+          this.showAIStatus('API key deleted', 'success');
+          if (aiApiKey) aiApiKey.value = '';
+          await this.updateAPIKeyStatus();
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.showAIStatus(`Failed to delete API key: ${message}`, 'error');
+        }
+      })();
+    });
+
+    // Update AI config on change
+    const updateAIConfig = async (): Promise<void> => {
+      if (state.config) {
+        state.config.ai_config = {
+          enabled: aiEnabled?.checked ?? false,
+          model: aiModel?.value ?? 'gpt-3.5-turbo',
+          temperature: parseFloat(aiTemperature?.value ?? '0.7'),
+          max_tokens: parseInt(aiMaxTokens?.value ?? '1000'),
+        };
+
+        try {
+          await invoke<void>('ai_update_config', { aiConfig: state.config.ai_config });
+          await api.saveAppConfig(state.config);
+          this.actions.showToast('AI configuration updated', 'success');
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.actions.showToast(`Failed to update AI config: ${message}`, 'error');
+        }
+      }
+    };
+
+    aiModel?.addEventListener('change', () => void updateAIConfig());
+    aiTemperature?.addEventListener('change', () => void updateAIConfig());
+    aiMaxTokens?.addEventListener('change', () => void updateAIConfig());
+  }
+
+  private async updateAPIKeyStatus(): Promise<void> {
+    try {
+      const hasKey = await invoke<boolean>('ai_has_api_key');
+      const apiKeyLabel = document.querySelector('label[for="ai-api-key"]');
+
+      if (apiKeyLabel) {
+        // Remove any existing status indicator
+        const existingStatus = apiKeyLabel.querySelector('.api-key-status');
+        if (existingStatus) {
+          existingStatus.remove();
+        }
+
+        // Add status indicator
+        if (hasKey) {
+          const statusSpan = document.createElement('span');
+          statusSpan.className = 'api-key-status configured';
+          statusSpan.textContent = ' ✓ Configured';
+          statusSpan.style.color = '#22c55e';
+          statusSpan.style.fontWeight = 'normal';
+          statusSpan.style.marginLeft = '8px';
+          apiKeyLabel.appendChild(statusSpan);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check API key status:', error);
+    }
+  }
+
+  private showAIStatus(message: string, type: 'success' | 'error' | 'info'): void {
+    const statusDiv = document.getElementById('ai-status');
+    if (statusDiv) {
+      statusDiv.textContent = message;
+      statusDiv.className = `ai-status-message ${type}`;
+      // Clear after 5 seconds
+      setTimeout(() => {
+        statusDiv.textContent = '';
+        statusDiv.className = 'ai-status-message';
+      }, 5000);
     }
   }
 

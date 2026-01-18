@@ -723,6 +723,85 @@ interface WatcherConfig {
 }
 ```
 
+#### AI Assistant Component
+
+##### `AIAssistantComponent.ts`
+**Purpose**: AI-powered Q&A sidebar for dataset analysis
+**Key Features**:
+- Context-aware question answering about loaded datasets
+- OpenAI GPT integration (configurable model and parameters)
+- Markdown rendering with **clickable links**
+- Chat history with message timestamps
+- Collapsible sidebar (3 toggle methods)
+- Persistent collapse state (localStorage)
+
+**UI Architecture**:
+```typescript
+interface AIMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+class AIAssistantComponent {
+  private messages: AIMessage[] = [];
+  private isEnabled: boolean;
+  private currentContext: string | null;
+}
+```
+
+**Toggle Mechanisms** (implemented in `main.ts`):
+1. **Chevron button** (`▸`) in sidebar header
+   - Visible when sidebar is expanded
+   - Click to collapse sidebar
+2. **Double-click header** to toggle
+   - Quick gesture for power users
+   - Works on expanded sidebar header
+3. **Collapsed tab** when sidebar is minimized
+   - Vertical tab with robot icon (🤖)
+   - 48px width collapsed state
+   - Click to expand sidebar
+
+**Event Delegation Pattern**:
+```typescript
+// main.ts - setupAISidebarToggle()
+aiSidebar.addEventListener('click', (e) => {
+  // Button created dynamically by AIAssistantComponent
+  if (e.target.closest('#ai-collapse-btn') ||
+      e.target.closest('#ai-collapsed-tab')) {
+    toggleSidebar();
+  }
+});
+
+aiSidebar.addEventListener('dblclick', (e) => {
+  if (e.target.closest('#ai-sidebar-header')) {
+    toggleSidebar();
+  }
+});
+```
+
+**Markdown Rendering**:
+- Code blocks: ` ```language\ncode``` `
+- Inline code: `` `code` ``
+- **Links**: `[text](url)` → `<a href="url" target="_blank">text</a>`
+- Bold: `**text**` → `<strong>text</strong>`
+- Italic: `*text*` → `<em>text</em>`
+
+**Context Passing**:
+- Sends dataset metadata with each query:
+  - File name, row count, column count
+  - Column names, types, null counts, null percentages
+  - Up to 20 columns (truncated for large datasets)
+- Context updated when analysis state changes
+- Enables AI to give specific answers about current data
+
+**Configuration** (in Settings):
+- Enable/disable AI Assistant
+- OpenAI API key (stored in secure keychain)
+- Model selection (gpt-4, gpt-3.5-turbo, etc.)
+- Temperature (0.0 - 1.0)
+- Max tokens for responses
+
 #### Data Management Components
 
 ##### `DictionaryComponent.ts`
@@ -754,12 +833,13 @@ interface WatcherConfig {
 - `StepPalette.ts` - Transformation step type library (11 steps)
 - `StepConfigPanel.ts` - Dynamic step configuration forms
 - `WatcherComponent.ts` - Filesystem watcher UI with activity feed
+- `AIAssistantComponent.ts` - AI-powered Q&A sidebar with collapsible UI
 - `PowerShellComponent.ts` - PowerShell IDE
 - `PythonComponent.ts` - Python IDE
 - `SQLComponent.ts` - SQL IDE
 - `DictionaryComponent.ts` - Data dictionary browser
 - `ExportModal.ts` - Dataset export functionality
-- `SettingsComponent.ts` - Configuration
+- `SettingsComponent.ts` - Configuration (includes AI settings)
 - `ActivityLogComponent.ts` - Audit log
 - `ReferenceComponent.ts` - Help/documentation
 - `CliHelpComponent.ts` - CLI reference

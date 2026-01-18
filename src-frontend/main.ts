@@ -52,6 +52,7 @@ import '@fontsource/fira-code/500.css';
 
 import * as api from './api';
 import { ActivityLogComponent } from './components/ActivityLogComponent';
+import { AIAssistantComponent } from './components/AIAssistantComponent';
 import { AnalyserComponent } from './components/AnalyserComponent';
 import { CliHelpComponent } from './components/CliHelpComponent';
 import { Component } from './components/Component';
@@ -144,6 +145,7 @@ class BeefcakeApp {
 
   private components: Partial<Record<View, Component>> = {};
   private lifecycleRail: LifecycleRailComponent | null = null;
+  private aiSidebar: AIAssistantComponent | null = null;
 
   constructor() {
     this.init().catch(() => {
@@ -246,6 +248,13 @@ class BeefcakeApp {
 
     // Initialize lifecycle rail component
     this.lifecycleRail = new LifecycleRailComponent('lifecycle-rail-container', actions);
+
+    // Initialize AI sidebar as persistent component
+    this.aiSidebar = new AIAssistantComponent('ai-sidebar-container', actions);
+    this.aiSidebar.render(this.state);
+
+    // Setup AI sidebar toggle
+    this.setupAISidebarToggle();
   }
 
   private setupNavigation(): void {
@@ -298,6 +307,11 @@ class BeefcakeApp {
       // Always render lifecycle rail if dataset is loaded and we're in analyser view
       if (this.lifecycleRail && this.state.currentView === 'Analyser') {
         this.lifecycleRail.render(this.state);
+      }
+
+      // Always update AI sidebar with current state
+      if (this.aiSidebar) {
+        this.aiSidebar.updateContext(this.state);
       }
     } catch (err) {
       this.showToast(`Render error: ${String(err)}`, 'error');
@@ -463,6 +477,40 @@ class BeefcakeApp {
     } catch (err) {
       this.showToast(`Failed to setup watcher events: ${String(err)}`, 'error');
     }
+  }
+
+  private setupAISidebarToggle(): void {
+    const aiSidebar = document.getElementById('ai-sidebar');
+    if (!aiSidebar) return;
+
+    // Load saved collapsed state
+    const isCollapsed = localStorage.getItem('ai-sidebar-collapsed') === 'true';
+    if (!isCollapsed) {
+      aiSidebar.classList.remove('collapsed');
+    }
+
+    const toggleSidebar = (): void => {
+      aiSidebar.classList.toggle('collapsed');
+      const collapsed = aiSidebar.classList.contains('collapsed');
+      localStorage.setItem('ai-sidebar-collapsed', collapsed.toString());
+    };
+
+    // Handle collapse button click (created dynamically by AIAssistantComponent)
+    // Use event delegation since the button is created after this runs
+    aiSidebar.addEventListener('click', e => {
+      const target = e.target as HTMLElement;
+      if (target.closest('#ai-collapse-btn') ?? target.closest('#ai-collapsed-tab')) {
+        toggleSidebar();
+      }
+    });
+
+    // Handle double-click on header to toggle
+    aiSidebar.addEventListener('dblclick', e => {
+      const target = e.target as HTMLElement;
+      if (target.closest('#ai-sidebar-header')) {
+        toggleSidebar();
+      }
+    });
   }
 
   private async loadDatasetById(_datasetId: string): Promise<void> {

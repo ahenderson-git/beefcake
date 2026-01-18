@@ -160,7 +160,9 @@ impl WatcherService {
                                         Some(format!("Failed to watch folder: {e}")),
                                     );
                                 } else {
-                                    *state.lock().unwrap() = WatcherServiceState::Watching;
+                                    if let Ok(mut s) = state.lock() {
+                                        *s = WatcherServiceState::Watching;
+                                    }
                                     _watcher = Some(Box::new(w));
                                     Self::emit_status(&app, &state, None);
                                     utils::log_event(
@@ -180,7 +182,9 @@ impl WatcherService {
                     }
                     WatcherMessage::Stop => {
                         _watcher = None;
-                        *state.lock().unwrap() = WatcherServiceState::Idle;
+                        if let Ok(mut s) = state.lock() {
+                            *s = WatcherServiceState::Idle;
+                        }
                         Self::emit_status(&app, &state, None);
                         utils::log_event("Watcher", "Stopped watching");
                     }
@@ -227,7 +231,7 @@ impl WatcherService {
     ) {
         let file_type = path
             .extension()
-            .and_then(|s| s.to_str())
+            .and_then(|ext| ext.to_str())
             .unwrap_or("unknown")
             .to_lowercase();
 
@@ -244,10 +248,10 @@ impl WatcherService {
         utils::log_event("Watcher", &format!("Detected file: {}", path.display()));
 
         // Check if auto-ingest is enabled
-        let should_ingest = {
-            let cfg = config.lock().unwrap();
-            cfg.auto_ingest
-        };
+        let should_ingest = config
+            .lock()
+            .map(|cfg| cfg.auto_ingest)
+            .unwrap_or(false);
 
         if should_ingest {
             Self::handle_file_ingestion(app, config, state, path);
@@ -301,7 +305,9 @@ impl WatcherService {
             }
 
             // File is stable, begin ingestion
-            *state_clone.lock().unwrap() = WatcherServiceState::Ingesting;
+            if let Ok(mut s) = state_clone.lock() {
+                *s = WatcherServiceState::Ingesting;
+            }
             Self::emit_status(&app_clone, &state_clone, None);
 
             let _ = app_clone.emit(
@@ -353,7 +359,9 @@ impl WatcherService {
                 }
             }
 
-            *state_clone.lock().unwrap() = WatcherServiceState::Watching;
+            if let Ok(mut s) = state_clone.lock() {
+                *s = WatcherServiceState::Watching;
+            }
             Self::emit_status(&app_clone, &state_clone, None);
         });
     }
@@ -376,7 +384,7 @@ impl WatcherService {
         // Extract filename for dataset name
         let file_name = path
             .file_stem()
-            .and_then(|s| s.to_str())
+            .and_then(|stem| stem.to_str())
             .unwrap_or("Unnamed Dataset")
             .to_owned();
 
@@ -408,7 +416,10 @@ impl WatcherService {
         state: &Arc<Mutex<WatcherServiceState>>,
         message: Option<String>,
     ) {
-        let current_state = *state.lock().unwrap();
+        let current_state = state
+            .lock()
+            .map(|s| *s)
+            .unwrap_or(WatcherServiceState::Idle);
         let config = WatcherConfig::load().unwrap_or_default();
 
         let _ = app.emit(
@@ -431,6 +442,9 @@ impl WatcherService {
 
     /// Get current state
     pub fn get_state(&self) -> WatcherServiceState {
-        *self.state.lock().unwrap()
+        self.state
+            .lock()
+            .map(|s| *s)
+            .unwrap_or(WatcherServiceState::Idle)
     }
 }

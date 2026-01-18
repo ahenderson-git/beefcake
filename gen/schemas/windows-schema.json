@@ -393,6 +393,48 @@
           "markdownDescription": "Allows the abort_processing command"
         },
         {
+          "description": "Allows the ai_delete_api_key command",
+          "type": "string",
+          "const": "allow-ai-delete-api-key",
+          "markdownDescription": "Allows the ai_delete_api_key command"
+        },
+        {
+          "description": "Allows the ai_get_config command",
+          "type": "string",
+          "const": "allow-ai-get-config",
+          "markdownDescription": "Allows the ai_get_config command"
+        },
+        {
+          "description": "Allows the ai_has_api_key command",
+          "type": "string",
+          "const": "allow-ai-has-api-key",
+          "markdownDescription": "Allows the ai_has_api_key command"
+        },
+        {
+          "description": "Allows the ai_send_query command",
+          "type": "string",
+          "const": "allow-ai-send-query",
+          "markdownDescription": "Allows the ai_send_query command"
+        },
+        {
+          "description": "Allows the ai_set_api_key command",
+          "type": "string",
+          "const": "allow-ai-set-api-key",
+          "markdownDescription": "Allows the ai_set_api_key command"
+        },
+        {
+          "description": "Allows the ai_test_connection command",
+          "type": "string",
+          "const": "allow-ai-test-connection",
+          "markdownDescription": "Allows the ai_test_connection command"
+        },
+        {
+          "description": "Allows the ai_update_config command",
+          "type": "string",
+          "const": "allow-ai-update-config",
+          "markdownDescription": "Allows the ai_update_config command"
+        },
+        {
           "description": "Allows the analyze_file command",
           "type": "string",
           "const": "allow-analyze-file",

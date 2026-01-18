@@ -48,6 +48,30 @@ pub fn delete_db_password(connection_id: &str) -> anyhow::Result<()> {
     entry.delete_credential().map_err(|e| anyhow::anyhow!(e))
 }
 
+/// Get the AI API key from the system keyring
+pub fn get_ai_api_key() -> Option<String> {
+    let entry = Entry::new(KEYRING_SERVICE, "ai_api_key").ok()?;
+    entry.get_password().ok()
+}
+
+/// Check if an AI API key is configured in the system keyring
+pub fn has_ai_api_key() -> bool {
+    get_ai_api_key().is_some()
+}
+
+/// Set the AI API key in the system keyring
+pub fn set_ai_api_key(api_key: &str) -> anyhow::Result<()> {
+    let entry = Entry::new(KEYRING_SERVICE, "ai_api_key")?;
+    entry.set_password(api_key)?;
+    Ok(())
+}
+
+/// Delete the AI API key from the system keyring
+pub fn delete_ai_api_key() -> anyhow::Result<()> {
+    let entry = Entry::new(KEYRING_SERVICE, "ai_api_key")?;
+    entry.delete_credential().map_err(|e| anyhow::anyhow!(e))
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct DbConnection {
     pub id: String,
@@ -107,6 +131,31 @@ impl AuditLog {
     }
 }
 
+/// AI Assistant configuration
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[serde(default)]
+pub struct AIConfig {
+    /// Whether AI assistant is enabled
+    pub enabled: bool,
+    /// OpenAI model to use (e.g., "gpt-4", "gpt-3.5-turbo")
+    pub model: String,
+    /// Temperature for response generation (0.0 - 2.0)
+    pub temperature: f32,
+    /// Maximum tokens in response
+    pub max_tokens: u16,
+}
+
+impl Default for AIConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            model: "gpt-4o-mini".to_owned(),
+            temperature: 0.7,
+            max_tokens: 1000,
+        }
+    }
+}
+
 /// Application settings (connections, fonts, preferences).
 /// Separated from audit log for cleaner organisation.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
@@ -132,6 +181,8 @@ pub struct AppSettings {
     /// "balanced" - Stratified sampling across entire file (recommended, good accuracy)
     /// "accurate" - Reservoir sampling from entire file (slowest, perfectly unbiased)
     pub sampling_strategy: String,
+    /// AI assistant configuration
+    pub ai_config: AIConfig,
 }
 
 impl Default for AppSettings {
@@ -148,6 +199,7 @@ impl Default for AppSettings {
             skip_full_row_count: false,
             analysis_sample_size: 10_000,
             sampling_strategy: "balanced".to_owned(),
+            ai_config: AIConfig::default(),
         }
     }
 }

@@ -263,6 +263,13 @@ export interface DbConnection {
   };
 }
 
+export interface AIConfig {
+  enabled: boolean;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+}
+
 export interface AppConfig {
   connections: DbConnection[];
   active_import_id: string | null;
@@ -272,6 +279,7 @@ export interface AppConfig {
   sql_font_size: number;
   analysis_sample_size?: number;
   sampling_strategy?: string;
+  ai_config?: AIConfig;
   audit_log: AuditEntry[];
 }
 

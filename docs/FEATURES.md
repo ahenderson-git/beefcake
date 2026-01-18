@@ -706,6 +706,246 @@ Automatically monitor a folder for new data files and ingest them into the lifec
 
 ---
 
+## 9. AI Assistant
+
+### Overview
+
+Integrated AI-powered assistant that provides context-aware help and answers questions about your loaded datasets.
+
+### What AI Assistant CAN Do
+
+The AI Assistant is a **read-only Q&A helper** that can:
+
+- ✅ **Answer Questions About Data**: Explain statistics, distributions, and data characteristics
+- ✅ **Interpret Statistics**: Describe what mean, median, skewness, kurtosis indicate about your data
+- ✅ **Identify Quality Issues**: Point out high missing value rates, extreme outliers, or unusual patterns
+- ✅ **Suggest Strategies**: Recommend imputation methods, cleaning approaches, or transformation techniques
+- ✅ **Explain Concepts**: Clarify statistical terms, data types, and analysis techniques
+- ✅ **Provide Guidance**: Offer step-by-step instructions for using Beefcake features
+- ✅ **Share Documentation**: Link to relevant guides, tutorials, and reference materials
+- ✅ **Context-Aware Responses**: Tailor answers based on your currently loaded dataset's metadata
+
+**Example Use Cases:**
+- "What's the distribution of values in the age column?"
+- "Why is this column showing high skewness?"
+- "What imputation strategy should I use for missing income values?"
+- "How do I create a pipeline to normalize my numeric columns?"
+- "Where can I find documentation about the lifecycle stages?"
+
+### What AI Assistant CANNOT Do
+
+The AI Assistant is **purely informational** and has important limitations:
+
+- ❌ **No Data Manipulation**: Cannot modify, clean, transform, filter, or edit your data
+- ❌ **No Pipeline Creation**: Cannot create, edit, save, or execute transformation pipelines
+- ❌ **No File Operations**: Cannot read files, write files, save exports, or perform I/O
+- ❌ **No Database Access**: Cannot query, update, or connect to databases
+- ❌ **No Code Execution**: Cannot run Python scripts, SQL queries, or PowerShell commands
+- ❌ **No Raw Data Access**: Only sees summary statistics (means, nulls, types), never individual cell values
+- ❌ **No UI Actions**: Cannot click buttons, change settings, navigate views, or trigger operations
+- ❌ **No Multi-Step Tasks**: Cannot perform workflows or automation sequences
+- ❌ **No State Modification**: Cannot change application state, create datasets, or alter configurations
+
+**Important**: The AI provides **suggestions and guidance only**. You must manually implement its recommendations using Beefcake's features (Pipeline Builder, Lifecycle stages, IDEs, etc.).
+
+**Example of What AI Cannot Do:**
+```
+❌ User: "Remove all null values from the age column for me"
+   AI: I cannot directly modify your data. However, here's how YOU can do it:
+
+   Option 1: Lifecycle View → Clean stage → "Drop Nulls" button
+   Option 2: Pipeline Builder → Add "Impute" step → Select "Drop" strategy
+
+   Would you like detailed steps for either approach?
+```
+
+### Features
+
+**Context-Aware Q&A:**
+- Ask questions about your currently loaded dataset
+- AI receives column names, types, null counts, and row statistics
+- Natural language responses explaining data characteristics
+- Conversational interface with message history
+
+**OpenAI Integration:**
+- Powered by OpenAI GPT models
+- Configurable in Settings (API key required)
+- Toggle AI Assistant on/off
+- Model and temperature settings
+
+**Rich Message Rendering:**
+- Markdown formatting support (bold, italic, code blocks)
+- **Clickable links**: Markdown links `[text](url)` render as actual hyperlinks
+- Code syntax highlighting
+- Timestamp for each message
+- User and assistant message distinction
+
+**Collapsible Sidebar:**
+- Right-side sidebar that can be collapsed to save screen space
+- **Three ways to toggle**:
+  1. Click the chevron button (▸) in the sidebar header
+  2. Double-click the sidebar header
+  3. Click the vertical tab when collapsed
+- Collapse state persisted across sessions (localStorage)
+- Smooth animation transitions
+
+### User Interface
+
+**Sidebar Layout:**
+- Header with AI Assistant title and status indicator
+- Green dot when enabled and API key configured
+- Gray dot when disabled or no API key
+- Message area with scrollable chat history
+- Input area with send and clear buttons
+
+**Toggle Mechanisms:**
+- **Expanded state**: Chevron button in header (next to status indicator)
+- **Collapsed state**: Vertical tab with robot icon on left edge
+- **Alternative**: Double-click header for quick toggle
+- Width: 400px expanded, 48px collapsed
+
+**Message Features:**
+- Markdown rendering (bold, italic, code, **clickable links**)
+- User messages: Blue background with person icon (👤)
+- Assistant messages: White background with robot icon (🤖)
+- Timestamps in HH:MM format
+- Loading animation (●●●) during response generation
+
+### Configuration
+
+**Settings Panel (Settings View):**
+- **Enable AI Assistant**: Toggle checkbox
+- **API Key**: Secure text input for OpenAI API key
+- **Model Selection**: Dropdown (gpt-4, gpt-3.5-turbo, etc.)
+- **Temperature**: Slider (0.0 - 1.0) for response creativity
+- **Max Tokens**: Number input for response length limit
+
+**Storage:**
+- API key stored securely (platform keychain on supported systems)
+- Configuration in `config/ai.json`
+- Sidebar collapse state in browser localStorage
+
+### Example Interactions
+
+**Data Questions:**
+```
+User: What's the distribution of values in the age column?
+AI: The age column has a mean of 35.2 years with a standard deviation
+    of 12.4. The distribution is slightly right-skewed (skewness: 0.4),
+    with ages ranging from 18 to 78 years.
+```
+
+**Missing Data:**
+```
+User: Which columns have the most missing values?
+AI: The columns with highest missingness are:
+    1. phone_number (45.2% missing)
+    2. email (23.1% missing)
+    3. address (8.7% missing)
+
+    Consider imputation strategies or dropping columns >30% missing.
+```
+
+**Documentation Requests:**
+```
+User: How do I create a pipeline?
+AI: You can access the documentation for the Pipeline module by
+    clicking on this link: [Pipeline Module Documentation](...)
+```
+
+**Boundary Example (What AI Cannot Do):**
+```
+User: Remove all null values from the age column for me
+AI: ❌ I cannot directly modify your data. However, here's how YOU can do it:
+
+    **Option 1: Lifecycle View**
+    1. Navigate to the Lifecycle view
+    2. Select the "Clean" stage
+    3. Click the "Drop Nulls" button
+    4. Choose the "age" column
+
+    **Option 2: Pipeline Builder**
+    1. Open Pipeline Builder
+    2. Add an "Impute" step
+    3. Set strategy to "Drop"
+    4. Select "age" column
+    5. Execute the pipeline
+
+    Would you like detailed steps for either approach?
+```
+
+**Understanding Guidance (Not Action):**
+```
+User: Can you fix the outliers in my price column?
+AI: ❌ I cannot fix outliers directly, but I can explain your options:
+
+    Based on your data, the price column has values ranging from $5 to
+    $950,000. The Q3 is $45, so values >$112.50 (using 1.5×IQR) are
+    considered outliers.
+
+    **Recommended approaches:**
+    1. **Clip outliers**: Cap values at 1st-99th percentile
+    2. **Remove outliers**: Drop rows with extreme values
+    3. **Log transform**: Reduce impact of extreme values
+
+    To implement any of these, use the Pipeline Builder's "Clip Outliers"
+    or "Regex Replace" steps. Want help choosing the best approach?
+```
+
+### Technical Implementation
+
+**Context Passing:**
+- Current dataset statistics sent with each query
+- Column-level metadata (names, types, nulls, percentiles)
+- Row count and file name included
+- Up to 20 columns included in context (truncated for large datasets)
+
+**Markdown Rendering:**
+- Code blocks: ` ```language\ncode``` `
+- Inline code: `` `code` ``
+- **Links**: `[text](url)` → `<a href="url" target="_blank">text</a>`
+- Bold: `**text**` → `<strong>text</strong>`
+- Italic: `*text*` → `<em>text</em>`
+- Line breaks: `\n` → `<br>`
+
+**Error Handling:**
+- Invalid API key: Error message with configuration reminder
+- Network errors: Retry prompt with error details
+- Rate limiting: Display API rate limit message
+- Timeout: 60-second request timeout with notification
+
+### Limitations
+
+**Functional Constraints:**
+- **Advisory Only**: Provides recommendations but cannot execute them—you must manually use Beefcake features to implement suggestions
+- **Read-Only Access**: Cannot perform actions, modify data, or change application state
+- **Context Size**: Limited to ~20 columns to fit within token limits
+- **No File Access**: AI cannot read raw data, only receives summary statistics (means, nulls, types)
+- **Stateless**: Each query is independent (no conversation memory or multi-turn reasoning)
+
+**Technical Limitations:**
+- **Requires API Key**: Must provide your own OpenAI API key
+- **No Streaming**: Responses arrive all at once (not word-by-word)
+- **English Only**: Optimized for English language queries and responses
+- **Rate Limits**: Subject to OpenAI API rate limits and quotas
+- **Response Quality**: Depends on OpenAI model; may occasionally give generic or incorrect advice
+
+### Security & Privacy
+
+**Data Privacy:**
+- Only summary statistics sent to OpenAI (not raw data)
+- Column names and types visible to AI
+- No cell-level data transmitted
+- API key stored locally (never transmitted except to OpenAI)
+
+**Recommendations:**
+- Use API keys with spending limits
+- Review OpenAI's data usage policy
+- Disable AI Assistant when working with sensitive column names
+- Monitor API usage in OpenAI dashboard
+
+---
+
 ## Feature Comparison Matrix
 
 | Feature | Status | Quality | Notes |
@@ -724,6 +964,9 @@ Automatically monitor a folder for new data files and ingest them into the lifec
 | Step Config Panel | ✅ Implemented | Good | Dynamic parameter forms |
 | Filesystem Watcher | ✅ Implemented | Good | Auto-ingest with stability detection |
 | Watcher Activity Feed | ✅ Implemented | Good | Real-time ingestion status |
+| AI Assistant | ✅ Implemented | Good | Context-aware Q&A, clickable links |
+| AI Sidebar Toggle | ✅ Implemented | Good | 3 ways: button, double-click, tab |
+| Markdown Rendering | ✅ Implemented | Good | Links, code, bold, italic support |
 | SQL IDE | ✅ Implemented | Fair | Limited SQL dialect |
 | Python IDE | ✅ Implemented | Fair | Requires manual Python install |
 | ML Preprocessing | ✅ Implemented | Fair | Basic models only |

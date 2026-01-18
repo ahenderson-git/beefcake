@@ -29,11 +29,12 @@ ndarray = { version = "0.16.1", features = ["serde"] }
 secrecy = { version = "0.10", features = ["serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 dirs = "6.0"
-keyring = "3.0"
+keyring = { version = "3.0", features = ["apple-native", "windows-native", "linux-native"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 regex = "1.10"
 sha2 = "0.10"
 notify = "6.1"
+async-openai = "0.24"
 
 [dev-dependencies]
 tempfile = "3.10"

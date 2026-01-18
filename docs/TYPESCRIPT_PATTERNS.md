@@ -10,6 +10,11 @@ This guide explains TypeScript and frontend patterns used in the Beefcake UI.
 - [State Management](#state-management)
 - [Event Handling](#event-handling)
 - [Type Safety](#type-safety)
+- [Common Patterns](#common-patterns)
+  - [Event Delegation for Dynamic Elements](#event-delegation-for-dynamic-elements)
+  - [Double-Click Events](#double-click-events)
+  - [LocalStorage for State Persistence](#localstorage-for-state-persistence)
+  - [Markdown Rendering with Security](#markdown-rendering-with-security)
 
 ---
 
@@ -703,6 +708,166 @@ const sql = new QueryBuilder()
   .from('users')
   .where('age > 18')
   .build();
+```
+
+### Event Delegation for Dynamic Elements
+
+**Problem**: When elements are created dynamically after page load, directly attached event listeners won't work.
+
+**Solution**: Use event delegation by attaching the listener to a parent element that exists at load time.
+
+**Example from AI Assistant** (`main.ts:setupAISidebarToggle`):
+```typescript
+// ❌ This won't work - button doesn't exist yet
+const collapseBtn = document.getElementById('ai-collapse-btn');
+collapseBtn?.addEventListener('click', toggleSidebar);  // null!
+
+// ✅ This works - use event delegation
+const aiSidebar = document.getElementById('ai-sidebar');  // Exists at load
+aiSidebar?.addEventListener('click', (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  // Check if click was on the dynamically created button
+  if (target.closest('#ai-collapse-btn')) {
+    toggleSidebar();
+  }
+});
+```
+
+**Why this works**:
+- `ai-sidebar` exists when page loads
+- Clicks on child elements "bubble up" to parent
+- We check if the click originated from our dynamic element
+- `closest()` traverses up the DOM to find matching element
+
+**Use cases in Beefcake**:
+- AI Assistant collapse button (created by `AIAssistantComponent.render()`)
+- Pipeline step cards (created dynamically when steps added)
+- Modal dialog buttons (created when modal opens)
+
+### Double-Click Events
+
+**Use case**: Quick toggle gestures for power users.
+
+**Example from AI Assistant**:
+```typescript
+// Collapse AI sidebar by double-clicking the header
+aiSidebar.addEventListener('dblclick', (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  if (target.closest('#ai-sidebar-header')) {
+    toggleSidebar();
+  }
+});
+```
+
+**Best practices**:
+- Use for optional shortcuts, not primary interactions
+- Combine with visible button for discoverability
+- Add visual feedback (cursor change) to hint at functionality
+
+```html
+<div class="ai-sidebar-header" id="ai-sidebar-header">AI Assistant Header</div>
+<button id="ai-collapse-btn">Collapse</button>
+<div id="ai-collapsed-tab">🤖</div>
+
+<style>
+.ai-sidebar-header {
+  cursor: pointer;  /* Hints that header is clickable */
+  user-select: none;  /* Prevents text selection on double-click */
+}
+</style>
+```
+
+### LocalStorage for State Persistence
+
+**Use case**: Remember UI preferences across sessions.
+
+**Example from AI Assistant**:
+```typescript
+// Save collapsed state
+function toggleSidebar() {
+  aiSidebar.classList.toggle('collapsed');
+  const collapsed = aiSidebar.classList.contains('collapsed');
+  localStorage.setItem('ai-sidebar-collapsed', collapsed.toString());
+}
+
+// Restore on load
+function setupAISidebarToggle() {
+  const isCollapsed = localStorage.getItem('ai-sidebar-collapsed') === 'true';
+  if (!isCollapsed) {
+    aiSidebar.classList.remove('collapsed');
+  }
+}
+```
+
+**Type-safe localStorage helpers**:
+```typescript
+// Generic typed localStorage wrapper
+function getStoredValue<T>(key: string, defaultValue: T): T {
+  const stored = localStorage.getItem(key);
+  if (stored === null) return defaultValue;
+  try {
+    return JSON.parse(stored) as T;
+  } catch {
+    return defaultValue;
+  }
+}
+
+function setStoredValue<T>(key: string, value: T): void {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+// Usage
+const collapsed = getStoredValue('ai-sidebar-collapsed', false);
+setStoredValue('ai-sidebar-collapsed', true);
+```
+
+### Markdown Rendering with Security
+
+**Use case**: Display user-generated or AI-generated content safely.
+
+**Example from AI Assistant** (`AIAssistantComponent.ts:formatContent`):
+```typescript
+function formatContent(content: string): string {
+  // Basic markdown support with XSS protection
+  const formatted = content
+    // Code blocks first (to prevent interference)
+    .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Links - IMPORTANT: always open in new tab with security attributes
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    // Bold
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    // Line breaks
+    .replace(/\n/g, '<br>');
+
+  return formatted;
+}
+```
+
+**Security notes**:
+- `target="_blank"`: Opens links in new tab (prevents navigation away)
+- `rel="noopener noreferrer"`: Prevents access to `window.opener` (security)
+- Order matters: Process code blocks first to avoid double-processing
+- For production: Consider using a library like `marked` + `DOMPurify`
+
+**Testing markdown rendering**:
+```typescript
+// Test cases
+const testCases = [
+  ['**bold text**', '<strong>bold text</strong>'],
+  ['[link](https://example.com)', '<a href="https://example.com" target="_blank" rel="noopener noreferrer">link</a>'],
+  ['`code`', '<code>code</code>'],
+  ['```\ncode block\n```', '<pre><code>code block</code></pre>'],
+];
+
+testCases.forEach(([input, expected]) => {
+  const result = formatContent(input);
+  console.assert(result.includes(expected), `Failed: ${input}`);
+});
 ```
 
 ---

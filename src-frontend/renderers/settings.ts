@@ -127,6 +127,82 @@ export function renderSettingsView(config: AppConfig, isAddingConnection: boolea
           <input type="text" value="2.0 GB" disabled>
         </div>
       </div>
+
+      <div class="settings-section">
+        <h3><i class="ph ph-robot"></i> AI Assistant</h3>
+        <p class="section-description">Configure AI-powered data analysis support</p>
+
+        <div class="pref-item">
+          <label for="ai-enabled">
+            Enable AI Assistant
+            <i class="ph ph-info help-icon" title="Enable ChatGPT integration for in-app help" aria-label="Help: Enable ChatGPT integration"></i>
+          </label>
+          <input type="checkbox" id="ai-enabled" ${config.ai_config?.enabled ? 'checked' : ''}>
+        </div>
+
+        <div class="pref-item">
+          <label for="ai-api-key">
+            OpenAI API Key
+            <i class="ph ph-info help-icon" title="Your OpenAI API key (stored securely in system keyring)" aria-label="Help: OpenAI API key"></i>
+          </label>
+          <div class="api-key-input-group">
+            <input type="password" id="ai-api-key" placeholder="sk-..." autocomplete="off">
+            <button id="btn-toggle-api-key" class="btn-icon" type="button" aria-label="Show/hide API key">
+              <i class="ph ph-eye"></i>
+            </button>
+          </div>
+          <div class="api-key-actions">
+            <button id="btn-save-api-key" class="btn-secondary btn-small">Save Key</button>
+            <button id="btn-test-ai" class="btn-secondary btn-small">Test Connection</button>
+            <button id="btn-delete-api-key" class="btn-danger btn-small">Clear Key</button>
+          </div>
+          <div id="ai-status" class="ai-status-message" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="pref-item">
+          <label for="ai-model">
+            Model
+            <i class="ph ph-info help-icon" title="OpenAI model to use" aria-label="Help: OpenAI model"></i>
+          </label>
+          <select id="ai-model">
+            <option value="gpt-4o-mini" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4o-mini' ? 'selected' : ''}>
+              GPT-4o Mini (recommended - fast & affordable)
+            </option>
+            <option value="gpt-4o" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4o' ? 'selected' : ''}>
+              GPT-4o (flagship model)
+            </option>
+            <option value="gpt-4.1" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4.1' ? 'selected' : ''}>
+              GPT-4.1 (latest, best performance)
+            </option>
+            <option value="gpt-4-turbo" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4-turbo' ? 'selected' : ''}>
+              GPT-4 Turbo (legacy)
+            </option>
+            <option value="gpt-3.5-turbo" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-3.5-turbo' ? 'selected' : ''}>
+              GPT-3.5 Turbo (legacy, cheapest)
+            </option>
+          </select>
+        </div>
+
+        <div class="pref-item">
+          <label for="ai-temperature">
+            Temperature
+            <i class="ph ph-info help-icon" title="Controls randomness (0 = focused, 2 = creative)" aria-label="Help: Temperature"></i>
+          </label>
+          <input type="number" id="ai-temperature"
+            min="0" max="2" step="0.1"
+            value="${config.ai_config?.temperature ?? 0.7}">
+        </div>
+
+        <div class="pref-item">
+          <label for="ai-max-tokens">
+            Max Response Tokens
+            <i class="ph ph-info help-icon" title="Maximum length of AI responses" aria-label="Help: Max tokens"></i>
+          </label>
+          <input type="number" id="ai-max-tokens"
+            min="100" max="4000" step="100"
+            value="${config.ai_config?.max_tokens ?? 1000}">
+        </div>
+      </div>
     </div>
   `;
 }
