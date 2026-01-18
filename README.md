@@ -21,8 +21,9 @@ Beefcake is a **high-performance desktop application** for data analysis, qualit
 - **🔄 Dataset Lifecycle Management**: Immutable version control through 6 stages (Raw → Profiled → Cleaned → Advanced → Validated → Published) with diff engine
 - **⚙️ Visual Pipeline Builder**: Create data transformation pipelines with drag-and-drop interface, 11 step types, and 8 built-in templates
 - **👁️ Filesystem Watcher**: Automatically detect and ingest new CSV/JSON files from monitored folders
+- **🤖 AI Assistant**: Context-aware Q&A about your datasets powered by OpenAI GPT with markdown link support
 - **🗃️ Multi-Format Support**: Work with CSV, JSON, Parquet, and PostgreSQL databases
-- **🤖 Machine Learning Prep**: Basic preprocessing workflows including scaling, encoding, and train/test splits
+- **🧠 Machine Learning Prep**: Basic preprocessing workflows including scaling, encoding, and train/test splits
 - **💻 Embedded IDEs**: Execute SQL queries and Python scripts directly on datasets with syntax highlighting
 - **📦 Automation Ready**: Export pipelines as PowerShell scripts for scheduling
 
@@ -91,6 +92,7 @@ Beefcake is best understood as an **experimental toolkit** for exploring modern 
 │  │  • Event Handling  │         │  • Pipeline Engine  │    │
 │  │  • Visualization   │         │  • Watcher Service  │    │
 │  │  • Pipeline Editor │         │  • ML Algorithms    │    │
+│  │  • AI Assistant    │         │  • OpenAI Client    │    │
 │  └────────────────────┘         └─────────────────────┘    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
@@ -247,8 +249,13 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 cargo install cargo-clippy cargo-fmt
 
 # Run tests
-cargo test
-npm test
+cargo test                        # Rust unit + integration tests (90 tests)
+npm test                          # TypeScript unit tests (91 tests, 100% coverage)
+npm run test:e2e                  # Playwright E2E tests (31 tests)
+npm run test:all                  # Run all tests (Rust + TypeScript + E2E)
+
+# Test with coverage
+npm run test:coverage             # TypeScript coverage report (threshold: 100%)
 
 # Format code
 cargo fmt

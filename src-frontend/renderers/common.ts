@@ -58,11 +58,11 @@ export function renderSelect(
 
 export function renderLoading(message: string, isAborting: boolean): string {
   return `
-    <div class="loading-overlay">
-      <div class="loading-spinner"></div>
-      <p>${escapeHtml(message)}</p>
+    <div class="loading-overlay" data-testid="loading-overlay">
+      <div class="loading-spinner" data-testid="loading-spinner"></div>
+      <p data-testid="loading-message">${escapeHtml(message)}</p>
       <div class="loading-actions">
-        ${isAborting ? '<p class="aborting-text">Aborting...</p>' : '<button id="btn-abort-op" class="btn-danger btn-small">Abort</button>'}
+        ${isAborting ? '<p class="aborting-text">Aborting...</p>' : '<button id="btn-abort-op" class="btn-danger btn-small" data-testid="btn-abort-op">Abort</button>'}
       </div>
     </div>
   `;
@@ -72,7 +72,7 @@ export function renderToast(message: string, type: 'success' | 'error' | 'info' 
   const icon =
     type === 'success' ? 'ph-check-circle' : type === 'error' ? 'ph-x-circle' : 'ph-info';
   return `
-    <div class="toast toast-${type}">
+    <div class="toast toast-${type}" data-testid="toast-${type}">
       <i class="ph ${icon}"></i>
       <span>${escapeHtml(message)}</span>
     </div>

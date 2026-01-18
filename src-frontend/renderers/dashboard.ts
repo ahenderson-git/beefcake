@@ -64,13 +64,13 @@ export function renderDashboardView(state: AppState): string {
         <button id="btn-open-file" class="btn-primary" data-testid="dashboard-open-file-button">
           <i class="ph ph-cloud-arrow-up"></i> Analyze New Dataset
         </button>
-        <button id="btn-powershell" class="btn-secondary">
+        <button id="btn-powershell" class="btn-secondary" data-testid="dashboard-powershell-button">
           <i class="ph ph-terminal"></i> PowerShell Console
         </button>
-        <button id="btn-python" class="btn-secondary">
+        <button id="btn-python" class="btn-secondary" data-testid="dashboard-python-button">
           <i class="ph ph-code"></i> Python IDE
         </button>
-        <button id="btn-sql" class="btn-secondary">
+        <button id="btn-sql" class="btn-secondary" data-testid="dashboard-sql-button">
           <i class="ph ph-database"></i> SQL Lab
         </button>
       </div>

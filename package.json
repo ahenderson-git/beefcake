@@ -14,7 +14,7 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage --coverage.thresholds.lines=70",
+    "test:coverage": "vitest run --coverage --coverage.thresholds.lines=100",
     "test:e2e": "playwright test",
     "test:rust": "cargo test",
     "test:rust:integration": "cargo test --test '*'",

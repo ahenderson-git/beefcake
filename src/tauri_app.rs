@@ -5,6 +5,8 @@
     clippy::exit,
     clippy::collapsible_if
 )]
+use beefcake::ai::client::AIAssistant;
+use beefcake::utils::AIConfig;
 use beefcake::analyser::logic::flows::analyze_file_flow;
 use beefcake::analyser::logic::{AnalysisResponse, ColumnCleanConfig};
 use beefcake::utils::{AppConfig, DbSettings, load_app_config, push_audit_log, save_app_config};
@@ -1143,6 +1145,89 @@ pub async fn read_documentation_file(doc_path: String) -> Result<String, String>
         .map_err(|e| format!("Failed to read documentation file: {e}"))
 }
 
+// ============================================================================
+// AI Assistant Commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn ai_send_query(query: String, context: Option<String>) -> Result<String, String> {
+    // Get API key from keyring
+    let api_key = beefcake::utils::get_ai_api_key()
+        .ok_or("AI API key not configured. Please set your OpenAI API key in settings.")?;
+
+    // Get AI config from app settings
+    let config = load_app_config();
+
+    let ai_config = config.settings().ai_config.clone();
+
+    if !ai_config.enabled {
+        return Err("AI assistant is disabled. Please enable it in settings.".to_owned());
+    }
+
+    // Create AI assistant
+    let assistant = AIAssistant::new(api_key, ai_config)
+        .map_err(|e| format!("Failed to initialize AI assistant: {e}"))?;
+
+    // Send query
+    assistant.send_query(&query, context.as_deref())
+        .await
+        .map_err(|e| format!("AI query failed: {e}"))
+}
+
+#[tauri::command]
+pub async fn ai_set_api_key(api_key: String) -> Result<(), String> {
+    beefcake::utils::set_ai_api_key(&api_key)
+        .map_err(|e| format!("Failed to save API key: {e}"))
+}
+
+#[tauri::command]
+pub async fn ai_delete_api_key() -> Result<(), String> {
+    beefcake::utils::delete_ai_api_key()
+        .map_err(|e| format!("Failed to delete API key: {e}"))
+}
+
+#[tauri::command]
+pub fn ai_has_api_key() -> bool {
+    beefcake::utils::has_ai_api_key()
+}
+
+#[tauri::command]
+pub async fn ai_test_connection() -> Result<(), String> {
+    // Get API key from keyring
+    let api_key = beefcake::utils::get_ai_api_key()
+        .ok_or("AI API key not configured")?;
+
+    // Get AI config from app settings
+    let config = load_app_config();
+
+    let ai_config = config.settings().ai_config.clone();
+
+    // Create AI assistant and test
+    let assistant = AIAssistant::new(api_key, ai_config)
+        .map_err(|e| format!("Failed to initialize AI assistant: {e}"))?;
+
+    assistant.test_connection()
+        .await
+        .map_err(|e| format!("Connection test failed: {e}"))
+}
+
+#[tauri::command]
+pub fn ai_get_config() -> AIConfig {
+    let config = load_app_config();
+
+    config.settings().ai_config.clone()
+}
+
+#[tauri::command]
+pub async fn ai_update_config(ai_config: AIConfig) -> Result<(), String> {
+    let mut config = load_app_config();
+
+    config.settings_mut().ai_config = ai_config;
+
+    save_app_config(&config)
+        .map_err(|e| format!("Failed to save config: {e}"))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -1193,7 +1278,14 @@ pub fn run() {
             watcher_set_folder,
             watcher_ingest_now,
             list_documentation_files,
-            read_documentation_file
+            read_documentation_file,
+            ai_send_query,
+            ai_set_api_key,
+            ai_delete_api_key,
+            ai_has_api_key,
+            ai_test_connection,
+            ai_get_config,
+            ai_update_config
         ])
         .setup(|app| {
             // Initialize watcher service

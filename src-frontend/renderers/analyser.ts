@@ -91,37 +91,37 @@ export function renderAnalyserHeader(
       <div class="header-main">
         <h2>${escapeHtml(response.file_name)} <small>(${fmtBytes(response.file_size)})</small></h2>
         <div class="meta-info">
-          <span><i class="ph ph-rows"></i> ${rowDisplay}</span>
-          <span><i class="ph ph-columns"></i> ${response.column_count} columns</span>
+          <span data-testid="analyser-row-count"><i class="ph ph-rows"></i> ${rowDisplay}</span>
+          <span data-testid="analyser-column-count"><i class="ph ph-columns"></i> ${response.column_count} columns</span>
           <span><i class="ph ph-timer"></i> Analyzed in ${fmtDuration(response.analysis_duration)}</span>
         </div>
       </div>
       <div class="header-actions">
-        <button id="btn-open-file" class="btn-secondary btn-small">
+        <button id="btn-open-file" class="btn-secondary btn-small" data-testid="analyser-open-file-button">
           <i class="ph ph-file-plus"></i> Select File
         </button>
-        <button id="btn-reanalyze" class="btn-secondary btn-small">Re-analyze</button>
+        <button id="btn-reanalyze" class="btn-secondary btn-small" data-testid="analyser-reanalyze-button">Re-analyze</button>
         ${
           currentStage === 'Profiled' || currentStage === 'Raw'
             ? `
-          <button id="btn-begin-cleaning" class="btn-primary btn-small">
+          <button id="btn-begin-cleaning" class="btn-primary btn-small" data-testid="btn-begin-cleaning">
             <i class="ph ph-broom"></i> Begin Cleaning
           </button>
         `
             : currentStage === 'Cleaned'
               ? `
-          <button id="btn-continue-advanced" class="btn-primary btn-small">
+          <button id="btn-continue-advanced" class="btn-primary btn-small" data-testid="btn-continue-advanced">
             <i class="ph ph-arrow-right"></i> Continue to Advanced
           </button>
         `
               : currentStage === 'Advanced'
                 ? `
-          <button id="btn-move-to-validated" class="btn-primary btn-small">
+          <button id="btn-move-to-validated" class="btn-primary btn-small" data-testid="btn-move-to-validated">
             <i class="ph ph-check-circle"></i> Move to Validated
           </button>
         `
                 : `
-          <button id="btn-export" class="btn-primary btn-small">
+          <button id="btn-export" class="btn-primary btn-small" data-testid="btn-export-analyser">
             <i class="ph ph-export"></i> Export / ETL
           </button>
         `
@@ -136,10 +136,10 @@ export function renderAnalyserHeader(
           currentStage === 'Cleaned' || currentStage === 'Profiled' || currentStage === 'Raw'
             ? `
           <div class="bulk-group">
-            <label><input type="checkbox" name="clean-all" class="header-action" data-action="active-all" ${cleanAllActive ? 'checked' : ''}> Clean All</label>
+            <label><input type="checkbox" name="clean-all" class="header-action" data-action="active-all" data-testid="header-active-all" ${cleanAllActive ? 'checked' : ''}> Clean All</label>
           </div>
           <div class="bulk-group">
-            <label><input type="checkbox" name="use-original-names" class="header-action" data-action="use-original-names" id="toggle-original-names" ${useOriginalColumnNames ? 'checked' : ''}> Original Names</label>
+            <label><input type="checkbox" name="use-original-names" class="header-action" data-action="use-original-names" id="toggle-original-names" data-testid="header-use-original-names" ${useOriginalColumnNames ? 'checked' : ''}> Original Names</label>
           </div>
         `
             : ''
@@ -520,15 +520,15 @@ export function renderAnalyser(
     healthScore > 80 ? 'health-good' : healthScore > 50 ? 'health-warn' : 'health-poor';
 
   return `
-    <div class="analyser-wrapper">
+    <div class="analyser-wrapper" data-testid="analyser-view">
       <div id="lifecycle-rail-container"></div>
       <div id="analyser-content-container" class="analyser-container">
         <div id="analyser-header-container"></div>
 
-        <div class="health-banner ${healthClass}">
-        <div class="health-score">
+        <div class="health-banner ${healthClass}" data-testid="health-score-banner">
+        <div class="health-score" data-testid="health-score-badge">
           <span class="score-label">Health Score</span>
-          <span class="score-value">${healthScore}%</span>
+          <span class="score-value" data-testid="health-score-value">${healthScore}%</span>
         </div>
         <div class="health-issues">
           ${
@@ -580,11 +580,11 @@ export function renderAnalyser(
 
 export function renderEmptyAnalyser(): string {
   return `
-    <div class="empty-state">
+    <div class="empty-state" data-testid="analyser-empty-state">
       <i class="ph ph-file-search"></i>
       <h3>No data analysed yet</h3>
       <p>Select a file to begin advanced profiling and cleaning.</p>
-      <button id="btn-open-file" class="btn-primary">
+      <button id="btn-open-file" class="btn-primary" data-testid="empty-open-file-button">
         <i class="ph ph-cloud-arrow-up"></i> Select File
       </button>
     </div>
@@ -817,14 +817,14 @@ export function renderAnalyserRow(
   const hasNameChange = proposedName !== col.name;
 
   return `
-    <tr class="analyser-row ${isExpanded ? 'expanded' : ''}" data-col="${escapeHtml(col.name)}">
+    <tr class="analyser-row ${isExpanded ? 'expanded' : ''}" data-col="${escapeHtml(col.name)}" data-testid="analyser-row-${escapeHtml(col.name)}">
       <td><i class="ph ${isExpanded ? 'ph-caret-down' : 'ph-caret-right'} expand-toggle"></i></td>
       <td>
         <div class="col-name-box">
           ${
             isReadOnly
               ? `
-            <input type="checkbox" name="select-col-${escapeHtml(col.name)}" class="col-select-checkbox" data-col="${escapeHtml(col.name)}" ${isSelected ? 'checked' : ''} title="Include in cleaning">
+            <input type="checkbox" name="select-col-${escapeHtml(col.name)}" class="col-select-checkbox" data-col="${escapeHtml(col.name)}" data-testid="col-select-checkbox-${escapeHtml(col.name)}" ${isSelected ? 'checked' : ''} title="Include in cleaning">
           `
               : ''
           }
@@ -900,7 +900,7 @@ export function renderAnalyserRow(
                         currentStage === 'Profiled' ||
                         currentStage === 'Raw'
                           ? `
-                        <label><input type="checkbox" name="enable-cleaning-${escapeHtml(col.name)}" class="row-action" data-prop="active" ${config?.active ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Enable Cleaning</label>
+                        <label><input type="checkbox" name="enable-cleaning-${escapeHtml(col.name)}" class="row-action" data-prop="active" ${config?.active ? 'checked' : ''} data-col="${escapeHtml(col.name)}" data-testid="clean-active-${escapeHtml(col.name)}"> Enable Cleaning</label>
                       `
                           : `
                         <div class="cleaning-status-indicator">

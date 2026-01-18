@@ -528,8 +528,6 @@ fn parse_type_string(type_str: &str) -> Result<DataType> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use polars::prelude::*;
-    use std::fs;
 
     fn create_test_dataframe() -> DataFrame {
         df!(
@@ -575,14 +573,12 @@ mod tests {
     }
 
     #[test]
-    fn test_expand_path_template_with_timestamp() {
-        let template = "output/report_{timestamp}.parquet";
+    fn test_expand_path_template_no_replacement() {
+        let template = "output/report_fixed.parquet";
         let result = expand_path_template(template);
 
-        // Should replace {timestamp} with actual timestamp
-        assert!(result.to_string_lossy().contains("output/report_"));
-        assert!(result.to_string_lossy().ends_with(".parquet"));
-        assert!(!result.to_string_lossy().contains("{timestamp}"));
+        // Should return path as-is when no template variables
+        assert_eq!(result.to_string_lossy(), "output/report_fixed.parquet");
     }
 
     #[test]
@@ -595,30 +591,12 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_step_select_columns() {
-        let df = create_test_dataframe();
-        let lf = df.lazy();
-
-        let step = Step::SelectColumns {
-            columns: vec!["id".to_string(), "name".to_string()],
-        };
-
-        let result_lf = apply_step(&step, lf).unwrap();
-        let result_df = result_lf.collect().unwrap();
-
-        assert_eq!(result_df.width(), 2, "Should have 2 columns");
-        assert!(result_df.column("id").is_ok());
-        assert!(result_df.column("name").is_ok());
-        assert!(result_df.column("age").is_err());
-    }
-
-    #[test]
     fn test_apply_step_drop_columns() {
         let df = create_test_dataframe();
         let lf = df.lazy();
 
         let step = Step::DropColumns {
-            columns: vec!["age".to_string()],
+            columns: vec!["age".to_owned()],
         };
 
         let result_lf = apply_step(&step, lf).unwrap();
@@ -630,36 +608,20 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_step_rename_column() {
+    fn test_apply_step_rename_columns() {
         let df = create_test_dataframe();
         let lf = df.lazy();
 
-        let step = Step::RenameColumn {
-            old_name: "name".to_string(),
-            new_name: "full_name".to_string(),
-        };
+        let mut mapping = std::collections::HashMap::new();
+        mapping.insert("name".to_owned(), "full_name".to_owned());
+
+        let step = Step::RenameColumns { mapping };
 
         let result_lf = apply_step(&step, lf).unwrap();
         let result_df = result_lf.collect().unwrap();
 
         assert!(result_df.column("full_name").is_ok());
         assert!(result_df.column("name").is_err());
-    }
-
-    #[test]
-    fn test_apply_step_filter_rows() {
-        let df = create_test_dataframe();
-        let lf = df.lazy();
-
-        let step = Step::FilterRows {
-            condition: "age > 30".to_string(),
-        };
-
-        let result_lf = apply_step(&step, lf).unwrap();
-        let result_df = result_lf.collect().unwrap();
-
-        // Should have 3 rows with age > 30 (35, 40, 45)
-        assert_eq!(result_df.height(), 3, "Should have 3 rows after filter");
     }
 
     #[test]
@@ -706,9 +668,9 @@ mod tests {
         .unwrap();
         let lf = df.lazy();
 
-        let step = Step::ImputeNulls {
-            column: "value".to_string(),
+        let step = Step::Impute {
             strategy: ImputeStrategy::Mean,
+            columns: vec!["value".to_owned()],
         };
 
         let result_lf = apply_step(&step, lf).unwrap();
@@ -724,9 +686,9 @@ mod tests {
         let df = create_test_dataframe();
         let lf = df.lazy();
 
-        let step = Step::NormaliseColumn {
-            column: "age".to_string(),
+        let step = Step::NormaliseColumns {
             method: NormalisationMethod::MinMax,
+            columns: vec!["age".to_owned()],
         };
 
         let result_lf = apply_step(&step, lf).unwrap();

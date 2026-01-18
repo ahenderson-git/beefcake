@@ -20,12 +20,12 @@ async fn test_analyze_clean_csv() {
 
     // Verify expected columns exist
     let col_names: Vec<String> = response.summary.iter().map(|s| s.name.clone()).collect();
-    assert!(col_names.contains(&"id".to_string()));
-    assert!(col_names.contains(&"name".to_string()));
-    assert!(col_names.contains(&"age".to_string()));
-    assert!(col_names.contains(&"email".to_string()));
-    assert!(col_names.contains(&"salary".to_string()));
-    assert!(col_names.contains(&"department".to_string()));
+    assert!(col_names.contains(&"id".to_owned()));
+    assert!(col_names.contains(&"name".to_owned()));
+    assert!(col_names.contains(&"age".to_owned()));
+    assert!(col_names.contains(&"email".to_owned()));
+    assert!(col_names.contains(&"salary".to_owned()));
+    assert!(col_names.contains(&"department".to_owned()));
 
     // Verify health score is reasonable
     assert!(

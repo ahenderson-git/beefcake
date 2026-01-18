@@ -143,7 +143,7 @@ export function renderLifecycleRail(dataset: CurrentDataset | null): string {
       .join(' ');
 
     return `
-      <div class="${classes}" data-stage="${config.stage}" title="${config.description}">
+      <div class="${classes}" data-stage="${config.stage}" data-testid="lifecycle-stage-${config.stage.toLowerCase()}" title="${config.description}">
         <div class="stage-icon">
           <i class="ph ${config.icon}"></i>
           ${isCompleted ? '<i class="ph ph-check stage-check"></i>' : ''}
@@ -158,12 +158,12 @@ export function renderLifecycleRail(dataset: CurrentDataset | null): string {
   }).join('');
 
   return `
-    <div class="lifecycle-rail" data-dataset-id="${dataset.id}">
+    <div class="lifecycle-rail" data-dataset-id="${dataset.id}" data-testid="lifecycle-rail">
       <div class="lifecycle-rail-header">
         <span class="lifecycle-dataset-name">${dataset.name}</span>
         <span class="lifecycle-stage-count">${completedStages.size}/${STAGE_CONFIGS.length} stages</span>
       </div>
-      <div class="lifecycle-stages">
+      <div class="lifecycle-stages" data-testid="lifecycle-stages">
         ${stagesHTML}
       </div>
     </div>
@@ -232,11 +232,11 @@ export function renderDiffBadge(diff: DiffSummary | null): string {
 
 export function renderPublishModal(): string {
   return `
-    <div class="modal-overlay">
-      <div class="modal-content modal-publish">
+    <div class="modal-overlay" data-testid="publish-modal-overlay">
+      <div class="modal-content modal-publish" data-testid="publish-modal">
         <div class="modal-header">
           <h3>Publish Dataset Version</h3>
-          <button class="modal-close" id="modal-close">
+          <button class="modal-close" id="modal-close" data-testid="publish-modal-close">
             <i class="ph ph-x"></i>
           </button>
         </div>
@@ -259,7 +259,7 @@ export function renderPublishModal(): string {
                 <li>✓ Instant creation</li>
                 <li>⚠ Computed on each access</li>
               </ul>
-              <button class="btn btn-primary" id="btn-publish-view">Publish as View</button>
+              <button class="btn btn-primary" id="btn-publish-view" data-testid="btn-publish-view">Publish as View</button>
             </div>
 
             <div class="publish-mode-card" data-mode="snapshot">
@@ -274,7 +274,7 @@ export function renderPublishModal(): string {
                 <li>✓ Production-ready</li>
                 <li>⚠ Requires storage space</li>
               </ul>
-              <button class="btn btn-primary" id="btn-publish-snapshot">Publish as Snapshot</button>
+              <button class="btn btn-primary" id="btn-publish-snapshot" data-testid="btn-publish-snapshot">Publish as Snapshot</button>
             </div>
           </div>
 

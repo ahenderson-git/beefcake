@@ -52,20 +52,20 @@ export function renderExportModal(
   isAborting: boolean
 ): string {
   return `
-    <div class="modal-overlay" id="export-modal">
-      <div class="modal export-modal">
+    <div class="modal-overlay" id="export-modal" data-testid="export-modal-overlay">
+      <div class="modal export-modal" data-testid="export-modal">
         <div class="modal-header">
           <h3><i class="ph ph-export"></i> Export Data</h3>
-          <button type="button" class="btn-close-modal"><i class="ph ph-x"></i></button>
+          <button type="button" class="btn-close-modal" data-testid="export-modal-close"><i class="ph ph-x"></i></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body" data-testid="export-modal-body">
           <div class="export-step">
             <label>1. Select Destination Type</label>
             <div class="dest-toggle">
-              <button type="button" class="toggle-btn ${destType === 'File' ? 'active' : ''}" data-dest="File">
+              <button type="button" class="toggle-btn ${destType === 'File' ? 'active' : ''}" data-dest="File" data-testid="export-dest-file">
                 <i class="ph ph-file-arrow-down"></i> Local File
               </button>
-              <button type="button" class="toggle-btn ${destType === 'Database' ? 'active' : ''}" data-dest="Database">
+              <button type="button" class="toggle-btn ${destType === 'Database' ? 'active' : ''}" data-dest="Database" data-testid="export-dest-database">
                 <i class="ph ph-database"></i> Database
               </button>
             </div>
@@ -84,14 +84,14 @@ export function renderExportModal(
           </div>
         </div>
         <div class="modal-footer ${isLoading ? 'modal-footer-loading' : ''}">
-          ${!isLoading ? '<button type="button" class="btn-secondary btn-close-modal">Cancel</button>' : ''}
+          ${!isLoading ? '<button type="button" class="btn-secondary btn-close-modal" data-testid="export-cancel-button">Cancel</button>' : ''}
           ${
             isLoading
               ? `<div class="loading-button-group">
                 <button type="button" class="btn-primary" disabled><div class="spinner-small"></div> Processing...</button>
-                <button type="button" id="btn-abort-export" class="btn-danger btn-small">${isAborting ? 'Aborting...' : 'Abort'}</button>
+                <button type="button" id="btn-abort-export" class="btn-danger btn-small" data-testid="export-abort-button">${isAborting ? 'Aborting...' : 'Abort'}</button>
               </div>`
-              : `<button type="button" id="btn-start-export" class="btn-primary" ${destType === 'Database' && !activeExportId ? 'disabled' : ''}>
+              : `<button type="button" id="btn-start-export" class="btn-primary" data-testid="export-confirm-button" ${destType === 'Database' && !activeExportId ? 'disabled' : ''}>
                 <i class="ph ph-rocket-launch"></i> Start Export
               </button>`
           }
