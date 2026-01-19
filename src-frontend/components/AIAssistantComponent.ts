@@ -236,7 +236,7 @@ export class AIAssistantComponent extends Component {
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(
         /\[([^]+)\]\(([^)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+        (match, p1, p2) => `<a href="${p2}" target="_blank" rel="noopener noreferrer">${p1}</a>`
       )
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/\*([^*]+)\*/g, '<em>$1</em>')
