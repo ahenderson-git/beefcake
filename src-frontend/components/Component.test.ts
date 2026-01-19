@@ -137,7 +137,7 @@ describe('Component', () => {
       component.render(state);
 
       const container = document.getElementById('test-container');
-      expect(container?.innerHTML).toContain('Rendered with analyser');
+      expect(container?.innerHTML).toContain('Rendered with Analyser');
     });
   });
 
