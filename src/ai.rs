@@ -4,5 +4,6 @@
 //! in-app assistance and data analysis guidance.
 
 #![allow(clippy::module_name_repetitions)]
+#![allow(dead_code)]
 
 pub mod client;

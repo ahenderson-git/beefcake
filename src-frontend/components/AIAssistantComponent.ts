@@ -231,16 +231,19 @@ export class AIAssistantComponent extends Component {
 
   private formatContent(content: string): string {
     // Basic markdown support
-    return content
-      .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(
-        /\[([^\]]+)\]\(([^)]+)\)/g,
-        (match, p1, p2) => `<a href="${p2}" target="_blank" rel="noopener noreferrer">${p1}</a>`
-      )
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br>');
+    return (
+      content
+        .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // noinspection RegExpRedundantEscape
+        .replace(
+          /\[([^\]]+)\]\(([^)]+)\)/g,
+          (match, p1, p2) => `<a href="${p2}" target="_blank" rel="noopener noreferrer">${p1}</a>`
+        )
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br>')
+    );
   }
 
   private formatTime(date: Date): string {
