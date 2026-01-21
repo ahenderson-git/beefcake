@@ -8,6 +8,7 @@
 use beefcake::ai::client::AIAssistant;
 use beefcake::utils::AIConfig;
 use beefcake::analyser::logic::flows::analyze_file_flow;
+use tauri::Manager;
 use beefcake::analyser::logic::{AnalysisResponse, ColumnCleanConfig};
 use beefcake::utils::{AppConfig, DbSettings, load_app_config, push_audit_log, save_app_config};
 use std::collections::HashMap;
@@ -27,35 +28,6 @@ const WORKER_THREAD_STACK_SIZE: usize = 50 * 1024 * 1024;
 /// File size threshold (50MB) for warning about memory-intensive operations
 const LARGE_FILE_WARNING_THRESHOLD: u64 = 50 * 1024 * 1024;
 
-/// Maximum search depth when looking for project root
-const PROJECT_ROOT_SEARCH_DEPTH: usize = 10;
-
-// ============================================================================
-// Utilities
-// ============================================================================
-
-/// Resolve the project root directory by searching for Cargo.toml
-fn resolve_project_root() -> Result<PathBuf, String> {
-    let mut current_dir = std::env::current_exe()
-        .map_err(|e| format!("Failed to get exe path: {e}"))?
-        .parent()
-        .ok_or("No parent directory")?
-        .to_path_buf();
-
-    // Navigate up to find project root (where Cargo.toml exists)
-    for _ in 0..PROJECT_ROOT_SEARCH_DEPTH {
-        if current_dir.join("Cargo.toml").exists() {
-            return Ok(current_dir);
-        }
-        if let Some(parent) = current_dir.parent() {
-            current_dir = parent.to_path_buf();
-        } else {
-            break;
-        }
-    }
-
-    Err("Could not find project root (Cargo.toml)".to_owned())
-}
 
 async fn run_on_worker_thread<F, Fut, R>(name: &str, f: F) -> Result<R, String>
 where
@@ -1072,9 +1044,13 @@ pub struct DocFileMetadata {
 }
 
 #[tauri::command]
-pub async fn list_documentation_files() -> Result<Vec<DocFileMetadata>, String> {
-    let current_dir = resolve_project_root()?;
-    let docs_dir = current_dir.join("docs");
+pub async fn list_documentation_files(app: tauri::AppHandle) -> Result<Vec<DocFileMetadata>, String> {
+    let docs_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to get resource directory: {e}"))?
+        .join("docs");
+
     if !docs_dir.exists() {
         return Err(format!("Documentation directory not found: {}", docs_dir.display()));
     }
@@ -1116,7 +1092,7 @@ pub async fn list_documentation_files() -> Result<Vec<DocFileMetadata>, String> 
 }
 
 #[tauri::command]
-pub async fn read_documentation_file(doc_path: String) -> Result<String, String> {
+pub async fn read_documentation_file(doc_path: String, app: tauri::AppHandle) -> Result<String, String> {
     use std::fs;
 
     // Security: only allow reading from docs/ directory
@@ -1124,11 +1100,16 @@ pub async fn read_documentation_file(doc_path: String) -> Result<String, String>
         return Err("Invalid documentation path: path traversal not allowed".to_owned());
     }
 
-    let current_dir = resolve_project_root()?;
-    let file_path = current_dir.join("docs").join(&doc_path);
+    let docs_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to get resource directory: {e}"))?
+        .join("docs");
+
+    let file_path = docs_dir.join(&doc_path);
 
     // Verify the resolved path is still within docs directory (canonical path check)
-    let docs_dir_canonical = current_dir.join("docs")
+    let docs_dir_canonical = docs_dir
         .canonicalize()
         .map_err(|e| format!("Failed to canonicalize docs dir: {e}"))?;
 

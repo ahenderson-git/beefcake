@@ -79,7 +79,7 @@ export function renderExportModal(
             <h4>Export Summary</h4>
             <div class="summary-grid">
               <div class="summary-item"><span>Source</span> <span>${source.type}</span></div>
-              <div class="summary-item"><span>Processing</span> <span>Optimized Streaming</span></div>
+              <div class="summary-item"><span>Processing</span> <span>Optimised Streaming</span></div>
             </div>
           </div>
         </div>

@@ -73,7 +73,7 @@ import {
 } from './types';
 
 /**
- * Analyzes a data file (CSV, JSON, or Parquet) and returns statistics.
+ * Analyses a data file (CSV, JSON, or Parquet) and returns statistics.
  *
  * **Backend**: Calls `analyze_file` in `src/tauri_app.rs`
  *
@@ -91,7 +91,7 @@ import {
  * ```typescript
  * try {
  *   const response = await api.analyseFile('C:/data/customers.csv');
- *   console.log(`Analyzed ${response.row_count} rows`);
+ *   console.log(`Analysed ${response.row_count} rows`);
  *   response.summary.forEach(col => {
  *     console.log(`${col.name}: ${col.kind}`);
  *   });

@@ -19,9 +19,9 @@ export function renderCliHelpView(): string {
           <div class="cli-card">
             <h5>1. Analysis</h5>
             <div class="code-block">
-              <pre><code>analyze &lt;PATH&gt; [--trim &lt;PCT&gt;] [--export &lt;OUT&gt;]</code></pre>
+              <pre><code>analyse &lt;PATH&gt; [--trim &lt;PCT&gt;] [--export &lt;OUT&gt;]</code></pre>
             </div>
-            <p>Analyzes a file and optionally exports a cleaned version using the default auto-cleaning rules. Ideal for rapid profiling.</p>
+            <p>Analyses a file and optionally exports a cleaned version using the default auto-cleaning rules. Ideal for rapid profiling.</p>
           </div>
 
           <div class="cli-card">

@@ -1,6 +1,6 @@
 [package]
 name = "beefcake"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Anthony Henderson <anthony.s.henderson@gmail.com>"]
 edition = "2024"
 
@@ -13,7 +13,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 anyhow = "1.0.100"
 tauri = { version = "2.1.1", features = ["custom-protocol"] }
 tauri-plugin-shell = "2.0.1"
-tauri-plugin-dialog = "2.0.1"
+tauri-plugin-dialog = "2.6.0"
 tauri-plugin-window-state = "2.0"
 env_logger = "0.11.8"
 polars = { version = "0.45.0", features = ["csv", "json", "parquet", "lazy", "streaming", "fmt", "temporal", "strings", "regex", "pivot", "mode", "dtype-categorical", "cov", "round_series", "is_in", "abs", "list_count", "timezones", "ndarray"] }

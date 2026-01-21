@@ -55,20 +55,40 @@ export class LifecycleComponent extends Component {
     document.querySelectorAll('[data-action="view-diff"]').forEach(btn => {
       btn.addEventListener('click', e => {
         void (async () => {
-          const versionId = (e.currentTarget as HTMLElement).dataset.versionId!;
+          const target = e.currentTarget as HTMLButtonElement;
+          const versionId = target.dataset.versionId!;
           if (!state.currentDataset) return;
 
           try {
             const version = state.currentDataset.versions.find(v => v.id === versionId);
-            if (!version?.parent_id) return;
+            if (!version?.parent_id) {
+              this.actions.showToast(
+                'Cannot compute diff - this is the first version with no parent',
+                'info'
+              );
+              return;
+            }
+
+            // Show loading state
+            target.disabled = true;
+            target.textContent = 'Loading...';
+            this.actions.showToast('Computing version diff...', 'info');
 
             const diff = await api.getVersionDiff(
               state.currentDataset.id,
               version.parent_id,
               versionId
             );
-            this.showDiffModal(diff);
+
+            // Reset button state
+            target.disabled = false;
+            target.textContent = 'View Diff';
+
+            this.showDiffModal(diff, state);
           } catch (err) {
+            // Reset button state on error
+            target.disabled = false;
+            target.textContent = 'View Diff';
             this.actions.showToast(`Failed to compute diff: ${String(err)}`, 'error');
           }
         })();
@@ -113,6 +133,7 @@ export class LifecycleComponent extends Component {
     if (!modalContainer) return;
 
     modalContainer.innerHTML = renderers.renderPublishModal();
+    modalContainer.classList.add('active');
     this.bindPublishModalEvents(state);
   }
 
@@ -163,46 +184,91 @@ export class LifecycleComponent extends Component {
   private closeModal(): void {
     const modalContainer = document.getElementById('modal-container');
     if (modalContainer) {
+      modalContainer.classList.remove('active');
       modalContainer.innerHTML = '';
     }
   }
 
-  private showDiffModal(diff: DiffSummary): void {
+  private showDiffModal(diff: DiffSummary, state: AppState): void {
     const modalContainer = document.getElementById('modal-container');
     if (!modalContainer) return;
 
-    modalContainer.innerHTML = this.renderDiffModal(diff);
+    modalContainer.innerHTML = this.renderDiffModal(diff, state);
+    modalContainer.classList.add('active');
 
     // Close modal handlers
-    document.getElementById('modal-close')?.addEventListener('click', () => {
+    const closeHandlers = () => {
       this.closeModal();
-    });
+    };
+
+    document.getElementById('modal-close')?.addEventListener('click', closeHandlers);
+    document.getElementById('modal-close-footer')?.addEventListener('click', closeHandlers);
 
     document.querySelector('.modal-overlay')?.addEventListener('click', e => {
       if (e.target === e.currentTarget) {
         this.closeModal();
       }
     });
+
+    // Keyboard shortcut - ESC to close
+    const escHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        this.closeModal();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
   }
 
-  private renderDiffModal(diff: DiffSummary): string {
+  private renderDiffModal(diff: DiffSummary, state: AppState): string {
     const hasSchemaChanges =
       diff.schema_changes.columns_added.length > 0 ||
       diff.schema_changes.columns_removed.length > 0 ||
       diff.schema_changes.columns_renamed.length > 0;
     const hasRowChanges = diff.row_changes.rows_v1 !== diff.row_changes.rows_v2;
+    const rowChange = diff.row_changes.rows_v2 - diff.row_changes.rows_v1;
+
+    // Get version labels
+    const getVersionLabel = (versionId: string): string => {
+      if (!state.currentDataset) return versionId;
+      const version = state.currentDataset.versions.find(v => v.id === versionId);
+      if (!version) return versionId;
+      const index = state.currentDataset.versions.indexOf(version);
+      return `v${index} (${version.stage})`;
+    };
+
+    const v1Label = getVersionLabel(diff.version1_id);
+    const v2Label = getVersionLabel(diff.version2_id);
 
     return `
-      <div class="modal-overlay">
-        <div class="modal-content modal-diff">
+      <div class="modal-overlay" data-testid="diff-modal-overlay">
+        <div class="modal-content modal-diff" data-testid="diff-modal">
           <div class="modal-header">
-            <h3>Version Diff</h3>
-            <button class="modal-close" id="modal-close">
+            <div>
+              <h3>Version Diff: ${v1Label} → ${v2Label}</h3>
+              <p class="diff-subtitle">Comparing changes between versions</p>
+            </div>
+            <button class="modal-close" id="modal-close" data-testid="diff-modal-close">
               <i class="ph ph-x"></i>
             </button>
           </div>
 
           <div class="modal-body">
+            <div class="diff-summary-badges">
+              ${diff.schema_changes.columns_added.length > 0 ? `<span class="badge badge-success">+${diff.schema_changes.columns_added.length} columns</span>` : ''}
+              ${diff.schema_changes.columns_removed.length > 0 ? `<span class="badge badge-danger">-${diff.schema_changes.columns_removed.length} columns</span>` : ''}
+              ${hasRowChanges ? `<span class="badge ${rowChange > 0 ? 'badge-success' : 'badge-danger'}">${rowChange > 0 ? '+' : ''}${rowChange.toLocaleString()} rows</span>` : ''}
+              ${diff.statistical_changes.length > 0 ? `<span class="badge badge-info">${diff.statistical_changes.length} statistical changes</span>` : ''}
+            </div>
+
+          <div class="modal-body">
+            <div class="diff-summary-badges">
+              ${diff.schema_changes.columns_added.length > 0 ? `<span class="badge badge-success">+${diff.schema_changes.columns_added.length} columns</span>` : ''}
+              ${diff.schema_changes.columns_removed.length > 0 ? `<span class="badge badge-danger">-${diff.schema_changes.columns_removed.length} columns</span>` : ''}
+              ${hasRowChanges ? `<span class="badge ${rowChange > 0 ? 'badge-success' : 'badge-danger'}">${rowChange > 0 ? '+' : ''}${rowChange.toLocaleString()} rows</span>` : ''}
+              ${diff.statistical_changes.length > 0 ? `<span class="badge badge-info">${diff.statistical_changes.length} statistical changes</span>` : ''}
+            </div>
+
             <div class="diff-section">
               <h4>Row Changes</h4>
               <div class="diff-stats">
@@ -314,6 +380,12 @@ export class LifecycleComponent extends Component {
             `
                 : ''
             }
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="modal-close-footer" data-testid="modal-close-footer">
+              <i class="ph ph-x"></i> Close
+            </button>
           </div>
         </div>
       </div>

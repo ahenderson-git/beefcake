@@ -9,7 +9,14 @@ import {
 } from '../types';
 import { escapeHtml, fmtBytes, fmtDuration } from '../utils';
 
-import { CASE_OPTIONS, IMPUTE_OPTIONS, NORM_OPTIONS, renderSelect, ROUND_OPTIONS } from './common';
+import {
+  CASE_OPTIONS,
+  getImputeOptionsForColumn,
+  IMPUTE_OPTIONS,
+  NORM_OPTIONS,
+  renderSelect,
+  ROUND_OPTIONS,
+} from './common';
 
 function renderCleaningInfoBox(): string {
   return `
@@ -52,7 +59,7 @@ function renderCleaningInfoBox(): string {
         <p class="cleaning-info-note">
           <i class="ph ph-arrow-counter-clockwise"></i>
           <strong>Note:</strong> All cleaning operations in this stage are reversible.
-          Advanced operations (imputation, normalization, encoding) are available in the <strong>Advanced</strong> stage.
+          Advanced operations (imputation, normalisation, encoding) are available in the <strong>Advanced</strong> stage.
           <a href="#" class="cleaning-info-link" data-view="reference">View full documentation →</a>
         </p>
       </div>
@@ -65,11 +72,12 @@ export function renderAnalyserHeader(
   currentStage: LifecycleStage | null = null,
   isReadOnly: boolean = false,
   useOriginalColumnNames: boolean = false,
-  cleanAllActive: boolean = true
+  cleanAllActive: boolean = true,
+  advancedProcessingEnabled: boolean = false
 ): string {
   const isSampled = response.total_row_count > response.row_count;
   const rowDisplay = isSampled
-    ? `${response.total_row_count.toLocaleString()} rows <small>(Analyzed ${response.row_count.toLocaleString()} rows)</small>`
+    ? `${response.total_row_count.toLocaleString()} rows <small>(Analysed ${response.row_count.toLocaleString()} rows)</small>`
     : `${response.row_count.toLocaleString()} rows`;
 
   return `
@@ -93,14 +101,14 @@ export function renderAnalyserHeader(
         <div class="meta-info">
           <span data-testid="analyser-row-count"><i class="ph ph-rows"></i> ${rowDisplay}</span>
           <span data-testid="analyser-column-count"><i class="ph ph-columns"></i> ${response.column_count} columns</span>
-          <span><i class="ph ph-timer"></i> Analyzed in ${fmtDuration(response.analysis_duration)}</span>
+          <span><i class="ph ph-timer"></i> Analysed in ${fmtDuration(response.analysis_duration)}</span>
         </div>
       </div>
       <div class="header-actions">
         <button id="btn-open-file" class="btn-secondary btn-small" data-testid="analyser-open-file-button">
           <i class="ph ph-file-plus"></i> Select File
         </button>
-        <button id="btn-reanalyze" class="btn-secondary btn-small" data-testid="analyser-reanalyze-button">Re-analyze</button>
+        <button id="btn-reanalyze" class="btn-secondary btn-small" data-testid="analyser-reanalyze-button">Re-analyse</button>
         ${
           currentStage === 'Profiled' || currentStage === 'Raw'
             ? `
@@ -150,12 +158,19 @@ export function renderAnalyserHeader(
           currentStage === 'Published'
             ? `
           <div class="bulk-group">
+            <label title="Enable machine learning preprocessing features: imputation, normalisation, one-hot encoding, and outlier clipping">
+              <input type="checkbox" name="activate-advanced" class="header-action" data-action="activate-advanced" data-testid="header-activate-advanced" ${advancedProcessingEnabled ? 'checked' : ''}>
+              <i class="ph ph-brain"></i> Advanced Processing
+              ${advancedProcessingEnabled ? '<span class="badge-ml" style="margin-left: 8px;">ACTIVE</span>' : ''}
+            </label>
+          </div>
+          <div class="bulk-group">
             <label>Impute All:</label>
-            ${renderSelect(IMPUTE_OPTIONS, 'None', 'header-action', { action: 'impute-all' }, 'Mixed')}
+            ${renderSelect(IMPUTE_OPTIONS, 'None', 'header-action', { action: 'impute-all' }, 'Mixed', !advancedProcessingEnabled)}
           </div>
           <div class="bulk-group">
             <label>Norm All:</label>
-            ${renderSelect(NORM_OPTIONS, 'None', 'header-action', { action: 'norm-all' }, 'Mixed')}
+            ${renderSelect(NORM_OPTIONS, 'None', 'header-action', { action: 'norm-all' }, 'Mixed', !advancedProcessingEnabled)}
           </div>
         `
             : ''
@@ -513,7 +528,8 @@ export function renderAnalyser(
   currentStage: LifecycleStage | null = null,
   isReadOnly: boolean = false,
   selectedColumns: Set<string> = new Set(),
-  _useOriginalColumnNames: boolean = false
+  _useOriginalColumnNames: boolean = false,
+  advancedProcessingEnabled: boolean = false
 ): string {
   const healthScore = Math.round(response.health.score * 100);
   const healthClass =
@@ -567,7 +583,8 @@ export function renderAnalyser(
                 configs[col.name],
                 isReadOnly,
                 selectedColumns.size === 0 || selectedColumns.has(col.name),
-                currentStage
+                currentStage,
+                advancedProcessingEnabled
               )
             )
             .join('')}
@@ -779,7 +796,8 @@ export function renderAnalyserRow(
   config?: ColumnCleanConfig,
   isReadOnly: boolean = false,
   isSelected: boolean = true,
-  currentStage: LifecycleStage | null = null
+  currentStage: LifecycleStage | null = null,
+  advancedProcessingEnabled: boolean = false
 ): string {
   const nullPct = (col.nulls / col.count) * 100;
   const uniqueCount = getUniqueCount(col);
@@ -918,13 +936,31 @@ export function renderAnalyserRow(
                         currentStage === 'Published'
                           ? `
                         <div class="control-item">
-                          <label>Handle Nulls (Impute)</label>
-                          ${renderSelect(IMPUTE_OPTIONS, config?.impute_mode ?? 'None', 'row-action', { col: col.name, prop: 'impute_mode' })}
+                          <label title="Fill missing values - options based on column type">Handle Nulls (Impute)</label>
+                          ${renderSelect(getImputeOptionsForColumn(col.kind), config?.impute_mode ?? 'None', 'row-action', { col: col.name, prop: 'impute_mode' }, undefined, !advancedProcessingEnabled)}
                         </div>
+                        ${
+                          col.kind === 'Numeric'
+                            ? `
                         <div class="control-item">
-                          <label>Normalization</label>
-                          ${renderSelect(NORM_OPTIONS, config?.normalisation ?? 'None', 'row-action', { col: col.name, prop: 'normalisation' })}
+                          <label title="Scale numeric values to standard range">Normalisation</label>
+                          ${renderSelect(NORM_OPTIONS, config?.normalisation ?? 'None', 'row-action', { col: col.name, prop: 'normalisation' }, undefined, !advancedProcessingEnabled)}
                         </div>
+                        `
+                            : ''
+                        }
+                        ${
+                          col.kind === 'Categorical'
+                            ? `
+                        <div class="control-item">
+                          <label title="Convert categorical column into binary columns (one column per category)">
+                            <input type="checkbox" name="one-hot-encode-${escapeHtml(col.name)}" class="row-action" data-prop="one_hot_encode" ${config?.one_hot_encode ? 'checked' : ''} data-col="${escapeHtml(col.name)}" data-testid="one-hot-encode-${escapeHtml(col.name)}" ${!advancedProcessingEnabled ? 'disabled' : ''}>
+                            One-Hot Encode
+                          </label>
+                        </div>
+                        `
+                            : ''
+                        }
                       `
                           : ''
                       }
@@ -959,13 +995,16 @@ export function renderAnalyserRow(
                     </div>
 
                     ${
-                      currentStage === 'Advanced' ||
-                      currentStage === 'Validated' ||
-                      currentStage === 'Published'
+                      (currentStage === 'Advanced' ||
+                        currentStage === 'Validated' ||
+                        currentStage === 'Published') &&
+                      col.kind === 'Numeric'
                         ? `
                       <div class="control-advanced">
-                        <label title="Automatic outlier handling and normalization"><input type="checkbox" name="ml-preprocessing-${escapeHtml(col.name)}" class="row-action" data-prop="ml_preprocessing" ${config?.ml_preprocessing ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> ML Preprocessing</label>
-                        <label title="Clip values to 3x std dev"><input type="checkbox" name="clip-outliers-${escapeHtml(col.name)}" class="row-action" data-prop="clip_outliers" ${config?.clip_outliers ? 'checked' : ''} data-col="${escapeHtml(col.name)}"> Clip Outliers</label>
+                        <label title="Clip extreme values to 5th and 95th percentiles to reduce outlier impact">
+                          <input type="checkbox" name="clip-outliers-${escapeHtml(col.name)}" class="row-action" data-prop="clip_outliers" ${config?.clip_outliers ? 'checked' : ''} data-col="${escapeHtml(col.name)}" data-testid="clip-outliers-${escapeHtml(col.name)}" ${!advancedProcessingEnabled ? 'disabled' : ''}>
+                          Clip Outliers
+                        </label>
                       </div>
                     `
                         : ''

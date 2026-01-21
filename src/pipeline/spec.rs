@@ -100,7 +100,7 @@ impl PipelineSpec {
             }
 
             // Trim whitespace
-            if config.trim_whitespace && config.advanced_cleaning {
+            if config.trim_whitespace {
                 spec.steps.push(Step::TrimWhitespace {
                     columns: vec![col_name.clone()],
                 });

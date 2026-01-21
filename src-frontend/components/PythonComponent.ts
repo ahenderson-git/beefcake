@@ -12,7 +12,7 @@ const DEFAULT_PYTHON_SCRIPT = `# Python script
 import os
 import polars as pl
 
-# Note: Beefcake passes the currently analyzed dataset as BEEFCAKE_DATA_PATH.
+# Note: Beefcake passes the currently analysed dataset as BEEFCAKE_DATA_PATH.
 # For large datasets, use "scan_*" (Lazy) instead of "read_*" to avoid OOM crashes.
 
 data_path = os.environ.get("BEEFCAKE_DATA_PATH")

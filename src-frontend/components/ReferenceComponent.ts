@@ -17,7 +17,7 @@ import { Component, ComponentActions } from './Component';
  * Features:
  * - Secure markdown rendering with XSS protection (DOMPurify)
  * - Search functionality across all documentation
- * - Category-based organization
+ * - Category-based organisation
  * - Deep linking to specific documentation files
  */
 export class ReferenceComponent extends Component {

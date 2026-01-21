@@ -68,5 +68,6 @@ export function renderLayout(): string {
       </aside>
     </div>
     <div id="toast-container"></div>
+    <div id="modal-container"></div>
   `;
 }

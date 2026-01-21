@@ -139,6 +139,7 @@ class BeefcakeApp {
     selectedColumns: new Set(),
     useOriginalColumnNames: false,
     cleanAllActive: true,
+    advancedProcessingEnabled: false,
     watcherState: null,
     watcherActivities: [],
   };
@@ -322,10 +323,10 @@ class BeefcakeApp {
     try {
       this.state.isLoading = true;
       this.state.isAborting = false;
-      this.state.loadingMessage = `Analyzing...`;
+      this.state.loadingMessage = `Analysing...`;
       await this.switchView('Analyser');
 
-      this.showToast(`Analyzing ${path}...`, 'info');
+      this.showToast(`Analysing ${path}...`, 'info');
       const response = await api.analyseFile(path);
       this.state.analysisResponse = response;
 

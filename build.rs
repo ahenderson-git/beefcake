@@ -13,11 +13,17 @@ fn main() {
         fs::create_dir_all(dist_path).expect("Failed to create dist directory");
     }
 
+    // Always ensure index.html exists in dist
     let index_path = dist_path.join("index.html");
     if !index_path.exists() {
         println!("cargo:warning=index.html NOT found in dist, creating placeholder...");
         fs::write(&index_path, "<html><body>Placeholder</body></html>")
             .expect("Failed to create placeholder index.html");
+    }
+
+    // Flush to disk if possible
+    if let Ok(f) = fs::File::open(dist_path) {
+        let _ = f.sync_all();
     }
 
     println!("cargo:warning=dist directory ready for Tauri build.");

@@ -1472,6 +1472,19 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Disabled form controls in Advanced stage */
+select:disabled,
+input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f5f5f5;
+}
+
+select:disabled,
+input[type="checkbox"]:disabled {
+  pointer-events: none;
+}
+
 
 table {
   width: 100%;
@@ -4448,10 +4461,19 @@ td {
 }
 
 .lifecycle-view-section h4 {
-  margin: 0 0 16px 0;
+  margin: 0 0 8px 0;
   font-size: 1.1rem;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-description {
+  margin: 0 0 16px 0;
+  font-size: 0.9rem;
+  color: #666;
 }
 
 /* Version Details */
@@ -4541,6 +4563,45 @@ td {
 /* Diff Modal */
 .modal-diff {
   max-width: 900px;
+}
+
+.diff-subtitle {
+  margin: 4px 0 0 0;
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: normal;
+}
+
+.diff-summary-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--bg-color);
+  border-radius: 6px;
+}
+
+.diff-summary-badges .badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.badge-success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.badge-danger {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.badge-info {
+  background: #d1ecf1;
+  color: #0c5460;
 }
 
 .diff-section {

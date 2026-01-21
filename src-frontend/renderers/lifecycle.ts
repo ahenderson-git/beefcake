@@ -289,9 +289,25 @@ export function renderPublishModal(): string {
 }
 
 export function renderVersionTree(dataset: CurrentDataset): string {
-  const sortedVersions = [...dataset.versions].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
+  // Sort versions by stage order first, then by creation time
+  const stageOrder: Record<string, number> = {
+    Raw: 0,
+    Profiled: 1,
+    Cleaned: 2,
+    Advanced: 3,
+    Validated: 4,
+    Published: 5,
+  };
+
+  const sortedVersions = [...dataset.versions].sort((a, b) => {
+    const stageA = stageOrder[a.stage] ?? 999;
+    const stageB = stageOrder[b.stage] ?? 999;
+    if (stageA !== stageB) {
+      return stageA - stageB;
+    }
+    // Same stage - sort by creation time
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
 
   const versionsHTML = sortedVersions
     .map((version, index) => {
@@ -319,8 +335,8 @@ export function renderVersionTree(dataset: CurrentDataset): string {
             <div class="version-tree-description">${version.metadata.description}</div>
           </div>
           <div class="version-tree-actions">
-            ${!isActive ? `<button class="btn btn-sm" data-action="set-active" data-version-id="${version.id}">Set Active</button>` : ''}
-            ${index > 0 ? `<button class="btn btn-sm" data-action="view-diff" data-version-id="${version.id}">View Diff</button>` : ''}
+            ${!isActive ? `<button class="btn btn-small" data-action="set-active" data-version-id="${version.id}" data-testid="lifecycle-set-active-${version.id}">Set Active</button>` : ''}
+            ${index > 0 ? `<button class="btn btn-small" data-action="view-diff" data-version-id="${version.id}" data-testid="lifecycle-view-diff-${version.id}">View Diff</button>` : `<button class="btn btn-small" disabled title="Cannot compute diff - this is the first version with no parent">View Diff</button>`}
           </div>
         </div>
       </div>
@@ -351,7 +367,7 @@ export function renderLifecycleView(dataset: CurrentDataset | null): string {
       <div class="lifecycle-view-header">
         <h3>${dataset.name}</h3>
         <div class="lifecycle-view-actions">
-          <button class="btn" id="btn-publish-version">
+          <button class="btn" id="btn-publish-version" data-testid="btn-publish-version">
             <i class="ph ph-rocket-launch"></i> Publish Version
           </button>
         </div>
@@ -363,12 +379,14 @@ export function renderLifecycleView(dataset: CurrentDataset | null): string {
 
       <div class="lifecycle-view-body">
         <div class="lifecycle-view-section">
-          <h4>Version History</h4>
+          <h4><i class="ph ph-git-branch"></i> Version History</h4>
+          <p class="section-description">Timeline of dataset transformations - click to set active or view changes</p>
           ${renderVersionTree(dataset)}
         </div>
 
         <div class="lifecycle-view-section">
-          <h4>Active Version Details</h4>
+          <h4><i class="ph ph-info-circle"></i> Active Version Details</h4>
+          <p class="section-description">Information about the currently active dataset version</p>
           ${renderActiveVersionDetails(dataset)}
         </div>
       </div>

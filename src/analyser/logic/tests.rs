@@ -970,15 +970,15 @@ fn test_restricted_cleaning() -> Result<()> {
         },
     );
 
-    // Config for "to_skip" column - should skip all these
+    // Config for "to_skip" column - should skip advanced operations but allow rename
     configs.insert(
         "to_skip".to_owned(),
         ColumnCleanConfig {
-            new_name: "renamed".to_owned(),             // Should be skipped
-            impute_mode: ImputeMode::Zero,              // Should be skipped
-            rounding: Some(0),                          // Should be skipped
-            normalisation: NormalisationMethod::MinMax, // Should be skipped
-            one_hot_encode: true,                       // Should be skipped
+            new_name: "renamed".to_owned(),             // Should be applied (basic operation)
+            impute_mode: ImputeMode::Zero,              // Should be skipped (advanced)
+            rounding: Some(0),                          // Should be skipped (advanced)
+            normalisation: NormalisationMethod::MinMax, // Should be skipped (advanced)
+            one_hot_encode: true,                       // Should be skipped (advanced)
             ..Default::default()
         },
     );
@@ -1001,9 +1001,9 @@ fn test_restricted_cleaning() -> Result<()> {
     let cast_col = cleaned.column("to_cast")?;
     assert_eq!(*cast_col.dtype(), DataType::Boolean);
 
-    // Verify "to_skip" column
-    assert!(cleaned.column("renamed").is_err()); // Rename skipped
-    assert!(cleaned.column("to_skip").is_ok()); // Original name kept
+    // Verify "renamed" column - rename is applied even in restricted mode
+    assert!(cleaned.column("renamed").is_ok()); // Rename applied (basic operation)
+    assert!(cleaned.column("to_skip").is_err()); // Original name no longer exists
 
     // Verify one-hot skipped (no new columns added)
     assert_eq!(cleaned.width(), 3);

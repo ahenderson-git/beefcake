@@ -61,6 +61,7 @@ const createMockState = (): AppState => ({
   selectedColumns: new Set<string>(),
   useOriginalColumnNames: false,
   cleanAllActive: false,
+  advancedProcessingEnabled: false,
   watcherState: {
     enabled: false,
     folder: '',

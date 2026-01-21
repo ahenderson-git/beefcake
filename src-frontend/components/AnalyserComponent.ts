@@ -96,7 +96,8 @@ export class AnalyserComponent extends Component {
         currentStage,
         isReadOnly,
         state.selectedColumns,
-        state.useOriginalColumnNames
+        state.useOriginalColumnNames,
+        state.advancedProcessingEnabled
       );
     } else {
       // Subsequent renders: only update content container to preserve lifecycle rail
@@ -110,7 +111,8 @@ export class AnalyserComponent extends Component {
           currentStage,
           isReadOnly,
           state.selectedColumns,
-          state.useOriginalColumnNames
+          state.useOriginalColumnNames,
+          state.advancedProcessingEnabled
         );
 
         // Extract just the content container portion from the generated HTML
@@ -131,7 +133,8 @@ export class AnalyserComponent extends Component {
         currentStage,
         isReadOnly,
         state.useOriginalColumnNames,
-        state.cleanAllActive
+        state.cleanAllActive,
+        state.advancedProcessingEnabled
       );
     }
 
@@ -198,6 +201,7 @@ export class AnalyserComponent extends Component {
           if (prop === 'active') config.active = checked;
           else if (prop === 'one_hot_encode') config.one_hot_encode = checked;
           else if (prop === 'clip_outliers') config.clip_outliers = checked;
+          else if (prop === 'ml_preprocessing') config.ml_preprocessing = checked;
         } else {
           const value = target.value;
           if (prop === 'rounding') {
@@ -223,7 +227,12 @@ export class AnalyserComponent extends Component {
         const target = e.target as HTMLInputElement | HTMLSelectElement;
         const action = target.dataset.action!;
 
-        if (action === 'active-all') {
+        if (action === 'activate-advanced') {
+          const checked = (target as HTMLInputElement).checked;
+          state.advancedProcessingEnabled = checked;
+          // Set ml_preprocessing on all configs to match global toggle
+          Object.values(state.cleaningConfigs).forEach(c => (c.ml_preprocessing = checked));
+        } else if (action === 'active-all') {
           const checked = (target as HTMLInputElement).checked;
           state.cleanAllActive = checked;
           Object.values(state.cleaningConfigs).forEach(c => (c.active = checked));
@@ -240,18 +249,48 @@ export class AnalyserComponent extends Component {
             });
           }
         } else if (action === 'impute-all') {
-          const val = target.value;
-          Object.values(state.cleaningConfigs).forEach(
-            c => (c.impute_mode = val as ColumnCleanConfig['impute_mode'])
-          );
+          const val = target.value as ColumnCleanConfig['impute_mode'];
+
+          // Only apply to compatible columns based on column type
+          if (state.analysisResponse) {
+            state.analysisResponse.summary.forEach(col => {
+              const config = state.cleaningConfigs[col.name];
+              if (!config) return;
+
+              // Type-aware imputation
+              const isNumeric = col.kind === 'Numeric';
+              const isTextOrCat = col.kind === 'Text' || col.kind === 'Categorical';
+              const isBoolean = col.kind === 'Boolean';
+
+              if (val === 'Mean' || val === 'Median' || val === 'Zero') {
+                // Numeric-only operations
+                if (isNumeric) config.impute_mode = val;
+              } else if (val === 'Mode') {
+                // Works on categorical/text/boolean
+                if (isTextOrCat || isBoolean) config.impute_mode = val;
+              } else {
+                // None - applies to all
+                config.impute_mode = val;
+              }
+            });
+          }
         } else if (action === 'round-all') {
           const val = target.value === 'none' ? null : parseInt(target.value);
           Object.values(state.cleaningConfigs).forEach(c => (c.rounding = val));
         } else if (action === 'norm-all') {
-          const val = target.value;
-          Object.values(state.cleaningConfigs).forEach(
-            c => (c.normalisation = val as ColumnCleanConfig['normalisation'])
-          );
+          const val = target.value as ColumnCleanConfig['normalisation'];
+
+          // Only apply to numeric columns (normalisation requires numeric operations)
+          if (state.analysisResponse) {
+            state.analysisResponse.summary.forEach(col => {
+              const config = state.cleaningConfigs[col.name];
+              if (!config) return;
+
+              if (col.kind === 'Numeric') {
+                config.normalisation = val;
+              }
+            });
+          }
         } else if (action === 'case-all') {
           const val = target.value;
           Object.values(state.cleaningConfigs).forEach(
@@ -447,6 +486,33 @@ export class AnalyserComponent extends Component {
             },
           });
         }
+      }
+
+      // Update configs to use standardized names for the Cleaning stage
+      // (unless user has explicitly chosen to use original names)
+      if (state.analysisResponse && !state.useOriginalColumnNames) {
+        state.analysisResponse.summary.forEach(col => {
+          const config = state.cleaningConfigs[col.name];
+          if (config) {
+            config.new_name = col.standardized_name || col.name;
+          }
+        });
+      }
+
+      // Add clean transform with current configs to apply column name standardization
+      // and basic text cleaning operations
+      const activeConfigs = Object.fromEntries(
+        Object.entries(state.cleaningConfigs).filter(([_, cfg]) => cfg.active)
+      );
+
+      if (Object.keys(activeConfigs).length > 0) {
+        pipeline.transforms.push({
+          transform_type: 'clean',
+          parameters: {
+            configs: activeConfigs,
+            restricted: true, // Cleaned stage uses restricted mode
+          },
+        });
       }
 
       const pipelineJson = JSON.stringify(pipeline);

@@ -35,7 +35,7 @@ pub fn clean_df_lazy(
     let mut expressions = Vec::new();
     let mut one_hot_cols = Vec::new();
 
-    for (name, _) in schema.iter() {
+    for (name, dtype) in schema.iter() {
         if let Some(config) = configs.get(name.as_str()) {
             if !config.active {
                 continue;
@@ -44,7 +44,7 @@ pub fn clean_df_lazy(
             let mut expr = col(name.as_str());
 
             // 1. Text cleaning & Regex
-            expr = apply_text_cleaning(expr, config, restricted);
+            expr = apply_text_cleaning(expr, config, dtype, restricted);
 
             // 2. Extract numbers if requested (produces Float64)
             if config.extract_numbers {
@@ -70,13 +70,9 @@ pub fn clean_df_lazy(
                 expr = apply_normalisation_with_stats(expr, config, None);
             }
 
-            // 6. Rename if needed
+            // 6. Rename if needed (column name standardization is a basic operation)
             if !config.new_name.is_empty() && config.new_name != *name {
-                if !restricted {
-                    expr = expr.alias(&config.new_name);
-                } else {
-                    expr = expr.alias(name.as_str());
-                }
+                expr = expr.alias(&config.new_name);
             } else {
                 expr = expr.alias(name.as_str());
             }
@@ -118,10 +114,11 @@ pub fn auto_clean_df(df: DataFrame, restricted: bool) -> Result<DataFrame> {
     clean_df(df, &configs, restricted)
 }
 
-pub fn apply_text_cleaning(expr: Expr, config: &ColumnCleanConfig, _restricted: bool) -> Expr {
+pub fn apply_text_cleaning(expr: Expr, config: &ColumnCleanConfig, dtype: &DataType, _restricted: bool) -> Expr {
     let mut expr = expr;
 
-    if config.advanced_cleaning {
+    // Only apply string operations to string columns
+    if matches!(dtype, DataType::String) {
         if config.trim_whitespace {
             expr = expr.str().strip_chars(lit(NULL));
         }

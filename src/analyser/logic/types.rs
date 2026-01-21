@@ -43,6 +43,7 @@ mod duration_serde {
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct ColumnSummary {
     pub name: String,
+    #[serde(rename = "standardized_name")]
     pub standardised_name: String,
     pub kind: ColumnKind,
     pub count: usize,

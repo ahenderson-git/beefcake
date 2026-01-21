@@ -8,6 +8,26 @@ export const IMPUTE_OPTIONS = [
   { value: 'Mode', label: 'Mode' },
 ];
 
+export function getImputeOptionsForColumn(columnKind: string) {
+  switch (columnKind) {
+    case 'Numeric':
+      return IMPUTE_OPTIONS; // All options valid for numeric
+    case 'Categorical':
+    case 'Text':
+      return [
+        { value: 'None', label: 'None' },
+        { value: 'Mode', label: 'Mode' }, // Only Mode makes sense for categorical/text
+      ];
+    case 'Boolean':
+      return [
+        { value: 'None', label: 'None' },
+        { value: 'Mode', label: 'Mode' }, // Mode for most common boolean value
+      ];
+    default:
+      return [{ value: 'None', label: 'None' }]; // Temporal, Nested, etc.
+  }
+}
+
 export const NORM_OPTIONS = [
   { value: 'None', label: 'None' },
   { value: 'ZScore', label: 'Z-Score' },

@@ -85,7 +85,7 @@ export function renderSettingsView(config: AppConfig, isAddingConnection: boolea
 
         <div class="pref-subsection">
           <h4><i class="ph ph-gauge"></i> Performance & Sampling</h4>
-          <p class="subsection-description">Configure how data is sampled and analyzed for large files</p>
+          <p class="subsection-description">Configure how data is sampled and analysed for large files</p>
 
           <div class="pref-item">
             <label for="analysis-sample-size">

@@ -266,7 +266,7 @@ export class StepConfigPanel {
 
     return `
             <div class="form-group">
-                <label for="normalize-method-select">Normalization Method</label>
+                <label for="normalize-method-select">Normalisation Method</label>
                 <select id="normalize-method-select" class="form-control">
                     <option value="z_score" ${method === 'z_score' ? 'selected' : ''}>Z-Score (standardize)</option>
                     <option value="min_max" ${method === 'min_max' ? 'selected' : ''}>Min-Max (0-1 range)</option>

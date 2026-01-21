@@ -302,6 +302,7 @@ export interface AppState {
   selectedColumns: Set<string>;
   useOriginalColumnNames: boolean;
   cleanAllActive: boolean;
+  advancedProcessingEnabled: boolean;
   watcherState: WatcherState | null;
   watcherActivities: WatcherActivity[];
   polarsVersion?: string;
@@ -309,7 +310,7 @@ export interface AppState {
 
 export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConfig {
   return {
-    new_name: col.standardized_name || col.name,
+    new_name: col.name,
     target_dtype: null,
     active: true,
     advanced_cleaning: false,

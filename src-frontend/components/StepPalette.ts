@@ -1,7 +1,7 @@
 /**
  * Step Palette Component
  *
- * Displays available transformation steps organized by category.
+ * Displays available transformation steps organised by category.
  * Users can click to add steps to their pipeline.
  */
 
