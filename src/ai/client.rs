@@ -6,12 +6,12 @@
 
 use anyhow::{Context as _, Result};
 use async_openai::{
+    Client,
     config::OpenAIConfig,
     types::{
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
         ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs,
     },
-    Client,
 };
 
 pub use crate::utils::AIConfig;

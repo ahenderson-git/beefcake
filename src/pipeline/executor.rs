@@ -592,10 +592,7 @@ mod tests {
     #[test]
     fn test_parse_type_string_valid_types() {
         assert!(matches!(parse_type_string("i64"), Ok(DataType::Int64)));
-        assert!(matches!(
-            parse_type_string("Numeric"),
-            Ok(DataType::Int64)
-        ));
+        assert!(matches!(parse_type_string("Numeric"), Ok(DataType::Int64)));
         assert!(matches!(parse_type_string("f64"), Ok(DataType::Float64)));
         assert!(matches!(parse_type_string("String"), Ok(DataType::String)));
         assert!(matches!(parse_type_string("Text"), Ok(DataType::String)));

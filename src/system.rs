@@ -3,9 +3,8 @@ use beefcake::utils;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const ALLOWED_TEXT_EXTENSIONS: &[&str] = &[
-    "csv", "json", "md", "parquet", "ps1", "py", "sql", "txt",
-];
+const ALLOWED_TEXT_EXTENSIONS: &[&str] =
+    &["csv", "json", "md", "parquet", "ps1", "py", "sql", "txt"];
 
 fn resolve_text_path(path: &str, require_file: bool) -> Result<PathBuf> {
     let raw = PathBuf::from(path);

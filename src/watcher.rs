@@ -93,7 +93,8 @@ pub fn init(app: AppHandle) -> Result<()> {
 
     *WATCHER_SERVICE
         .lock()
-        .map_err(|e| anyhow::anyhow!("Failed to acquire watcher service lock: {e}"))? = Some(service);
+        .map_err(|e| anyhow::anyhow!("Failed to acquire watcher service lock: {e}"))? =
+        Some(service);
 
     // Auto-start if configured
     if config.enabled && !config.folder.as_os_str().is_empty() {

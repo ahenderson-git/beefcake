@@ -128,10 +128,7 @@ async fn test_analyze_invalid_file_returns_error() {
     let test_file = PathBuf::from("testdata/invalid_format.txt");
     let result = analyze_file(test_file).await;
 
-    assert!(
-        result.is_err(),
-        "Invalid file format should return error"
-    );
+    assert!(result.is_err(), "Invalid file format should return error");
 }
 
 #[tokio::test]

@@ -162,15 +162,20 @@ pub async fn execute_python_with_env(
         Ok(stdout)
     } else {
         let mut error_msg = format!("Error: {stdout}\n{stderr}");
-        if error_msg.contains("the name 'literal' passed to `LazyFrame.with_columns` is duplicate") {
+        if error_msg.contains("the name 'literal' passed to `LazyFrame.with_columns` is duplicate")
+        {
             error_msg.push_str("\n\nTip: When selecting multiple constant values in SQL, you must give them unique names using 'AS'.\nExample: SELECT 1 AS col1, 2 AS col2 FROM data");
 
             if let Some(query) = &sql_query
                 && let Some(fixed) = suggest_sql_fix(query)
             {
-                error_msg.push_str(&format!("\n\nFixed query suggestion:\n```sql\n{fixed}\n```"));
+                error_msg.push_str(&format!(
+                    "\n\nFixed query suggestion:\n```sql\n{fixed}\n```"
+                ));
             }
-        } else if error_msg.contains("duplicate column names") || error_msg.contains("duplicate output name") {
+        } else if error_msg.contains("duplicate column names")
+            || error_msg.contains("duplicate output name")
+        {
             error_msg.push_str("\n\nTip: Ensure all selected columns in your SQL query have unique names using 'AS' where necessary.");
         }
         Err(BeefcakeError::Python(error_msg))
@@ -334,9 +339,7 @@ fn suggest_sql_fix(query: &str) -> Option<String> {
             fixed_parts.push(format!("{trimmed} AS \"{final_alias}\""));
         } else {
             // Track existing aliases to avoid conflicts with new ones
-            if has_alias
-                && let Some(caps) = as_re.captures(trimmed)
-            {
+            if has_alias && let Some(caps) = as_re.captures(trimmed) {
                 let alias_part = &trimmed[caps.get(0).unwrap().end()..].trim();
                 used_aliases.insert(alias_part.trim_matches('"').to_owned());
             }

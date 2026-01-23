@@ -2,7 +2,7 @@
 
 > **Comprehensive guide to Beefcake's capabilities**
 
-*Last Updated: January 2025*
+*Last Updated: January 24, 2025*
 
 ---
 
@@ -210,6 +210,7 @@ Create reusable data transformation workflows through a drag-and-drop interface.
    - Median (numeric columns)
    - Mode (categorical columns)
    - Zero (numeric columns)
+   - **Column-specific options**: UI automatically filters imputation strategies based on column data type
 
 #### Machine Learning
 8. **One-Hot Encoding**: Convert categorical to binary columns

@@ -104,7 +104,8 @@ fn analyse_dataframe_for_dictionary(df: &DataFrame) -> Result<AnalysisResponse> 
 
     // Use existing analysis logic but with minimal sampling
     // Note: trim_pct of 0.0 means no trimming for the dictionary snapshot
-    let summary = analyse_df_lazy(lf, 0.0, 10_000).context("Failed to analyze DataFrame for dictionary")?;
+    let summary =
+        analyse_df_lazy(lf, 0.0, 10_000).context("Failed to analyze DataFrame for dictionary")?;
 
     Ok(AnalysisResponse {
         file_name: "dictionary_snapshot".to_owned(),

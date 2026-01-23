@@ -6,14 +6,14 @@
     clippy::collapsible_if
 )]
 use beefcake::ai::client::AIAssistant;
-use beefcake::utils::AIConfig;
 use beefcake::analyser::logic::flows::analyze_file_flow;
-use tauri::Manager as _;
 use beefcake::analyser::logic::{AnalysisResponse, ColumnCleanConfig};
+use beefcake::utils::AIConfig;
 use beefcake::utils::{AppConfig, DbSettings, load_app_config, push_audit_log, save_app_config};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr as _;
+use tauri::Manager as _;
 
 use crate::export;
 use crate::python_runner;
@@ -36,7 +36,6 @@ fn ensure_security_acknowledged() -> Result<(), String> {
         Err("Security warning not acknowledged. Please confirm before running scripts.".to_owned())
     }
 }
-
 
 async fn run_on_worker_thread<F, Fut, R>(name: &str, f: F) -> Result<R, String>
 where
@@ -704,7 +703,9 @@ pub async fn lifecycle_get_version_schema(
         .map_err(|e| format!("Failed to load version data: {e}"))?;
 
     // Collect schema information
-    let schema = lf.collect_schema().map_err(|e| format!("Failed to get schema: {e}"))?;
+    let schema = lf
+        .collect_schema()
+        .map_err(|e| format!("Failed to get schema: {e}"))?;
 
     let columns: Vec<ColumnInfo> = schema
         .iter()
@@ -1048,7 +1049,7 @@ pub async fn load_pipeline_template(template_name: String) -> Result<String, Str
 // ============================================================================
 
 use beefcake::dictionary::{
-    DataDictionary, storage::SnapshotMetadata, ColumnBusinessMetadata, DatasetBusinessMetadata,
+    ColumnBusinessMetadata, DataDictionary, DatasetBusinessMetadata, storage::SnapshotMetadata,
 };
 
 #[tauri::command]
@@ -1184,7 +1185,9 @@ pub struct DocFileMetadata {
 }
 
 #[tauri::command]
-pub async fn list_documentation_files(app: tauri::AppHandle) -> Result<Vec<DocFileMetadata>, String> {
+pub async fn list_documentation_files(
+    app: tauri::AppHandle,
+) -> Result<Vec<DocFileMetadata>, String> {
     let docs_dir = app
         .path()
         .resource_dir()
@@ -1192,7 +1195,10 @@ pub async fn list_documentation_files(app: tauri::AppHandle) -> Result<Vec<DocFi
         .join("docs");
 
     if !docs_dir.exists() {
-        return Err(format!("Documentation directory not found: {}", docs_dir.display()));
+        return Err(format!(
+            "Documentation directory not found: {}",
+            docs_dir.display()
+        ));
     }
 
     let mut docs = Vec::new();
@@ -1210,8 +1216,16 @@ pub async fn list_documentation_files(app: tauri::AppHandle) -> Result<Vec<DocFi
         ("TYPESCRIPT_PATTERNS.md", "TypeScript Patterns", "Learning"),
         ("AUTOMATION.md", "Pipeline Automation", "Guide"),
         ("ROADMAP.md", "Development Roadmap", "Planning"),
-        ("PIPELINE_BUILDER_SPEC.md", "Pipeline Builder Spec", "Reference"),
-        ("PIPELINE_IMPLEMENTATION_GUIDE.md", "Pipeline Implementation", "Guide"),
+        (
+            "PIPELINE_BUILDER_SPEC.md",
+            "Pipeline Builder Spec",
+            "Reference",
+        ),
+        (
+            "PIPELINE_IMPLEMENTATION_GUIDE.md",
+            "Pipeline Implementation",
+            "Guide",
+        ),
         ("CODE_QUALITY.md", "Code Quality Standards", "Development"),
         ("testing.md", "Testing Guide", "Development"),
         ("test-matrix.md", "Test Matrix", "Development"),
@@ -1232,11 +1246,18 @@ pub async fn list_documentation_files(app: tauri::AppHandle) -> Result<Vec<DocFi
 }
 
 #[tauri::command]
-pub async fn read_documentation_file(doc_path: String, app: tauri::AppHandle) -> Result<String, String> {
+pub async fn read_documentation_file(
+    doc_path: String,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
     use std::fs;
 
     // Security: only allow reading from docs/ directory
-    if doc_path.contains("..") || doc_path.contains("\\..") || doc_path.starts_with('/') || doc_path.starts_with('\\') {
+    if doc_path.contains("..")
+        || doc_path.contains("\\..")
+        || doc_path.starts_with('/')
+        || doc_path.starts_with('\\')
+    {
         return Err("Invalid documentation path: path traversal not allowed".to_owned());
     }
 
@@ -1290,21 +1311,20 @@ pub async fn ai_send_query(query: String, context: Option<String>) -> Result<Str
         .map_err(|e| format!("Failed to initialize AI assistant: {e}"))?;
 
     // Send query
-    assistant.send_query(&query, context.as_deref())
+    assistant
+        .send_query(&query, context.as_deref())
         .await
         .map_err(|e| format!("AI query failed: {e}"))
 }
 
 #[tauri::command]
 pub async fn ai_set_api_key(api_key: String) -> Result<(), String> {
-    beefcake::utils::set_ai_api_key(&api_key)
-        .map_err(|e| format!("Failed to save API key: {e}"))
+    beefcake::utils::set_ai_api_key(&api_key).map_err(|e| format!("Failed to save API key: {e}"))
 }
 
 #[tauri::command]
 pub async fn ai_delete_api_key() -> Result<(), String> {
-    beefcake::utils::delete_ai_api_key()
-        .map_err(|e| format!("Failed to delete API key: {e}"))
+    beefcake::utils::delete_ai_api_key().map_err(|e| format!("Failed to delete API key: {e}"))
 }
 
 #[tauri::command]
@@ -1315,8 +1335,7 @@ pub fn ai_has_api_key() -> bool {
 #[tauri::command]
 pub async fn ai_test_connection() -> Result<(), String> {
     // Get API key from keyring
-    let api_key = beefcake::utils::get_ai_api_key()
-        .ok_or("AI API key not configured")?;
+    let api_key = beefcake::utils::get_ai_api_key().ok_or("AI API key not configured")?;
 
     // Get AI config from app settings
     let config = load_app_config();
@@ -1327,7 +1346,8 @@ pub async fn ai_test_connection() -> Result<(), String> {
     let assistant = AIAssistant::new(api_key, ai_config)
         .map_err(|e| format!("Failed to initialize AI assistant: {e}"))?;
 
-    assistant.test_connection()
+    assistant
+        .test_connection()
         .await
         .map_err(|e| format!("Connection test failed: {e}"))
 }
@@ -1345,8 +1365,7 @@ pub async fn ai_update_config(ai_config: AIConfig) -> Result<(), String> {
 
     config.settings_mut().ai_config = ai_config;
 
-    save_app_config(&config)
-        .map_err(|e| format!("Failed to save config: {e}"))
+    save_app_config(&config).map_err(|e| format!("Failed to save config: {e}"))
 }
 
 pub fn run() {

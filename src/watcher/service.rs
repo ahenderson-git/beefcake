@@ -248,10 +248,7 @@ impl WatcherService {
         utils::log_event("Watcher", &format!("Detected file: {}", path.display()));
 
         // Check if auto-ingest is enabled
-        let should_ingest = config
-            .lock()
-            .map(|cfg| cfg.auto_ingest)
-            .unwrap_or(false);
+        let should_ingest = config.lock().map(|cfg| cfg.auto_ingest).unwrap_or(false);
 
         if should_ingest {
             Self::handle_file_ingestion(app, config, state, path);

@@ -157,7 +157,7 @@ Beefcake is best understood as an **experimental toolkit** for exploring modern 
 
 ## Project Status
 
-**Current Version**: `0.2.0` (January 2025)
+**Current Version**: `0.2.3` (January 2025)
 
 ### Recent Milestones
 
@@ -269,8 +269,8 @@ cargo install cargo-clippy cargo-fmt
 # Run tests
 cargo test                        # Rust unit + integration tests (90 tests)
 npm test                          # TypeScript unit tests (91 tests, 100% coverage)
-npm run test:e2e                  # Playwright E2E tests (31 tests)
-npm run test:all                  # Run all tests (Rust + TypeScript + E2E)
+npm run test:e2e                  # Playwright E2E tests (115+ tests)
+npm run test:all                  # Run all tests (Rust + TypeScript + E2E = 296+ total)
 
 # Test with coverage
 npm run test:coverage             # TypeScript coverage report (threshold: 100%)

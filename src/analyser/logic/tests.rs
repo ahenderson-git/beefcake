@@ -98,11 +98,7 @@ fn test_histogram_streaming_large() -> Result<()> {
         null_count: 0,
         custom_sample_size: 10_000,
     };
-    let (bin_width, histogram) = profiling::build_histogram_streaming(
-        lf,
-        "col",
-        histogram_config,
-    )?;
+    let (bin_width, histogram) = profiling::build_histogram_streaming(lf, "col", histogram_config)?;
 
     assert!(!histogram.is_empty(), "Histogram should not be empty");
     let total_count: usize = histogram.iter().map(|h| h.1).sum();
@@ -974,11 +970,11 @@ fn test_restricted_cleaning() -> Result<()> {
     configs.insert(
         "to_skip".to_owned(),
         ColumnCleanConfig {
-            new_name: "renamed".to_owned(),             // Should be applied (basic operation)
-            impute_mode: ImputeMode::Zero,              // Should be skipped (advanced)
-            rounding: Some(0),                          // Should be skipped (advanced)
+            new_name: "renamed".to_owned(), // Should be applied (basic operation)
+            impute_mode: ImputeMode::Zero,  // Should be skipped (advanced)
+            rounding: Some(0),              // Should be skipped (advanced)
             normalisation: NormalisationMethod::MinMax, // Should be skipped (advanced)
-            one_hot_encode: true,                       // Should be skipped (advanced)
+            one_hot_encode: true,           // Should be skipped (advanced)
             ..Default::default()
         },
     );

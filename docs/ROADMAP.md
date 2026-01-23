@@ -2,7 +2,7 @@
 
 > **Development phases and future directions**
 
-*Last Updated: January 2025*
+*Last Updated: January 24, 2025*
 
 ---
 
@@ -174,7 +174,7 @@ Beefcake is developed with the following principles:
 - Enable step parameter templating (variables)
 - Add pipeline testing/validation framework
 
-**Timeline**: January 2025 (v0.2.0)
+**Timeline**: January 2025 (v0.2.3)
 
 ---
 
@@ -208,7 +208,7 @@ Beefcake is developed with the following principles:
 - Add deduplication for repeated filenames
 - Support recursive directory monitoring
 
-**Timeline**: January 2025 (v0.2.0)
+**Timeline**: January 2025 (v0.2.3)
 
 ---
 
@@ -374,7 +374,7 @@ If you're using Beefcake and have feature requests:
 | v0.1.5 | Dec 2024 | Lifecycle Management | ✅ Released |
 | v0.1.6 | Dec 2024 | Database Integration | ✅ Released |
 | v0.1.7 | Dec 2024 | Python IDE | ✅ Released |
-| v0.2.0 | Jan 2025 | Pipeline Automation + Watcher | ✅ Released |
+| v0.2.3 | Jan 2025 | Pipeline Automation + Watcher + AI Assistant enhancements | ✅ Released |
 | v0.2.x | Q1 2025 | Stability & Polish | 🚧 In Progress |
 | v0.3.0 | TBD | TBD | 🔮 Exploratory |
 

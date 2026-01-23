@@ -12,11 +12,7 @@ use uuid::Uuid;
 
 /// Stratified sampling: Sample evenly across the entire file
 /// For 1B rows, 500K sample: Takes rows at regular intervals across entire dataset
-fn stratified_sample(
-    lf: LazyFrame,
-    total_rows: usize,
-    sample_size: u32,
-) -> Result<DataFrame> {
+fn stratified_sample(lf: LazyFrame, total_rows: usize, sample_size: u32) -> Result<DataFrame> {
     // Calculate stride (how many rows to skip between samples)
     let stride = (total_rows / sample_size as usize).max(1);
 
@@ -80,7 +76,8 @@ pub async fn push_to_db_flow(
 }
 
 pub fn generate_auto_clean_configs(lf: LazyFrame) -> Result<HashMap<String, ColumnCleanConfig>> {
-    let summaries = analyse_df_lazy(lf, 0.0, 10_000).context("Failed to analyse for auto-cleaning")?;
+    let summaries =
+        analyse_df_lazy(lf, 0.0, 10_000).context("Failed to analyse for auto-cleaning")?;
 
     let mut configs = HashMap::new();
     for summary in summaries {
@@ -158,13 +155,16 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
             (_, n) if n < 10_000_000 => {
                 crate::utils::log_event(
                     "Analyser",
-                    &format!("Small dataset ({}), using fast sequential sampling", crate::utils::fmt_count(n)),
+                    &format!(
+                        "Small dataset ({}), using fast sequential sampling",
+                        crate::utils::fmt_count(n)
+                    ),
                 );
                 let df = lf.clone().limit(sample_rows * 2).collect()?;
                 let n_series = Series::new("n".into(), &[sample_rows as i64]);
                 let sampled = df.sample_n(&n_series, false, false, Some(42))?;
                 (sampled, "fast")
-            },
+            }
 
             // Fast strategy: Always use current method
             ("fast", _) => {
@@ -179,7 +179,7 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
                 let n_series = Series::new("n".into(), &[sample_rows as i64]);
                 let sampled = df.sample_n(&n_series, false, false, Some(42))?;
                 (sampled, "fast (sequential)")
-            },
+            }
 
             // Balanced strategy (default): Use stratified for medium/large files
             ("balanced" | _, _) => {
@@ -193,9 +193,7 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
                 );
                 let sampled = stratified_sample(lf.clone(), true_total_rows, sample_rows)?;
                 (sampled, "stratified")
-            },
-
-            // Note: "accurate" (reservoir) sampling will be implemented in Phase 2
+            } // Note: "accurate" (reservoir) sampling will be implemented in Phase 2
         };
 
         (sampled_df.lazy(), true, sample_rows, method_used)
@@ -231,7 +229,10 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
         };
 
         let stats_note = if sampled_rows_count as usize != custom_sample_size {
-            format!(" Statistics calculated from up to {} rows.", crate::utils::fmt_count(custom_sample_size))
+            format!(
+                " Statistics calculated from up to {} rows.",
+                crate::utils::fmt_count(custom_sample_size)
+            )
         } else {
             String::new()
         };

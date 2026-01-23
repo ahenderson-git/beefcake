@@ -114,7 +114,12 @@ pub fn auto_clean_df(df: DataFrame, restricted: bool) -> Result<DataFrame> {
     clean_df(df, &configs, restricted)
 }
 
-pub fn apply_text_cleaning(expr: Expr, config: &ColumnCleanConfig, dtype: &DataType, _restricted: bool) -> Expr {
+pub fn apply_text_cleaning(
+    expr: Expr,
+    config: &ColumnCleanConfig,
+    dtype: &DataType,
+    _restricted: bool,
+) -> Expr {
     let mut expr = expr;
 
     // Only apply string operations to string columns

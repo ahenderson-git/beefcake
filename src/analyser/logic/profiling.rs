@@ -516,7 +516,9 @@ pub fn check_special_characters(
             for val in ca.into_iter().flatten() {
                 if val.contains('\r')
                     || val.contains('\n')
-                    || val.chars().any(|c| (c.is_ascii_control() && c != '\t') || c == '\u{FFFD}')
+                    || val
+                        .chars()
+                        .any(|c| (c.is_ascii_control() && c != '\t') || c == '\u{FFFD}')
                 {
                     return Ok(true);
                 }

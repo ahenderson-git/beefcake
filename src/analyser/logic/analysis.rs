@@ -76,7 +76,11 @@ pub fn analyse_df(df: &DataFrame, trim_pct: f64) -> Result<Vec<ColumnSummary>> {
     analyse_df_lazy(df.clone().lazy(), trim_pct, 10_000)
 }
 
-pub fn analyse_df_lazy(mut lf: LazyFrame, trim_pct: f64, custom_sample_size: usize) -> Result<Vec<ColumnSummary>> {
+pub fn analyse_df_lazy(
+    mut lf: LazyFrame,
+    trim_pct: f64,
+    custom_sample_size: usize,
+) -> Result<Vec<ColumnSummary>> {
     let schema = lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
     let mut summaries = Vec::new();
 
@@ -541,8 +545,7 @@ pub fn compute_numeric_stats(
         null_count,
         custom_sample_size: adaptive_sample_size,
     };
-    let (bin_width, histogram) =
-        profiling::build_histogram_streaming(lf, name, histogram_config)?;
+    let (bin_width, histogram) = profiling::build_histogram_streaming(lf, name, histogram_config)?;
 
     Ok((
         ColumnKind::Numeric,

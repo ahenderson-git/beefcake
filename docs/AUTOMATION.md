@@ -167,7 +167,7 @@ beefcake run --spec my_pipeline.json --input data/input.csv --log logs/run.log
 
 ### Input Configuration
 
-```json
+```jsonc
 {
   "format": "csv",          // csv | json | parquet
   "has_header": true,       // CSV: first row is header
@@ -178,7 +178,7 @@ beefcake run --spec my_pipeline.json --input data/input.csv --log logs/run.log
 
 ### Schema Configuration
 
-```json
+```jsonc
 {
   "match_mode": "tolerant", // strict | tolerant
   "required_columns": ["id", "name"]
@@ -253,7 +253,7 @@ All steps have an `op` field and operation-specific parameters.
 
 #### Impute Missing Values
 
-```json
+```jsonc
 {
   "op": "impute",
   "strategy": "median",  // mean | median | mode | zero
@@ -273,7 +273,7 @@ All steps have an `op` field and operation-specific parameters.
 
 #### Normalize Columns
 
-```json
+```jsonc
 {
   "op": "normalize_columns",
   "method": "zscore",  // zscore | minmax
@@ -316,7 +316,7 @@ Extracts numeric values from text using regex `(\d+\.?\d*)`.
 
 ### Output Configuration
 
-```json
+```jsonc
 {
   "format": "parquet",                    // csv | json | parquet
   "path_template": "output/file_{date}.parquet",
@@ -641,5 +641,5 @@ See `examples/pipelines/` for real-world examples:
 
 ---
 
-**Version:** 0.1.0
-**Last Updated:** 2026-01-12
+**Version:** 0.2.3
+**Last Updated:** 2025-01-24
