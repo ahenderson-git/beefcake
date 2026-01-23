@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import DOMPurify from 'dompurify';
 
 import { AppState } from '../types';
 
@@ -230,8 +231,8 @@ export class AIAssistantComponent extends Component {
   }
 
   private formatContent(content: string): string {
-    // Basic markdown support
-    return content
+    // Basic markdown support with sanitization to prevent XSS
+    const formatted = content
       .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(
@@ -241,6 +242,10 @@ export class AIAssistantComponent extends Component {
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/\*([^*]+)\*/g, '<em>$1</em>')
       .replace(/\n/g, '<br>');
+    return DOMPurify.sanitize(formatted, {
+      ALLOWED_TAGS: ['a', 'br', 'code', 'em', 'pre', 'strong'],
+      ALLOWED_ATTR: ['href', 'target', 'rel'],
+    });
   }
 
   private formatTime(date: Date): string {

@@ -59,6 +59,11 @@ export interface ColumnSummary {
   samples: string[];
 }
 
+export interface ColumnInfo {
+  name: string;
+  dtype: string;
+}
+
 export type NormalisationMethod = 'None' | 'ZScore' | 'MinMax';
 export type ImputeMode = 'None' | 'Mean' | 'Median' | 'Zero' | 'Mode';
 export type TextCase = 'None' | 'Lowercase' | 'Uppercase' | 'TitleCase';
@@ -154,6 +159,7 @@ export interface VersionMetadata {
 export interface DataLocation {
   ParquetFile?: string;
   OriginalFile?: string;
+  path?: string; // Added for convenience
 }
 
 export interface TransformSpec {
@@ -279,8 +285,20 @@ export interface AppConfig {
   sql_font_size: number;
   analysis_sample_size?: number;
   sampling_strategy?: string;
+  first_run_completed?: boolean;
+  trusted_paths?: string[];
+  security_warning_acknowledged?: boolean;
   ai_config?: AIConfig;
   audit_log: AuditEntry[];
+}
+
+export interface StandardPaths {
+  base_dir: string;
+  input_dir: string;
+  output_dir: string;
+  scripts_dir: string;
+  logs_dir: string;
+  templates_dir: string;
 }
 
 export interface AppState {
@@ -306,11 +324,14 @@ export interface AppState {
   watcherState: WatcherState | null;
   watcherActivities: WatcherActivity[];
   polarsVersion?: string;
+  selectedVersionId: string | null;
+  currentIdeColumns: ColumnInfo[] | null;
+  previousVersionId: string | null;
 }
 
 export function getDefaultColumnCleanConfig(col: ColumnSummary): ColumnCleanConfig {
   return {
-    new_name: col.name,
+    new_name: col.standardized_name || col.name,
     target_dtype: null,
     active: true,
     advanced_cleaning: false,

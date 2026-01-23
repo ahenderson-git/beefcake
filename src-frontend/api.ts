@@ -70,6 +70,8 @@ import {
   DbConnection,
   DiffSummary,
   DocFileMetadata,
+  ColumnInfo,
+  StandardPaths,
 } from './types';
 
 /**
@@ -171,6 +173,14 @@ export async function resetAbortSignal(): Promise<void> {
   await invoke('reset_abort_signal');
 }
 
+export async function getStandardPaths(): Promise<StandardPaths> {
+  return await invoke('get_standard_paths');
+}
+
+export async function openPath(path: string): Promise<void> {
+  await invoke('open_path', { path });
+}
+
 export async function readTextFile(path: string): Promise<string> {
   return await invoke('read_text_file', { path });
 }
@@ -209,6 +219,26 @@ export async function saveFileDialog(
       },
     ],
   });
+}
+
+export async function openFolderDialog(): Promise<string | null> {
+  const selected = await open({
+    multiple: false,
+    directory: true,
+  });
+  return typeof selected === 'string' ? selected : null;
+}
+
+export async function listTrustedPaths(): Promise<string[]> {
+  return await invoke('list_trusted_paths');
+}
+
+export async function addTrustedPath(path: string): Promise<string[]> {
+  return await invoke('add_trusted_path', { path });
+}
+
+export async function removeTrustedPath(path: string): Promise<string[]> {
+  return await invoke('remove_trusted_path', { path });
 }
 
 // ============================================================================
@@ -260,6 +290,15 @@ export async function getVersionDiff(
 export async function listVersions(datasetId: string): Promise<string> {
   return await invoke('lifecycle_list_versions', {
     request: { dataset_id: datasetId },
+  });
+}
+
+export async function getVersionSchema(
+  datasetId: string,
+  versionId: string
+): Promise<ColumnInfo[]> {
+  return await invoke('lifecycle_get_version_schema', {
+    request: { dataset_id: datasetId, version_id: versionId },
   });
 }
 

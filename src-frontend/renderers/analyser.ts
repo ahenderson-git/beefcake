@@ -58,9 +58,11 @@ function renderCleaningInfoBox(): string {
         </div>
         <p class="cleaning-info-note">
           <i class="ph ph-arrow-counter-clockwise"></i>
-          <strong>Note:</strong> All cleaning operations in this stage are reversible.
-          Advanced operations (imputation, normalisation, encoding) are available in the <strong>Advanced</strong> stage.
-          <a href="#" class="cleaning-info-link" data-view="reference">View full documentation →</a>
+          <span>
+            <strong>Note:</strong> All cleaning operations in this stage are reversible.
+            Advanced operations (imputation, normalisation, encoding) are available in the <strong>Advanced</strong> stage.
+            <a href="#" class="cleaning-info-link" data-view="reference">View full documentation →</a>
+          </span>
         </p>
       </div>
     </div>
@@ -158,9 +160,9 @@ export function renderAnalyserHeader(
           currentStage === 'Published'
             ? `
           <div class="bulk-group">
-            <label title="Enable machine learning preprocessing features: imputation, normalisation, one-hot encoding, and outlier clipping">
+            <label title="Enable machine learning preprocessing features: imputation, normalisation, one-hot encoding, and outlier clipping" style="display: flex; align-items: center;">
               <input type="checkbox" name="activate-advanced" class="header-action" data-action="activate-advanced" data-testid="header-activate-advanced" ${advancedProcessingEnabled ? 'checked' : ''}>
-              <i class="ph ph-brain"></i> Advanced Processing
+              <span style="display: flex; align-items: center;">Advanced Processing</span>
               ${advancedProcessingEnabled ? '<span class="badge-ml" style="margin-left: 8px;">ACTIVE</span>' : ''}
             </label>
           </div>

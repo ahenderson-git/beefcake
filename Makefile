@@ -63,8 +63,12 @@ build:
 
 # Run tests
 test:
+	@echo "Cleaning problematic PDB files..."
+	npm run clean-pdbs
 	@echo "Running Rust tests..."
 	cargo test
+	@echo "Running TypeScript tests..."
+	npm test
 	@echo "✓ All tests passed!"
 
 # Run Clippy linter

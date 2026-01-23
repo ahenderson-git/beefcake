@@ -442,7 +442,7 @@ export class AnalyserComponent extends Component {
     if (cleaningInfoLink) {
       cleaningInfoLink.addEventListener('click', e => {
         e.preventDefault();
-        this.actions.navigateTo?.('reference');
+        this.actions.navigateTo?.('Reference');
       });
     }
   }

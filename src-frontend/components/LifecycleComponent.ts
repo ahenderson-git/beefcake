@@ -197,7 +197,7 @@ export class LifecycleComponent extends Component {
     modalContainer.classList.add('active');
 
     // Close modal handlers
-    const closeHandlers = () => {
+    const closeHandlers = (): void => {
       this.closeModal();
     };
 
@@ -211,7 +211,7 @@ export class LifecycleComponent extends Component {
     });
 
     // Keyboard shortcut - ESC to close
-    const escHandler = (e: KeyboardEvent) => {
+    const escHandler = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         this.closeModal();
         document.removeEventListener('keydown', escHandler);

@@ -6,6 +6,7 @@ export interface ComponentActions {
   onStateChange: () => void;
   runAnalysis: (path: string) => void;
   navigateTo?: (view: string, datasetId?: string) => void;
+  showFirstRunWizard?: () => void;
 }
 
 export abstract class Component {

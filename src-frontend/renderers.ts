@@ -10,3 +10,4 @@ export * from './renderers/layout';
 export * from './renderers/cli';
 export * from './renderers/lifecycle';
 export * from './renderers/dictionary';
+export * from './renderers/onboarding';

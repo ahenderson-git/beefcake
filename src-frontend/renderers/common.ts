@@ -8,7 +8,9 @@ export const IMPUTE_OPTIONS = [
   { value: 'Mode', label: 'Mode' },
 ];
 
-export function getImputeOptionsForColumn(columnKind: string) {
+export function getImputeOptionsForColumn(
+  columnKind: string
+): Array<{ value: string; label: string }> {
   switch (columnKind) {
     case 'Numeric':
       return IMPUTE_OPTIONS; // All options valid for numeric

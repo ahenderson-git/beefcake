@@ -393,6 +393,12 @@
           "markdownDescription": "Allows the abort_processing command"
         },
         {
+          "description": "Allows the add_trusted_path command",
+          "type": "string",
+          "const": "allow-add-trusted-path",
+          "markdownDescription": "Allows the add_trusted_path command"
+        },
+        {
           "description": "Allows the ai_delete_api_key command",
           "type": "string",
           "const": "allow-ai-delete-api-key",
@@ -507,6 +513,12 @@
           "markdownDescription": "Allows the get_config command"
         },
         {
+          "description": "Allows the get_standard_paths command",
+          "type": "string",
+          "const": "allow-get-standard-paths",
+          "markdownDescription": "Allows the get_standard_paths command"
+        },
+        {
           "description": "Allows the install_python_package command",
           "type": "string",
           "const": "allow-install-python-package",
@@ -567,6 +579,12 @@
           "markdownDescription": "Allows the list_pipeline_templates command"
         },
         {
+          "description": "Allows the list_trusted_paths command",
+          "type": "string",
+          "const": "allow-list-trusted-paths",
+          "markdownDescription": "Allows the list_trusted_paths command"
+        },
+        {
           "description": "Allows the load_pipeline_spec command",
           "type": "string",
           "const": "allow-load-pipeline-spec",
@@ -577,6 +595,12 @@
           "type": "string",
           "const": "allow-load-pipeline-template",
           "markdownDescription": "Allows the load_pipeline_template command"
+        },
+        {
+          "description": "Allows the open_path command",
+          "type": "string",
+          "const": "allow-open-path",
+          "markdownDescription": "Allows the open_path command"
         },
         {
           "description": "Allows the pipeline_from_configs command",
@@ -601,6 +625,12 @@
           "type": "string",
           "const": "allow-read-text-file",
           "markdownDescription": "Allows the read_text_file command"
+        },
+        {
+          "description": "Allows the remove_trusted_path command",
+          "type": "string",
+          "const": "allow-remove-trusted-path",
+          "markdownDescription": "Allows the remove_trusted_path command"
         },
         {
           "description": "Allows the reset_abort_signal command",

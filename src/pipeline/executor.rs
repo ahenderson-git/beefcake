@@ -9,7 +9,32 @@ use crate::analyser::logic::{get_parquet_write_options, load_df_lazy};
 use anyhow::{Context as _, Result};
 use chrono::Local;
 use polars::prelude::*;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+
+const DEFAULT_ONE_HOT_MAX_UNIQUE: usize = 200;
+const ONE_HOT_VALUE_MAX_LEN: usize = 32;
+
+fn one_hot_max_unique() -> usize {
+    std::env::var("BEEFCAKE_ONE_HOT_MAX_UNIQUE")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_ONE_HOT_MAX_UNIQUE)
+}
+
+fn sanitize_one_hot_value(value: &str) -> String {
+    let mut cleaned: String = value
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    while cleaned.contains("__") {
+        cleaned = cleaned.replace("__", "_");
+    }
+    let cleaned = cleaned.trim_matches('_');
+    let trimmed = if cleaned.is_empty() { "value" } else { cleaned };
+    trimmed.chars().take(ONE_HOT_VALUE_MAX_LEN).collect()
+}
 
 /// Report generated after pipeline execution
 #[derive(Debug, Clone)]
@@ -291,12 +316,17 @@ fn apply_step(step: &Step, mut lf: LazyFrame) -> Result<LazyFrame> {
                             NormalisationMethod::MinMax => {
                                 let min_val = expr.clone().min();
                                 let max_val = expr.clone().max();
-                                (expr.clone() - min_val.clone()) / (max_val - min_val)
+                                let denom = max_val.clone() - min_val.clone();
+                                when(denom.clone().eq(lit(0.0)))
+                                    .then(lit(0.0))
+                                    .otherwise((expr.clone() - min_val) / denom)
                             }
                             NormalisationMethod::ZScore => {
                                 let mean_val = expr.clone().mean();
                                 let std_val = expr.clone().std(1);
-                                (expr.clone() - mean_val) / std_val
+                                when(std_val.clone().eq(lit(0.0)))
+                                    .then(lit(0.0))
+                                    .otherwise((expr.clone() - mean_val) / std_val)
                             }
                         };
                         normalized.alias(name.as_str())
@@ -407,9 +437,22 @@ fn apply_one_hot_encoding(
         .map(std::borrow::ToOwned::to_owned)
         .collect();
 
+    let max_unique = one_hot_max_unique();
+    if unique_strings.len() > max_unique {
+        return Err(anyhow::anyhow!(
+            "One-hot encoding for column '{col_name}' has {} unique values (limit: {}). Reduce cardinality or disable one-hot encoding.",
+            unique_strings.len(),
+            max_unique
+        ));
+    }
+
     // Build expressions
     let schema = lf.collect_schema().map_err(|e| anyhow::anyhow!(e))?;
     let mut expressions = Vec::new();
+    let mut used_names: HashSet<String> = schema
+        .iter()
+        .map(|(name, _)| name.as_str().to_owned())
+        .collect();
 
     // Add all existing columns (except original if dropping)
     for (name, _) in schema.iter() {
@@ -420,7 +463,14 @@ fn apply_one_hot_encoding(
 
     // Add one-hot encoded columns
     for val in unique_strings {
-        let new_col_name = format!("{col_name}_{val}");
+        let base = sanitize_one_hot_value(&val);
+        let mut new_col_name = format!("{col_name}_{base}");
+        let mut counter = 1;
+        while used_names.contains(&new_col_name) {
+            new_col_name = format!("{col_name}_{base}_{counter}");
+            counter += 1;
+        }
+        used_names.insert(new_col_name.clone());
         expressions.push(
             when(col(col_name).eq(lit(val.as_str())))
                 .then(lit(1i32))

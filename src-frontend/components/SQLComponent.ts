@@ -3,6 +3,7 @@ import * as monaco from 'monaco-editor';
 import * as api from '../api';
 import * as renderers from '../renderers';
 import { AppState } from '../types';
+import { getDataPathForExecution } from '../utils';
 
 import { Component, ComponentActions } from './Component';
 import { ExportModal } from './ExportModal';
@@ -20,6 +21,27 @@ export class SQLComponent extends Component {
     this.initMonaco(state);
     this.bindEvents(state);
     this.bindSidebarEvents();
+    void this.updateColumnSchema(state);
+  }
+
+  private async updateColumnSchema(state: AppState): Promise<void> {
+    // If we have a dataset with versions, fetch the schema for the selected version
+    if (state.currentDataset && state.currentDataset.versions.length > 0) {
+      const selectedVersionId = state.selectedVersionId ?? state.currentDataset.activeVersionId;
+      try {
+        state.currentIdeColumns = await api.getVersionSchema(
+          state.currentDataset.id,
+          selectedVersionId
+        );
+      } catch (err) {
+        console.error('Failed to fetch version schema:', err);
+        // Fall back to analysisResponse columns if API fails
+        state.currentIdeColumns = null;
+      }
+    } else {
+      // No dataset versions, use analysisResponse
+      state.currentIdeColumns = null;
+    }
   }
 
   private initMonaco(state: AppState): void {
@@ -72,7 +94,7 @@ export class SQLComponent extends Component {
       void this.handleSaveScript();
     });
     document.getElementById('btn-install-polars')?.addEventListener('click', () => {
-      void this.handleInstallPolars();
+      void this.handleInstallPolars(state);
     });
     document.getElementById('btn-sql-docs')?.addEventListener('click', () => {
       window.open('https://docs.pola.rs/user-guide/sql/intro/', '_blank');
@@ -80,9 +102,21 @@ export class SQLComponent extends Component {
     document.getElementById('btn-copy-output-sql')?.addEventListener('click', () => {
       this.handleCopyOutput();
     });
+    document.getElementById('btn-refactor-sql')?.addEventListener('click', () => {
+      void this.handleRefactorColumnNames(state);
+    });
     document.getElementById('sql-skip-cleaning')?.addEventListener('change', e => {
       state.sqlSkipCleaning = (e.target as HTMLInputElement).checked;
       this.actions.onStateChange();
+    });
+    document.getElementById('sql-stage-select')?.addEventListener('change', e => {
+      void (async () => {
+        // Track previous version for diffing
+        state.previousVersionId = state.selectedVersionId;
+        state.selectedVersionId = (e.target as HTMLSelectElement).value;
+        await this.updateColumnSchema(state);
+        this.actions.onStateChange();
+      })();
     });
   }
 
@@ -126,6 +160,7 @@ export class SQLComponent extends Component {
 
   private async runSql(state: AppState): Promise<void> {
     if (!this.editor) return;
+    if (!(await this.ensureSecurityAcknowledged(state))) return;
     const query = this.editor.getValue();
     const output = document.getElementById('sql-output');
     if (!output) return;
@@ -137,7 +172,7 @@ export class SQLComponent extends Component {
       return;
     }
 
-    const dataPath = state.analysisResponse.path;
+    const dataPath = getDataPathForExecution(state);
     if (!dataPath) {
       output.textContent =
         'Error: Dataset path is missing from analysis response.\nTry re-loading the file in the Analyser.';
@@ -147,7 +182,13 @@ export class SQLComponent extends Component {
 
     output.textContent = 'Executing query...';
     try {
-      const configs = state.sqlSkipCleaning ? undefined : state.cleaningConfigs;
+      // Cleaning config behavior:
+      // - When dataset lifecycle is used (currentDataset exists): cleaning configs are NEVER applied
+      //   because the versioned data is already cleaned and stored in Parquet format
+      // - When working with raw files (no lifecycle): cleaning configs are applied unless skipCleaning is enabled
+      // This ensures backward compatibility while supporting the new lifecycle workflow
+      const useCleaningConfigs = !state.currentDataset && !state.sqlSkipCleaning;
+      const configs = useCleaningConfigs ? state.cleaningConfigs : undefined;
       output.textContent = await api.runSql(query, dataPath, configs);
     } catch (err) {
       let errorMsg = String(err);
@@ -159,9 +200,10 @@ export class SQLComponent extends Component {
     }
   }
 
-  private async handleInstallPolars(): Promise<void> {
+  private async handleInstallPolars(state: AppState): Promise<void> {
     const output = document.getElementById('sql-output');
     if (!output) return;
+    if (!(await this.ensureSecurityAcknowledged(state))) return;
 
     output.textContent = 'Installing polars package...\n';
     try {
@@ -189,12 +231,15 @@ export class SQLComponent extends Component {
   }
 
   private async handleExport(state: AppState): Promise<void> {
-    if (!this.editor || !state.analysisResponse) return;
+    if (!this.editor) return;
+
+    // Use the same data path as execution for consistency
+    const dataPath = getDataPathForExecution(state);
 
     const modal = new ExportModal('modal-container', this.actions, {
       type: 'SQL',
       content: this.editor.getValue(),
-      path: state.analysisResponse.path,
+      ...(dataPath ? { path: dataPath } : {}),
     });
 
     document.getElementById('modal-container')?.classList.add('active');
@@ -216,6 +261,29 @@ export class SQLComponent extends Component {
       await api.saveAppConfig(state.config);
       this.actions.onStateChange();
     }
+  }
+
+  private async ensureSecurityAcknowledged(state: AppState): Promise<boolean> {
+    if (!state.config) {
+      this.actions.showToast('App configuration missing', 'error');
+      return false;
+    }
+
+    if (state.config.security_warning_acknowledged) {
+      return true;
+    }
+
+    const confirmed = confirm(
+      'Running scripts can execute arbitrary code on your machine. Do you want to continue?'
+    );
+    if (!confirmed) {
+      return false;
+    }
+
+    state.config.security_warning_acknowledged = true;
+    await api.saveAppConfig(state.config);
+    this.actions.showToast('Security warning acknowledged', 'info');
+    return true;
   }
 
   private async handleLoadScript(): Promise<void> {
@@ -241,6 +309,208 @@ export class SQLComponent extends Component {
       }
     } catch (err) {
       this.actions.showToast(`Error saving query: ${String(err)}`, 'error');
+    }
+  }
+
+  /**
+   * Handles intelligent refactoring of column names in SQL queries when switching between
+   * data lifecycle stages (e.g., Raw → Cleaned).
+   *
+   * **What it does:**
+   * - Compares the previous and current data stage versions to find renamed columns
+   * - Shows a confirmation dialog listing all column name changes
+   * - Uses Monaco Editor's find/replace to update column references
+   * - Handles multiple SQL identifier styles: unquoted, double-quoted, backticks, brackets
+   * - Preserves the original quoting style used in the query
+   * - Shows toast notifications for success/failure/info messages
+   *
+   * **When it's called:**
+   * - User clicks the "Refactor" button after switching data stages
+   * - Button only appears when `previousVersionId` and `selectedVersionId` are both set
+   *
+   * **SQL identifier support:**
+   * - Unquoted: `SELECT customer_name FROM data`
+   * - Double quotes: `SELECT "customer name" FROM data`
+   * - Backticks: `SELECT \`customer name\` FROM data` (MySQL)
+   * - Brackets: `SELECT [customer name] FROM data` (SQL Server)
+   *
+   * **Example workflow:**
+   * ```sql
+   * -- Before (Raw stage):
+   * SELECT "Customer Name", "Order Date" FROM data
+   *
+   * -- After switching to Cleaned stage and clicking Refactor:
+   * SELECT "customer_name", "order_date" FROM data
+   * ```
+   *
+   * @param state - Application state containing dataset and version information
+   */
+  private async handleRefactorColumnNames(state: AppState): Promise<void> {
+    if (
+      !this.editor ||
+      !state.currentDataset ||
+      !state.previousVersionId ||
+      !state.selectedVersionId
+    ) {
+      this.actions.showToast('Cannot refactor: missing version information', 'error');
+      return;
+    }
+
+    // Check if editor has any content
+    const content = this.editor.getValue().trim();
+    if (!content) {
+      this.actions.showToast('Query is empty - nothing to refactor', 'info');
+      return;
+    }
+
+    try {
+      // Get the diff between previous and current version
+      const diff = await api.getVersionDiff(
+        state.currentDataset.id,
+        state.previousVersionId,
+        state.selectedVersionId
+      );
+
+      const renamedColumns = diff.schema_changes.columns_renamed;
+      if (renamedColumns.length === 0) {
+        this.actions.showToast('No column renames detected between stages', 'info');
+        return;
+      }
+
+      // Build confirmation message with clear formatting
+      const renameList = renamedColumns
+        .map(([oldName, newName]) => `  • "${oldName}" → "${newName}"`)
+        .join('\n');
+
+      const message =
+        `🔄 Column Refactoring\n\n` +
+        `Found ${renamedColumns.length} renamed column${renamedColumns.length === 1 ? '' : 's'}:\n\n` +
+        renameList +
+        `\n\nUpdate all references in your SQL query?\n\n` +
+        `💡 Tip: You can undo changes with Ctrl+Z`;
+
+      if (!confirm(message)) {
+        return;
+      }
+
+      const model = this.editor.getModel();
+      if (!model) return;
+
+      let totalReplacements = 0;
+
+      // Common SQL keywords to avoid replacing (lowercase for comparison)
+      const sqlKeywords = new Set([
+        'select',
+        'from',
+        'where',
+        'join',
+        'left',
+        'right',
+        'inner',
+        'outer',
+        'on',
+        'group',
+        'by',
+        'order',
+        'having',
+        'limit',
+        'offset',
+        'union',
+        'all',
+        'distinct',
+        'as',
+        'and',
+        'or',
+        'not',
+        'in',
+        'exists',
+        'between',
+        'like',
+        'is',
+        'null',
+        'case',
+        'when',
+        'then',
+        'else',
+        'end',
+        'cast',
+        'count',
+        'sum',
+        'avg',
+        'min',
+        'max',
+        'date',
+        'time',
+        'timestamp',
+        'true',
+        'false',
+      ]);
+
+      // Perform replacements for each renamed column
+      for (const [oldName, newName] of renamedColumns) {
+        // Build patterns to try (skip unquoted if it's a SQL keyword or has spaces)
+        const isKeyword = sqlKeywords.has(oldName.toLowerCase());
+        const hasSpaces = oldName.includes(' ');
+
+        const patterns = [];
+
+        // Only try unquoted if it's not a keyword and has no spaces
+        if (!isKeyword && !hasSpaces) {
+          patterns.push(oldName);
+        }
+
+        // Always try quoted forms
+        patterns.push(
+          `"${oldName}"`, // Double quoted
+          `\`${oldName}\``, // Backtick quoted (MySQL)
+          `[${oldName}]` // Bracket quoted (SQL Server)
+        );
+
+        for (const searchPattern of patterns) {
+          const matches = model.findMatches(
+            searchPattern,
+            true, // Search full model
+            false, // Not regex
+            true, // Match case
+            null, // Word separators
+            false // Capture matches
+          );
+
+          if (matches.length > 0) {
+            // Determine the quote style to use for replacement (preserve original style)
+            let replacement = newName;
+            if (searchPattern.startsWith('"')) {
+              replacement = `"${newName}"`;
+            } else if (searchPattern.startsWith('`')) {
+              replacement = `\`${newName}\``;
+            } else if (searchPattern.startsWith('[')) {
+              replacement = `[${newName}]`;
+            }
+
+            this.editor.executeEdits(
+              'refactor-columns',
+              matches.map(match => ({
+                range: match.range,
+                text: replacement,
+              }))
+            );
+            totalReplacements += matches.length;
+          }
+        }
+      }
+
+      if (totalReplacements > 0) {
+        const refWord = totalReplacements === 1 ? 'reference' : 'references';
+        this.actions.showToast(`✓ Updated ${totalReplacements} column ${refWord}`, 'success');
+        // Clear previous version ID so button doesn't show again until next stage change
+        state.previousVersionId = null;
+        this.actions.onStateChange();
+      } else {
+        this.actions.showToast('No column references found in query', 'info');
+      }
+    } catch (err) {
+      this.actions.showToast(`Refactor failed: ${String(err)}`, 'error');
+      console.error('Column refactoring error:', err);
     }
   }
 }

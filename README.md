@@ -1,8 +1,26 @@
+### TL;DR / A note from the author
+
+I’m an experienced analyst and data engineer who decided to get uncomfortable and try building something serious in a low-level language.
+
+I’m building beefcake first and foremost for myself — it’s the tool I wish I had in my day-job. But along the way, I want it to be useful for anyone who works with data.
+
+That means flexible import and export options, great performance, automated cleaning, and support for both GUI and CLI workflows.
+
+I’ve put a lot of effort into testing because I care deeply about correctness and reliability. When something touches your data, it needs to be rock solid.
+
+The speed and power of Polars genuinely blew me away, and over time I plan to explore how beefcake could be used in cloud and Azure-based workflows.
+
+I build this project using RustRover (JetBrains) with their integrated AI agents. Junie has been invaluable for wrestling with Rust’s compiler and error messages, and the Claude agent is… chef’s kiss. Having this level of tooling support has made it possible for me to keep pushing forward while I come to terms with Rust as a language.
+
+If this project resonates with you, or you’re curious about where it’s heading, feel free to reach out.
+
+---
+
 # Beefcake
 
 > A desktop data analysis and transformation toolkit built with Rust and TypeScript
 
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/yourusername/beefcake)
+[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](https://github.com/yourusername/beefcake)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue.svg)](https://www.typescriptlang.org)
@@ -235,7 +253,7 @@ npm run docs:ts
 
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) (coming soon) for details on:
+Contributions are welcome! Please read our [Contributing Guide](docs/CONTRIBUTING.md) (coming soon) for details on:
 
 - Code style and conventions
 - How to submit pull requests

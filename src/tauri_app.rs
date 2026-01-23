@@ -8,7 +8,7 @@
 use beefcake::ai::client::AIAssistant;
 use beefcake::utils::AIConfig;
 use beefcake::analyser::logic::flows::analyze_file_flow;
-use tauri::Manager;
+use tauri::Manager as _;
 use beefcake::analyser::logic::{AnalysisResponse, ColumnCleanConfig};
 use beefcake::utils::{AppConfig, DbSettings, load_app_config, push_audit_log, save_app_config};
 use std::collections::HashMap;
@@ -27,6 +27,15 @@ const WORKER_THREAD_STACK_SIZE: usize = 50 * 1024 * 1024;
 
 /// File size threshold (50MB) for warning about memory-intensive operations
 const LARGE_FILE_WARNING_THRESHOLD: u64 = 50 * 1024 * 1024;
+
+fn ensure_security_acknowledged() -> Result<(), String> {
+    let config = load_app_config();
+    if config.settings.security_warning_acknowledged {
+        Ok(())
+    } else {
+        Err("Security warning not acknowledged. Please confirm before running scripts.".to_owned())
+    }
+}
 
 
 async fn run_on_worker_thread<F, Fut, R>(name: &str, f: F) -> Result<R, String>
@@ -133,6 +142,7 @@ pub async fn save_config(mut config: AppConfig) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn run_powershell(script: String) -> Result<String, String> {
+    ensure_security_acknowledged()?;
     beefcake::utils::log_event("PowerShell", "Executed script");
     crate::system::run_powershell(&script).map_err(|e| e.to_string())
 }
@@ -199,6 +209,7 @@ pub async fn run_python(
     data_path: Option<String>,
     configs: Option<HashMap<String, ColumnCleanConfig>>,
 ) -> Result<String, String> {
+    ensure_security_acknowledged()?;
     beefcake::utils::log_event("Python", "Executing Python script.");
 
     let (actual_data_path, _temp_guard) = python_runner::prepare_data(data_path, configs, "Python")
@@ -217,6 +228,7 @@ pub async fn run_sql(
     data_path: Option<String>,
     configs: Option<HashMap<String, ColumnCleanConfig>>,
 ) -> Result<String, String> {
+    ensure_security_acknowledged()?;
     beefcake::utils::log_event("Sql", "Executing Sql query.");
 
     let (actual_data_path, _temp_guard) = python_runner::prepare_data(data_path, configs, "Sql")
@@ -369,6 +381,7 @@ pub async fn delete_connection(id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn install_python_package(package: String) -> Result<String, String> {
+    ensure_security_acknowledged()?;
     beefcake::utils::log_event("Python", &format!("Installing package: {package}"));
     crate::system::install_python_package(&package).map_err(|e| e.to_string())
 }
@@ -377,6 +390,34 @@ pub async fn install_python_package(package: String) -> Result<String, String> {
 pub async fn check_python_environment() -> Result<String, String> {
     beefcake::utils::log_event("System", "Checking Python environment");
     crate::system::check_python_environment().map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize)]
+pub struct StandardPathsPayload {
+    pub base_dir: String,
+    pub input_dir: String,
+    pub output_dir: String,
+    pub scripts_dir: String,
+    pub logs_dir: String,
+    pub templates_dir: String,
+}
+
+#[tauri::command]
+pub async fn get_standard_paths() -> Result<StandardPathsPayload, String> {
+    let paths = beefcake::utils::standard_paths();
+    Ok(StandardPathsPayload {
+        base_dir: paths.base_dir.to_string_lossy().to_string(),
+        input_dir: paths.input_dir.to_string_lossy().to_string(),
+        output_dir: paths.output_dir.to_string_lossy().to_string(),
+        scripts_dir: paths.scripts_dir.to_string_lossy().to_string(),
+        logs_dir: paths.logs_dir.to_string_lossy().to_string(),
+        templates_dir: paths.templates_dir.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn open_path(path: String) -> Result<(), String> {
+    crate::system::open_path(&path).map_err(|e| e.to_string())
 }
 
 // ============================================================================
@@ -428,6 +469,54 @@ fn get_or_create_registry() -> Result<Arc<DatasetRegistry>, String> {
     *reg_guard = Some(Arc::clone(&registry));
 
     Ok(registry)
+}
+
+fn normalize_trusted_root(path: &str) -> Result<String, String> {
+    let raw = PathBuf::from(path);
+    let absolute = if raw.is_absolute() {
+        raw
+    } else {
+        std::env::current_dir()
+            .map_err(|e| format!("Failed to resolve current directory: {e}"))?
+            .join(raw)
+    };
+
+    let candidate = if absolute.is_dir() {
+        absolute
+    } else {
+        absolute
+            .parent()
+            .ok_or_else(|| "Failed to resolve parent directory".to_owned())?
+            .to_path_buf()
+    };
+
+    let normalized = candidate.canonicalize().unwrap_or(candidate);
+    Ok(normalized.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn list_trusted_paths() -> Result<Vec<String>, String> {
+    Ok(load_app_config().settings.trusted_paths)
+}
+
+#[tauri::command]
+pub async fn add_trusted_path(path: String) -> Result<Vec<String>, String> {
+    let mut config = load_app_config();
+    let normalized = normalize_trusted_root(&path)?;
+    if !config.settings.trusted_paths.contains(&normalized) {
+        config.settings.trusted_paths.push(normalized);
+        save_app_config(&config).map_err(|e| e.to_string())?;
+    }
+    Ok(config.settings.trusted_paths)
+}
+
+#[tauri::command]
+pub async fn remove_trusted_path(path: String) -> Result<Vec<String>, String> {
+    let mut config = load_app_config();
+    let normalized = normalize_trusted_root(&path)?;
+    config.settings.trusted_paths.retain(|p| p != &normalized);
+    save_app_config(&config).map_err(|e| e.to_string())?;
+    Ok(config.settings.trusted_paths)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -575,6 +664,57 @@ pub async fn lifecycle_list_versions(request: ListVersionsRequest) -> Result<Str
 
     serde_json::to_string_pretty(&versions)
         .map_err(|e| format!("Failed to serialize versions: {e}"))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ColumnInfo {
+    pub name: String,
+    pub dtype: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetVersionSchemaRequest {
+    pub dataset_id: String,
+    pub version_id: String,
+}
+
+#[tauri::command]
+pub async fn lifecycle_get_version_schema(
+    request: GetVersionSchemaRequest,
+) -> Result<Vec<ColumnInfo>, String> {
+    beefcake::utils::log_event("Lifecycle", "Getting version schema");
+
+    let registry = get_or_create_registry()?;
+    let dataset_id =
+        Uuid::parse_str(&request.dataset_id).map_err(|e| format!("Invalid dataset ID: {e}"))?;
+    let version_id =
+        Uuid::parse_str(&request.version_id).map_err(|e| format!("Invalid version ID: {e}"))?;
+
+    // Get the dataset and version
+    let dataset = registry
+        .get_dataset(&dataset_id)
+        .map_err(|e| format!("Failed to get dataset: {e}"))?;
+    let version = dataset
+        .get_version(&version_id)
+        .map_err(|e| format!("Failed to get version: {e}"))?;
+
+    // Load the version data to get schema
+    let mut lf = version
+        .load_data(&dataset.store)
+        .map_err(|e| format!("Failed to load version data: {e}"))?;
+
+    // Collect schema information
+    let schema = lf.collect_schema().map_err(|e| format!("Failed to get schema: {e}"))?;
+
+    let columns: Vec<ColumnInfo> = schema
+        .iter()
+        .map(|(name, dtype)| ColumnInfo {
+            name: name.as_str().to_owned(),
+            dtype: dtype.to_string(),
+        })
+        .collect();
+
+    Ok(columns)
 }
 
 // ============================================================================
@@ -1230,6 +1370,8 @@ pub fn run() {
             delete_connection,
             install_python_package,
             check_python_environment,
+            get_standard_paths,
+            open_path,
             run_sql,
             sanitize_headers,
             export_data,
@@ -1239,6 +1381,7 @@ pub fn run() {
             lifecycle_publish_version,
             lifecycle_get_version_diff,
             lifecycle_list_versions,
+            lifecycle_get_version_schema,
             save_pipeline_spec,
             load_pipeline_spec,
             validate_pipeline_spec,
@@ -1266,12 +1409,18 @@ pub fn run() {
             ai_has_api_key,
             ai_test_connection,
             ai_get_config,
-            ai_update_config
+            ai_update_config,
+            list_trusted_paths,
+            add_trusted_path,
+            remove_trusted_path
         ])
         .setup(|app| {
             // Initialize watcher service
             if let Err(e) = beefcake::watcher::init(app.handle().clone()) {
                 eprintln!("Failed to initialize watcher service: {e}");
+            }
+            if let Err(e) = beefcake::utils::ensure_standard_dirs() {
+                eprintln!("Failed to initialize standard directories: {e}");
             }
             Ok(())
         })

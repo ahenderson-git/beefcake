@@ -16,6 +16,47 @@ pub const MAX_AUDIT_LOG_ENTRIES: usize = 100;
 
 pub static ABORT_SIGNAL: AtomicBool = AtomicBool::new(false);
 
+/// Standard app directories under the app data directory.
+#[derive(Debug, Clone)]
+pub struct StandardPaths {
+    pub base_dir: PathBuf,
+    pub input_dir: PathBuf,
+    pub output_dir: PathBuf,
+    pub scripts_dir: PathBuf,
+    pub logs_dir: PathBuf,
+    pub templates_dir: PathBuf,
+}
+
+pub fn app_data_dir() -> PathBuf {
+    if let Some(dir) = dirs::data_local_dir() {
+        dir.join("beefcake")
+    } else {
+        PathBuf::from("data")
+    }
+}
+
+pub fn standard_paths() -> StandardPaths {
+    let base_dir = app_data_dir();
+    StandardPaths {
+        input_dir: base_dir.join("input"),
+        output_dir: base_dir.join("output"),
+        scripts_dir: base_dir.join("scripts"),
+        logs_dir: base_dir.join("logs"),
+        templates_dir: base_dir.join("templates"),
+        base_dir,
+    }
+}
+
+pub fn ensure_standard_dirs() -> anyhow::Result<StandardPaths> {
+    let paths = standard_paths();
+    fs::create_dir_all(&paths.input_dir)?;
+    fs::create_dir_all(&paths.output_dir)?;
+    fs::create_dir_all(&paths.scripts_dir)?;
+    fs::create_dir_all(&paths.logs_dir)?;
+    fs::create_dir_all(&paths.templates_dir)?;
+    Ok(paths)
+}
+
 // Pending audit log entries that will be flushed periodically
 static PENDING_AUDIT_ENTRIES: LazyLock<Arc<Mutex<Vec<AuditEntry>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(Vec::new())));
@@ -167,6 +208,10 @@ pub struct AppSettings {
     pub powershell_font_size: u32,
     pub python_font_size: u32,
     pub sql_font_size: u32,
+    /// Whether the first-run setup wizard has been completed
+    pub first_run_completed: bool,
+    /// User-approved roots for file IO operations
+    pub trusted_paths: Vec<String>,
     /// Maximum number of rows to display in Sql/Python previews (default: 100)
     pub preview_row_limit: u32,
     /// Whether to show security warning on first Python/PowerShell execution
@@ -194,6 +239,8 @@ impl Default for AppSettings {
             powershell_font_size: 14,
             python_font_size: 14,
             sql_font_size: 14,
+            first_run_completed: false,
+            trusted_paths: Vec::new(),
             preview_row_limit: 100,
             security_warning_acknowledged: false,
             skip_full_row_count: false,

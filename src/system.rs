@@ -1,5 +1,117 @@
 use anyhow::{Result, anyhow};
+use beefcake::utils;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+const ALLOWED_TEXT_EXTENSIONS: &[&str] = &[
+    "csv", "json", "md", "parquet", "ps1", "py", "sql", "txt",
+];
+
+fn resolve_text_path(path: &str, require_file: bool) -> Result<PathBuf> {
+    let raw = PathBuf::from(path);
+    let absolute = to_absolute(&raw)?;
+
+    let ext = absolute
+        .extension()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| anyhow!("File extension required for text operations"))?
+        .to_lowercase();
+
+    if !ALLOWED_TEXT_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(anyhow!(
+            "File extension .{ext} is not allowed for text operations"
+        ));
+    }
+
+    let candidate = if require_file {
+        absolute.clone()
+    } else {
+        absolute
+            .parent()
+            .ok_or_else(|| anyhow!("Failed to resolve parent directory"))?
+            .to_path_buf()
+    };
+
+    if !is_path_allowed(&candidate)? {
+        return Err(anyhow!(
+            "Access denied: path is outside permitted directories"
+        ));
+    }
+
+    Ok(absolute)
+}
+
+fn to_absolute(path: &Path) -> Result<PathBuf> {
+    if path.is_absolute() {
+        Ok(path.to_path_buf())
+    } else {
+        Ok(std::env::current_dir()
+            .map_err(|e| anyhow!("Failed to resolve current directory: {e}"))?
+            .join(path))
+    }
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn allowed_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(dir) = dirs::data_local_dir() {
+        roots.push(dir.join("beefcake"));
+    }
+    if let Some(dir) = dirs::config_dir() {
+        roots.push(dir.join("beefcake"));
+    }
+
+    let config = utils::load_app_config();
+    for entry in config.settings.trusted_paths {
+        if !entry.trim().is_empty() {
+            roots.push(PathBuf::from(entry));
+        }
+    }
+
+    roots
+}
+
+fn is_path_allowed(path: &Path) -> Result<bool> {
+    let absolute = normalize_path(&to_absolute(path)?);
+
+    for root in allowed_roots() {
+        let root_abs = normalize_path(&root);
+        if absolute.starts_with(&root_abs) {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+pub fn open_path(path: &str) -> Result<()> {
+    let absolute = to_absolute(Path::new(path))?;
+    if !absolute.exists() {
+        return Err(anyhow!("Path not found: {}", absolute.display()));
+    }
+    if !is_path_allowed(&absolute)? {
+        return Err(anyhow!(
+            "Access denied: path is outside permitted directories"
+        ));
+    }
+
+    let status = if cfg!(target_os = "windows") {
+        Command::new("explorer").arg(&absolute).status()
+    } else if cfg!(target_os = "macos") {
+        Command::new("open").arg(&absolute).status()
+    } else {
+        Command::new("xdg-open").arg(&absolute).status()
+    };
+
+    match status {
+        Ok(exit) if exit.success() => Ok(()),
+        Ok(exit) => Err(anyhow!("Failed to open path: exit {exit}")),
+        Err(e) => Err(anyhow!("Failed to open path: {e}")),
+    }
+}
 
 pub fn run_powershell(script: &str) -> Result<String> {
     let output = if cfg!(target_os = "windows") {
@@ -62,11 +174,26 @@ pub fn install_python_package(package: &str) -> Result<String> {
 }
 
 pub fn read_text_file(path: &str) -> Result<String> {
-    std::fs::read_to_string(path).map_err(|e| anyhow!("Failed to read file {path}: {e}"))
+    let absolute = resolve_text_path(path, true)?;
+    if !absolute.is_file() {
+        return Err(anyhow!("File not found: {}", absolute.display()));
+    }
+    std::fs::read_to_string(&absolute)
+        .map_err(|e| anyhow!("Failed to read file {}: {e}", absolute.display()))
 }
 
 pub fn write_text_file(path: &str, contents: &str) -> Result<()> {
-    std::fs::write(path, contents).map_err(|e| anyhow!("Failed to write file {path}: {e}"))
+    let absolute = resolve_text_path(path, false)?;
+    if let Some(parent) = absolute.parent()
+        && !parent.exists()
+    {
+        return Err(anyhow!(
+            "Parent directory does not exist: {}",
+            parent.display()
+        ));
+    }
+    std::fs::write(&absolute, contents)
+        .map_err(|e| anyhow!("Failed to write file {}: {e}", absolute.display()))
 }
 
 pub fn check_python_environment() -> Result<String> {

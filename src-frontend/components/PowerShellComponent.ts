@@ -38,7 +38,7 @@ export class PowerShellComponent extends Component {
 
   override bindEvents(state: AppState): void {
     document.getElementById('btn-run-ps')?.addEventListener('click', () => {
-      void this.runPowerShell();
+      void this.runPowerShell(state);
     });
     document.getElementById('btn-clear-ps')?.addEventListener('click', () => {
       const output = document.getElementById('ps-output');
@@ -58,8 +58,9 @@ export class PowerShellComponent extends Component {
     });
   }
 
-  private async runPowerShell(): Promise<void> {
+  private async runPowerShell(state: AppState): Promise<void> {
     if (!this.editor) return;
+    if (!(await this.ensureSecurityAcknowledged(state))) return;
     const script = this.editor.getValue();
     const output = document.getElementById('ps-output');
     if (!output) return;
@@ -86,6 +87,29 @@ export class PowerShellComponent extends Component {
       await api.saveAppConfig(state.config);
       this.actions.onStateChange();
     }
+  }
+
+  private async ensureSecurityAcknowledged(state: AppState): Promise<boolean> {
+    if (!state.config) {
+      this.actions.showToast('App configuration missing', 'error');
+      return false;
+    }
+
+    if (state.config.security_warning_acknowledged) {
+      return true;
+    }
+
+    const confirmed = confirm(
+      'Running scripts can execute arbitrary code on your machine. Do you want to continue?'
+    );
+    if (!confirmed) {
+      return false;
+    }
+
+    state.config.security_warning_acknowledged = true;
+    await api.saveAppConfig(state.config);
+    this.actions.showToast('Security warning acknowledged', 'info');
+    return true;
   }
 
   private async handleLoadScript(): Promise<void> {

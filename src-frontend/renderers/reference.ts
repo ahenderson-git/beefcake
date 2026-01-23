@@ -1,4 +1,5 @@
 import { DocFileMetadata } from '../types';
+import { escapeHtml } from '../utils';
 
 /**
  * Render the documentation viewer with sidebar navigation and content area
@@ -52,7 +53,7 @@ export function renderDocumentationViewer(
             type="text"
             id="doc-search-input"
             placeholder="Search documentation..."
-            value="${searchQuery}"
+            value="${escapeHtml(searchQuery)}"
           />
         </div>
 
@@ -65,7 +66,7 @@ export function renderDocumentationViewer(
                 <div class="doc-category">
                   <div class="doc-category-header">
                     <i class="ph ph-caret-right category-icon"></i>
-                    <span>${category}</span>
+                    <span>${escapeHtml(category)}</span>
                     <span class="doc-count">${categoryDocs.length}</span>
                   </div>
                   <div class="doc-category-items">
@@ -74,10 +75,10 @@ export function renderDocumentationViewer(
                         doc => `
                       <div
                         class="doc-nav-item ${doc.path === currentDoc ? 'active' : ''}"
-                        data-doc-path="${doc.path}"
+                        data-doc-path="${escapeHtml(doc.path)}"
                       >
                         <i class="ph ph-file-text"></i>
-                        <span>${doc.title}</span>
+                        <span>${escapeHtml(doc.title)}</span>
                       </div>
                     `
                       )
@@ -116,7 +117,7 @@ export function renderLoadingState(message: string): string {
   return `
     <div class="doc-loading-container">
       <div class="loading-spinner"></div>
-      <p>${message}</p>
+      <p>${escapeHtml(message)}</p>
     </div>
   `;
 }
@@ -128,8 +129,8 @@ export function renderErrorState(title: string, detail: string): string {
   return `
     <div class="doc-error-container">
       <i class="ph ph-warning-circle"></i>
-      <h3>${title}</h3>
-      <p class="error-detail">${detail}</p>
+      <h3>${escapeHtml(title)}</h3>
+      <p class="error-detail">${escapeHtml(detail)}</p>
     </div>
   `;
 }

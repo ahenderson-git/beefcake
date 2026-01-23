@@ -165,6 +165,8 @@ function Invoke-BeefcakeTest {
     )
     
     if (-not $TsOnly) {
+        Write-Host "Cleaning problematic PDB files..." -ForegroundColor Cyan
+        npm run clean-pdbs
         Write-Host "Running Rust tests..." -ForegroundColor Cyan
         cargo test
     }

@@ -68,6 +68,9 @@ const createMockState = (): AppState => ({
     state: 'idle',
   },
   watcherActivities: [],
+  selectedVersionId: null,
+  currentIdeColumns: null,
+  previousVersionId: null,
 });
 
 describe('Component', () => {

@@ -1,7 +1,7 @@
 {
   "name": "beefcake-frontend",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "build": "tsc && vite build --emptyOutDir false",
     "preview": "vite preview",
     "tauri": "tauri",
+    "clean-pdbs": "node scripts/clean.js --pdbs-only",
     "fix-locks": "node scripts/clean.js",
     "reset": "node -e \"require('fs').rmSync('node_modules', {recursive:true, force:true}); require('fs').rmSync('package-lock.json', {force:true})\" && npm install",
     "test": "vitest",
@@ -16,7 +17,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage --coverage.thresholds.lines=100",
     "test:e2e": "playwright test",
-    "test:rust": "cargo test",
+    "test:rust": "npm run clean-pdbs && cargo test",
     "test:rust:integration": "cargo test --test '*'",
     "test:all": "npm run test:rust && npm test -- --run && npm run test:e2e",
     "lint": "eslint src-frontend --ext .ts",

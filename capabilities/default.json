@@ -62,6 +62,11 @@
     "allow-ai-has-api-key",
     "allow-ai-test-connection",
     "allow-ai-get-config",
-    "allow-ai-update-config"
+    "allow-ai-update-config",
+    "allow-get-standard-paths",
+    "allow-open-path",
+    "allow-list-trusted-paths",
+    "allow-add-trusted-path",
+    "allow-remove-trusted-path"
   ]
 }

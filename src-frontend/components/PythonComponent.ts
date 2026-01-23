@@ -1,9 +1,11 @@
 import { AnsiUp } from 'ansi_up';
+import DOMPurify from 'dompurify';
 import * as monaco from 'monaco-editor';
 
 import * as api from '../api';
 import * as renderers from '../renderers';
 import { AppState, ExportSource } from '../types';
+import { getDataPathForExecution } from '../utils';
 
 import { Component, ComponentActions } from './Component';
 import { ExportModal } from './ExportModal';
@@ -64,7 +66,28 @@ export class PythonComponent extends Component {
       this.initMonaco(state);
       this.bindEvents(state);
       this.bindSidebarEvents();
+      void this.updateColumnSchema(state);
     }, 0);
+  }
+
+  private async updateColumnSchema(state: AppState): Promise<void> {
+    // If we have a dataset with versions, fetch the schema for the selected version
+    if (state.currentDataset && state.currentDataset.versions.length > 0) {
+      const selectedVersionId = state.selectedVersionId ?? state.currentDataset.activeVersionId;
+      try {
+        state.currentIdeColumns = await api.getVersionSchema(
+          state.currentDataset.id,
+          selectedVersionId
+        );
+      } catch (err) {
+        console.error('Failed to fetch version schema:', err);
+        // Fall back to analysisResponse columns if API fails
+        state.currentIdeColumns = null;
+      }
+    } else {
+      // No dataset versions, use analysisResponse
+      state.currentIdeColumns = null;
+    }
   }
 
   private initMonaco(state: AppState): void {
@@ -128,13 +151,25 @@ export class PythonComponent extends Component {
       void this.handleSaveScript();
     });
     document.getElementById('btn-install-polars')?.addEventListener('click', () => {
-      void this.handleInstallPolars();
+      void this.handleInstallPolars(state);
     });
     document.getElementById('btn-copy-output-py')?.addEventListener('click', () => {
       void this.handleCopyOutput();
     });
+    document.getElementById('btn-refactor-py')?.addEventListener('click', () => {
+      void this.handleRefactorColumnNames(state);
+    });
     document.getElementById('py-skip-cleaning')?.addEventListener('change', e => {
       state.pythonSkipCleaning = (e.target as HTMLInputElement).checked;
+    });
+    document.getElementById('python-stage-select')?.addEventListener('change', e => {
+      void (async () => {
+        // Track previous version for diffing
+        state.previousVersionId = state.selectedVersionId;
+        state.selectedVersionId = (e.target as HTMLSelectElement).value;
+        await this.updateColumnSchema(state);
+        this.actions.onStateChange();
+      })();
     });
   }
 
@@ -177,9 +212,10 @@ export class PythonComponent extends Component {
     this.editor.focus();
   }
 
-  private async handleInstallPolars(): Promise<void> {
+  private async handleInstallPolars(state: AppState): Promise<void> {
     const output = document.getElementById('py-output');
     if (!output) return;
+    if (!(await this.ensureSecurityAcknowledged(state))) return;
 
     output.textContent = 'Installing polars... (this may take a minute)';
     try {
@@ -193,6 +229,7 @@ export class PythonComponent extends Component {
 
   private async runPython(state: AppState): Promise<void> {
     if (!this.editor) return;
+    if (!(await this.ensureSecurityAcknowledged(state))) return;
     const script = this.editor.getValue();
     const output = document.getElementById('py-output');
     if (!output) return;
@@ -204,7 +241,7 @@ export class PythonComponent extends Component {
       return;
     }
 
-    const dataPath = state.analysisResponse.path;
+    const dataPath = getDataPathForExecution(state);
     if (!dataPath) {
       output.textContent =
         'Error: Dataset path is missing from analysis response.\nThis might be a bug. Try re-loading the file in the Analyser.';
@@ -214,11 +251,17 @@ export class PythonComponent extends Component {
 
     output.textContent = 'Running script...';
     try {
-      // Use cleaning configs only if skip cleaning is disabled
-      const configs = state.pythonSkipCleaning ? undefined : state.cleaningConfigs;
+      // Cleaning config behavior:
+      // - When dataset lifecycle is used (currentDataset exists): cleaning configs are NEVER applied
+      //   because the versioned data is already cleaned and stored in Parquet format
+      // - When working with raw files (no lifecycle): cleaning configs are applied unless skipCleaning is enabled
+      // This ensures backward compatibility while supporting the new lifecycle workflow
+      const useCleaningConfigs = !state.currentDataset && !state.pythonSkipCleaning;
+      const configs = useCleaningConfigs ? state.cleaningConfigs : undefined;
       const result = await api.runPython(script, dataPath, configs);
       // Convert ANSI escape codes to HTML for colored output
-      output.innerHTML = this.ansiConverter.ansi_to_html(result);
+      const html = this.ansiConverter.ansi_to_html(result);
+      output.innerHTML = DOMPurify.sanitize(html);
     } catch (err) {
       let errorMsg = String(err);
       if (errorMsg.includes("ModuleNotFoundError: No module named 'polars'")) {
@@ -226,7 +269,8 @@ export class PythonComponent extends Component {
           "\n\nTip: Click the 'Install Polars' button in the toolbar to install the required library.";
       }
       // Also convert errors to HTML (they might have ANSI codes too)
-      output.innerHTML = this.ansiConverter.ansi_to_html(errorMsg);
+      const html = this.ansiConverter.ansi_to_html(errorMsg);
+      output.innerHTML = DOMPurify.sanitize(html);
     }
   }
 
@@ -237,8 +281,10 @@ export class PythonComponent extends Component {
       type: 'Python',
       content: this.editor.getValue(),
     };
-    if (state.analysisResponse?.path) {
-      source.path = state.analysisResponse.path;
+    // Use the same data path as execution for consistency
+    const dataPath = getDataPathForExecution(state);
+    if (dataPath) {
+      source.path = dataPath;
     }
 
     const modal = new ExportModal('modal-container', this.actions, source);
@@ -262,6 +308,30 @@ export class PythonComponent extends Component {
       await api.saveAppConfig(state.config);
       this.actions.onStateChange();
     }
+  }
+
+  private async ensureSecurityAcknowledged(state: AppState): Promise<boolean> {
+    const config = state.config;
+    if (!config) {
+      this.actions.showToast('App configuration missing', 'error');
+      return false;
+    }
+
+    if (config.security_warning_acknowledged) {
+      return true;
+    }
+
+    const confirmed = confirm(
+      'Running scripts can execute arbitrary code on your machine. Do you want to continue?'
+    );
+    if (!confirmed) {
+      return false;
+    }
+
+    config.security_warning_acknowledged = true;
+    await api.saveAppConfig(config);
+    this.actions.showToast('Security warning acknowledged', 'info');
+    return true;
   }
 
   private async handleLoadScript(): Promise<void> {
@@ -307,6 +377,127 @@ export class PythonComponent extends Component {
       this.actions.showToast('Output copied to clipboard', 'success');
     } catch (err) {
       this.actions.showToast(`Failed to copy: ${String(err)}`, 'error');
+    }
+  }
+
+  /**
+   * Handles intelligent refactoring of column names in the Python script when switching between
+   * data lifecycle stages (e.g., Raw → Cleaned).
+   *
+   * **What it does:**
+   * - Compares the previous and current data stage versions to find renamed columns
+   * - Shows a confirmation dialog listing all column name changes
+   * - Uses Monaco Editor's find/replace to update all quoted column references
+   * - Preserves the original quote style (single or double quotes)
+   * - Shows toast notifications for success/failure/info messages
+   *
+   * **When it's called:**
+   * - User clicks the "Refactor" button after switching data stages
+   * - Button only appears when `previousVersionId` and `selectedVersionId` are both set
+   *
+   * **Example workflow:**
+   * ```python
+   * # Before (Raw stage):
+   * df.select("Customer Name", "Order Date")
+   *
+   * # After switching to Cleaned stage and clicking Refactor:
+   * df.select("customer_name", "order_date")
+   * ```
+   *
+   * @param state - Application state containing dataset and version information
+   */
+  private async handleRefactorColumnNames(state: AppState): Promise<void> {
+    if (
+      !this.editor ||
+      !state.currentDataset ||
+      !state.previousVersionId ||
+      !state.selectedVersionId
+    ) {
+      this.actions.showToast('Cannot refactor: missing version information', 'error');
+      return;
+    }
+
+    // Check if editor has any content
+    const content = this.editor.getValue().trim();
+    if (!content) {
+      this.actions.showToast('Script is empty - nothing to refactor', 'info');
+      return;
+    }
+
+    try {
+      // Get the diff between previous and current version
+      const diff = await api.getVersionDiff(
+        state.currentDataset.id,
+        state.previousVersionId,
+        state.selectedVersionId
+      );
+
+      const renamedColumns = diff.schema_changes.columns_renamed;
+      if (renamedColumns.length === 0) {
+        this.actions.showToast('No column renames detected between stages', 'info');
+        return;
+      }
+
+      // Build confirmation message with clear formatting
+      const renameList = renamedColumns
+        .map(([oldName, newName]) => `  • "${oldName}" → "${newName}"`)
+        .join('\n');
+
+      const message =
+        `🔄 Column Refactoring\n\n` +
+        `Found ${renamedColumns.length} renamed column${renamedColumns.length === 1 ? '' : 's'}:\n\n` +
+        renameList +
+        `\n\nUpdate all references in your Python script?\n\n` +
+        `💡 Tip: You can undo changes with Ctrl+Z`;
+
+      if (!confirm(message)) {
+        return;
+      }
+
+      const model = this.editor.getModel();
+      if (!model) return;
+
+      let totalReplacements = 0;
+
+      // Perform replacements for each renamed column
+      for (const [oldName, newName] of renamedColumns) {
+        // Try both single and double quotes to preserve user's style
+        for (const quote of ['"', "'"]) {
+          const searchPattern = `${quote}${oldName}${quote}`;
+          const matches = model.findMatches(
+            searchPattern,
+            true, // Search full model
+            false, // Not regex
+            true, // Match case
+            null, // Word separators
+            false // Capture matches
+          );
+
+          if (matches.length > 0) {
+            this.editor.executeEdits(
+              'refactor-columns',
+              matches.map(match => ({
+                range: match.range,
+                text: `${quote}${newName}${quote}`,
+              }))
+            );
+            totalReplacements += matches.length;
+          }
+        }
+      }
+
+      if (totalReplacements > 0) {
+        const refWord = totalReplacements === 1 ? 'reference' : 'references';
+        this.actions.showToast(`✓ Updated ${totalReplacements} column ${refWord}`, 'success');
+        // Clear previous version ID so button doesn't show again until next stage change
+        state.previousVersionId = null;
+        this.actions.onStateChange();
+      } else {
+        this.actions.showToast('No column references found in script', 'info');
+      }
+    } catch (err) {
+      this.actions.showToast(`Refactor failed: ${String(err)}`, 'error');
+      console.error('Column refactoring error:', err);
     }
   }
 }

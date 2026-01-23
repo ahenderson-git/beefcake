@@ -27,7 +27,10 @@ export interface MockResponse {
 
 export interface TauriMockOptions {
   // Mock responses for specific commands
-  commands?: Record<string, MockResponse | ((args: unknown) => MockResponse)>;
+  commands?: Record<
+    string,
+    MockResponse | ((args: unknown) => MockResponse | Promise<MockResponse>)
+  >;
   // Mock file dialog responses
   fileDialog?: {
     openFile?: string | null;
@@ -53,7 +56,8 @@ export async function setupTauriMock(page: Page, options: TauriMockOptions = {})
       const mockResponse = mockResponses[cmd];
 
       if (mockResponse) {
-        const response = typeof mockResponse === 'function' ? mockResponse(args) : mockResponse;
+        const response =
+          typeof mockResponse === 'function' ? await mockResponse(args) : mockResponse;
 
         if (response.type === 'error') {
           throw new Error(response.error || 'Mock error');

@@ -1,7 +1,14 @@
-import { AppConfig } from '../types';
+import { AppConfig, StandardPaths } from '../types';
 import { escapeHtml } from '../utils';
 
-export function renderSettingsView(config: AppConfig, isAddingConnection: boolean): string {
+export function renderSettingsView(
+  config: AppConfig,
+  isAddingConnection: boolean,
+  standardPaths?: StandardPaths | null,
+  trustedPaths?: string[] | null
+): string {
+  const folders = standardPaths ?? null;
+  const trusted = trustedPaths ?? [];
   return `
     <div class="settings-view">
       <div class="settings-section">
@@ -125,6 +132,99 @@ export function renderSettingsView(config: AppConfig, isAddingConnection: boolea
         <div class="pref-item">
           <label>Memory Limit (streaming threshold)</label>
           <input type="text" value="2.0 GB" disabled>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3><i class="ph ph-folders"></i> Folders & Workspace</h3>
+        <p class="section-description">Standard folders are created automatically in the app data directory.</p>
+
+        <div class="pref-subsection">
+          <h4><i class="ph ph-folder-open"></i> Standard Folders</h4>
+          <div class="folder-grid">
+            <div class="folder-item">
+              <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.input_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-tray-arrow-down"></i> Open Input
+              </button>
+              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.input_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-copy"></i>
+              </button>
+            </div>
+            <div class="folder-item">
+              <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.output_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-tray-arrow-up"></i> Open Output
+              </button>
+              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.output_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-copy"></i>
+              </button>
+            </div>
+            <div class="folder-item">
+              <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.scripts_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-code"></i> Open Scripts
+              </button>
+              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.scripts_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-copy"></i>
+              </button>
+            </div>
+            <div class="folder-item">
+              <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.logs_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-file-text"></i> Open Logs
+              </button>
+              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.logs_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-copy"></i>
+              </button>
+            </div>
+            <div class="folder-item">
+              <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.templates_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-grid-four"></i> Open Templates
+              </button>
+              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.templates_dir) : ''}" ${folders ? '' : 'disabled'}>
+                <i class="ph ph-copy"></i>
+              </button>
+            </div>
+          </div>
+          <div class="folder-actions">
+            <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.base_dir) : ''}" ${folders ? '' : 'disabled'}>
+              <i class="ph ph-house"></i> Open Base Folder
+            </button>
+            <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.base_dir) : ''}" ${folders ? '' : 'disabled'}>
+              <i class="ph ph-copy"></i> Copy Base Path
+            </button>
+          </div>
+          ${
+            folders
+              ? `<p class="folder-path-hint">Base: ${escapeHtml(folders.base_dir)}</p>`
+              : '<p class="folder-path-hint">Loading standard folders…</p>'
+          }
+        </div>
+
+        <div class="pref-subsection">
+          <h4><i class="ph ph-shield-check"></i> Trusted Workspaces</h4>
+          <p class="subsection-description">Add a folder to allow file read/write outside the app data directory.</p>
+          <div class="trusted-path-actions">
+            <button id="btn-add-trusted-path" class="btn-secondary btn-small">
+              <i class="ph ph-plus"></i> Add Trusted Folder
+            </button>
+            <button id="btn-show-onboarding" class="btn-secondary btn-small">
+              <i class="ph ph-sparkle"></i> Show Setup Wizard
+            </button>
+          </div>
+          <div class="trusted-paths-list">
+            ${trusted.length === 0 ? '<p class="empty-msg">No trusted folders added.</p>' : ''}
+            ${trusted
+              .map(
+                path => `
+              <div class="trusted-path-row">
+                <span class="trusted-path-text">${escapeHtml(path)}</span>
+                <div class="trusted-path-actions">
+                  <button class="btn-secondary btn-small btn-open-trusted-path" data-path="${escapeHtml(path)}">Open</button>
+                  <button class="btn-danger btn-small btn-remove-trusted-path" data-path="${escapeHtml(path)}"><i class="ph ph-trash"></i></button>
+                </div>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
         </div>
       </div>
 

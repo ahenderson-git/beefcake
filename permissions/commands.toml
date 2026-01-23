@@ -252,3 +252,28 @@ commands.allow = ["ai_update_config"]
 identifier = "allow-ai-has-api-key"
 description = "Allows the ai_has_api_key command"
 commands.allow = ["ai_has_api_key"]
+
+[[permission]]
+identifier = "allow-get-standard-paths"
+description = "Allows the get_standard_paths command"
+commands.allow = ["get_standard_paths"]
+
+[[permission]]
+identifier = "allow-open-path"
+description = "Allows the open_path command"
+commands.allow = ["open_path"]
+
+[[permission]]
+identifier = "allow-list-trusted-paths"
+description = "Allows the list_trusted_paths command"
+commands.allow = ["list_trusted_paths"]
+
+[[permission]]
+identifier = "allow-add-trusted-path"
+description = "Allows the add_trusted_path command"
+commands.allow = ["add_trusted_path"]
+
+[[permission]]
+identifier = "allow-remove-trusted-path"
+description = "Allows the remove_trusted_path command"
+commands.allow = ["remove_trusted_path"]

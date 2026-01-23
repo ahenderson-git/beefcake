@@ -2,11 +2,15 @@ import { invoke } from '@tauri-apps/api/core';
 
 import * as api from '../api';
 import * as renderers from '../renderers';
-import { AppState, DbConnection } from '../types';
+import { AppState, DbConnection, StandardPaths } from '../types';
 
 import { Component, ComponentActions } from './Component';
 
 export class SettingsComponent extends Component {
+  private standardPaths: StandardPaths | null = null;
+  private trustedPaths: string[] | null = null;
+  private isLoadingPaths = false;
+
   constructor(containerId: string, actions: ComponentActions) {
     super(containerId, actions);
   }
@@ -14,10 +18,16 @@ export class SettingsComponent extends Component {
   render(state: AppState): void {
     if (!state.config) return;
     const container = this.getContainer();
-    container.innerHTML = renderers.renderSettingsView(state.config, state.isAddingConnection);
+    container.innerHTML = renderers.renderSettingsView(
+      state.config,
+      state.isAddingConnection,
+      this.standardPaths,
+      this.trustedPaths
+    );
     this.bindEvents(state);
     // Check and display API key status on render
     void this.updateAPIKeyStatus();
+    void this.loadPaths();
   }
 
   override bindEvents(state: AppState): void {
@@ -155,6 +165,102 @@ export class SettingsComponent extends Component {
 
     // Handle AI settings
     this.bindAISettings(state);
+
+    // Folder quick actions
+    document.querySelectorAll<HTMLButtonElement>('.folder-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const path = btn.dataset.path;
+        if (path) {
+          void api.openPath(path);
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.btn-copy-path').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const path = btn.dataset.copy;
+        if (path) {
+          void this.copyPath(path);
+        }
+      });
+    });
+
+    document.getElementById('btn-add-trusted-path')?.addEventListener('click', () => {
+      void this.handleAddTrustedPath();
+    });
+
+    document.getElementById('btn-show-onboarding')?.addEventListener('click', () => {
+      this.actions.showFirstRunWizard?.();
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.btn-open-trusted-path').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const path = btn.dataset.path;
+        if (path) {
+          void api.openPath(path);
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.btn-remove-trusted-path').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const path = btn.dataset.path;
+        if (path) {
+          void this.handleRemoveTrustedPath(path);
+        }
+      });
+    });
+  }
+
+  private async loadPaths(): Promise<void> {
+    if (this.isLoadingPaths || (this.standardPaths && this.trustedPaths)) {
+      return;
+    }
+    this.isLoadingPaths = true;
+    try {
+      const [paths, trusted] = await Promise.all([api.getStandardPaths(), api.listTrustedPaths()]);
+      this.standardPaths = paths;
+      this.trustedPaths = trusted;
+      this.actions.onStateChange();
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+    } finally {
+      this.isLoadingPaths = false;
+    }
+  }
+
+  private async handleAddTrustedPath(): Promise<void> {
+    try {
+      const selected = await api.openFolderDialog();
+      if (!selected) return;
+      this.trustedPaths = await api.addTrustedPath(selected);
+      this.actions.showToast('Trusted folder added', 'success');
+      this.actions.onStateChange();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.actions.showToast(`Failed to add trusted folder: ${message}`, 'error');
+    }
+  }
+
+  private async handleRemoveTrustedPath(path: string): Promise<void> {
+    try {
+      this.trustedPaths = await api.removeTrustedPath(path);
+      this.actions.showToast('Trusted folder removed', 'success');
+      this.actions.onStateChange();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.actions.showToast(`Failed to remove trusted folder: ${message}`, 'error');
+    }
+  }
+
+  private async copyPath(path: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(path);
+      this.actions.showToast('Path copied to clipboard', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.actions.showToast(`Failed to copy path: ${message}`, 'error');
+    }
   }
 
   private bindAISettings(state: AppState): void {

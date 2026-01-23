@@ -1,4 +1,5 @@
 import { DatasetVersion, LifecycleStage, DiffSummary, CurrentDataset } from '../types';
+import { escapeHtml } from '../utils';
 
 export interface StageConfig {
   stage: LifecycleStage;
@@ -143,13 +144,13 @@ export function renderLifecycleRail(dataset: CurrentDataset | null): string {
       .join(' ');
 
     return `
-      <div class="${classes}" data-stage="${config.stage}" data-testid="lifecycle-stage-${config.stage.toLowerCase()}" title="${config.description}">
+      <div class="${classes}" data-stage="${escapeHtml(config.stage)}" data-testid="lifecycle-stage-${config.stage.toLowerCase()}" title="${escapeHtml(config.description)}">
         <div class="stage-icon">
           <i class="ph ${config.icon}"></i>
           ${isCompleted ? '<i class="ph ph-check stage-check"></i>' : ''}
           ${isLocked ? '<i class="ph ph-lock stage-lock"></i>' : ''}
         </div>
-        <div class="stage-label">${config.label}</div>
+        <div class="stage-label">${escapeHtml(config.label)}</div>
         ${versionLabel ? `<div class="stage-version">${versionLabel}</div>` : ''}
         ${isActive ? '<div class="stage-active-indicator"></div>' : ''}
       </div>
@@ -158,9 +159,9 @@ export function renderLifecycleRail(dataset: CurrentDataset | null): string {
   }).join('');
 
   return `
-    <div class="lifecycle-rail" data-dataset-id="${dataset.id}" data-testid="lifecycle-rail">
+    <div class="lifecycle-rail" data-dataset-id="${escapeHtml(dataset.id)}" data-testid="lifecycle-rail">
       <div class="lifecycle-rail-header">
-        <span class="lifecycle-dataset-name">${dataset.name}</span>
+        <span class="lifecycle-dataset-name">${escapeHtml(dataset.name)}</span>
         <span class="lifecycle-stage-count">${completedStages.size}/${STAGE_CONFIGS.length} stages</span>
       </div>
       <div class="lifecycle-stages" data-testid="lifecycle-stages">
@@ -176,12 +177,12 @@ export function renderVersionChip(version: DatasetVersion, isActive: boolean): s
   const date = new Date(version.created_at).toLocaleDateString();
 
   return `
-    <div class="version-chip ${isActive ? 'version-chip-active' : ''}" data-version-id="${version.id}">
+    <div class="version-chip ${isActive ? 'version-chip-active' : ''}" data-version-id="${escapeHtml(version.id)}">
       <div class="version-chip-badge" style="background-color: ${stageColor}">
         <i class="ph ${stageConfig.icon}"></i>
       </div>
       <div class="version-chip-content">
-        <div class="version-chip-title">${stageConfig.label}</div>
+        <div class="version-chip-title">${escapeHtml(stageConfig.label)}</div>
         <div class="version-chip-meta">${date}</div>
       </div>
       ${isActive ? '<i class="ph ph-check-circle version-chip-active-icon"></i>' : ''}
@@ -316,7 +317,7 @@ export function renderVersionTree(dataset: CurrentDataset): string {
       const stageColor = getStageColor(version.stage);
 
       return `
-      <div class="version-tree-node ${isActive ? 'version-tree-node-active' : ''}" data-version-id="${version.id}">
+      <div class="version-tree-node ${isActive ? 'version-tree-node-active' : ''}" data-version-id="${escapeHtml(version.id)}">
         <div class="version-tree-connector"></div>
         <div class="version-tree-content">
           <div class="version-tree-badge" style="background-color: ${stageColor}">
@@ -324,7 +325,7 @@ export function renderVersionTree(dataset: CurrentDataset): string {
           </div>
           <div class="version-tree-details">
             <div class="version-tree-title">
-              <strong>v${index} ${stageConfig.label}</strong>
+              <strong>v${index} ${escapeHtml(stageConfig.label)}</strong>
               ${isActive ? '<span class="badge badge-active">Active</span>' : ''}
             </div>
             <div class="version-tree-meta">
@@ -332,11 +333,11 @@ export function renderVersionTree(dataset: CurrentDataset): string {
               ${version.metadata.row_count !== null ? ` • ${version.metadata.row_count.toLocaleString()} rows` : ''}
               ${version.metadata.column_count !== null ? ` • ${version.metadata.column_count} columns` : ''}
             </div>
-            <div class="version-tree-description">${version.metadata.description}</div>
+            <div class="version-tree-description">${escapeHtml(version.metadata.description)}</div>
           </div>
           <div class="version-tree-actions">
-            ${!isActive ? `<button class="btn btn-small" data-action="set-active" data-version-id="${version.id}" data-testid="lifecycle-set-active-${version.id}">Set Active</button>` : ''}
-            ${index > 0 ? `<button class="btn btn-small" data-action="view-diff" data-version-id="${version.id}" data-testid="lifecycle-view-diff-${version.id}">View Diff</button>` : `<button class="btn btn-small" disabled title="Cannot compute diff - this is the first version with no parent">View Diff</button>`}
+            ${!isActive ? `<button class="btn btn-small" data-action="set-active" data-version-id="${escapeHtml(version.id)}" data-testid="lifecycle-set-active-${escapeHtml(version.id)}">Set Active</button>` : ''}
+            ${index > 0 ? `<button class="btn btn-small" data-action="view-diff" data-version-id="${escapeHtml(version.id)}" data-testid="lifecycle-view-diff-${escapeHtml(version.id)}">View Diff</button>` : `<button class="btn btn-small" disabled title="Cannot compute diff - this is the first version with no parent">View Diff</button>`}
           </div>
         </div>
       </div>
@@ -365,7 +366,7 @@ export function renderLifecycleView(dataset: CurrentDataset | null): string {
   return `
     <div class="lifecycle-view">
       <div class="lifecycle-view-header">
-        <h3>${dataset.name}</h3>
+        <h3>${escapeHtml(dataset.name)}</h3>
         <div class="lifecycle-view-actions">
           <button class="btn" id="btn-publish-version" data-testid="btn-publish-version">
             <i class="ph ph-rocket-launch"></i> Publish Version
@@ -408,8 +409,8 @@ function renderActiveVersionDetails(dataset: CurrentDataset): string {
           <i class="ph ${stageConfig.icon}"></i>
         </div>
         <div>
-          <h5>${stageConfig.label}</h5>
-          <p>${stageConfig.description}</p>
+          <h5>${escapeHtml(stageConfig.label)}</h5>
+          <p>${escapeHtml(stageConfig.description)}</p>
         </div>
       </div>
 
@@ -437,7 +438,7 @@ function renderActiveVersionDetails(dataset: CurrentDataset): string {
             ${activeVersion.pipeline.transforms
               .map(
                 t => `
-              <li><code>${t.transform_type}</code></li>
+              <li><code>${escapeHtml(t.transform_type)}</code></li>
             `
               )
               .join('')}

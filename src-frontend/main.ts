@@ -76,6 +76,7 @@ import {
   WatcherState,
   WatcherActivity,
   DatasetVersion,
+  StandardPaths,
 } from './types';
 
 /**
@@ -142,11 +143,17 @@ class BeefcakeApp {
     advancedProcessingEnabled: false,
     watcherState: null,
     watcherActivities: [],
+    selectedVersionId: null,
+    currentIdeColumns: null,
+    previousVersionId: null,
   };
 
   private components: Partial<Record<View, Component>> = {};
   private lifecycleRail: LifecycleRailComponent | null = null;
   private aiSidebar: AIAssistantComponent | null = null;
+  private standardPaths: StandardPaths | null = null;
+  private wizardWorkspacePath: string | null = null;
+  private wizardOpen = false;
 
   constructor() {
     this.init().catch(() => {
@@ -185,6 +192,7 @@ class BeefcakeApp {
       this.setupNavigation();
       void this.setupWatcherEvents();
       this.render();
+      await this.maybeShowFirstRunWizard();
     } catch (err) {
       this.showToast(`Initialization error: ${String(err)}`, 'error');
     } finally {
@@ -211,6 +219,120 @@ class BeefcakeApp {
     }
   }
 
+  private async maybeShowFirstRunWizard(): Promise<void> {
+    if (!this.state.config || this.state.config.first_run_completed || this.wizardOpen) {
+      return;
+    }
+    try {
+      this.standardPaths = await api.getStandardPaths();
+      this.wizardWorkspacePath = null;
+      this.renderFirstRunWizard();
+    } catch (err) {
+      this.showToast(`Failed to load standard folders: ${String(err)}`, 'error');
+    }
+  }
+
+  private async showWizardOnDemand(): Promise<void> {
+    if (this.wizardOpen) {
+      return;
+    }
+    try {
+      this.standardPaths = await api.getStandardPaths();
+      this.wizardWorkspacePath = null;
+      this.renderFirstRunWizard();
+    } catch (err) {
+      this.showToast(`Failed to load standard folders: ${String(err)}`, 'error');
+    }
+  }
+
+  private renderFirstRunWizard(): void {
+    const modal = document.getElementById('modal-container');
+    if (!modal) return;
+    this.wizardOpen = true;
+    modal.classList.add('active');
+    modal.innerHTML = renderers.renderFirstRunWizard(this.standardPaths, this.wizardWorkspacePath);
+
+    modal.querySelectorAll<HTMLButtonElement>('.wizard-folder-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const path = btn.dataset.path;
+        if (path) {
+          void api.openPath(path);
+        }
+      });
+    });
+
+    modal.querySelectorAll<HTMLButtonElement>('.wizard-copy-path').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const path = btn.dataset.copy;
+        if (path) {
+          void this.copyPath(path);
+        }
+      });
+    });
+
+    modal
+      .querySelector<HTMLButtonElement>('#btn-wizard-choose-workspace')
+      ?.addEventListener('click', () => {
+        void (async () => {
+          const selected = await api.openFolderDialog();
+          if (selected) {
+            this.wizardWorkspacePath = selected;
+            this.renderFirstRunWizard();
+          }
+        })();
+      });
+
+    modal.querySelector<HTMLButtonElement>('#btn-wizard-skip')?.addEventListener('click', () => {
+      this.closeWizard();
+    });
+
+    modal.querySelector<HTMLButtonElement>('#btn-wizard-close')?.addEventListener('click', () => {
+      this.closeWizard();
+    });
+
+    modal.querySelector<HTMLButtonElement>('#btn-wizard-finish')?.addEventListener('click', () => {
+      void this.completeWizard();
+    });
+  }
+
+  private async copyPath(path: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(path);
+      this.showToast('Path copied to clipboard', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.showToast(`Failed to copy path: ${message}`, 'error');
+    }
+  }
+
+  private closeWizard(): void {
+    const modal = document.getElementById('modal-container');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.innerHTML = '';
+    this.wizardOpen = false;
+  }
+
+  private async completeWizard(): Promise<void> {
+    if (!this.state.config) {
+      this.closeWizard();
+      return;
+    }
+
+    try {
+      if (this.wizardWorkspacePath) {
+        await api.addTrustedPath(this.wizardWorkspacePath);
+      }
+      this.state.config.first_run_completed = true;
+      await api.saveAppConfig(this.state.config);
+      this.showToast('Setup complete', 'success');
+    } catch (err) {
+      this.showToast(`Failed to save setup: ${String(err)}`, 'error');
+    } finally {
+      this.closeWizard();
+    }
+  }
+
   private initComponents(): void {
     const actions = {
       onStateChange: () => this.render(),
@@ -228,6 +350,9 @@ class BeefcakeApp {
         } else {
           await this.switchView(view as View);
         }
+      },
+      showFirstRunWizard: () => {
+        void this.showWizardOnDemand();
       },
     };
 

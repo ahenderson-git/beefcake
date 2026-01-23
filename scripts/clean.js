@@ -3,7 +3,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 const distPath = path.resolve('dist');
-const pdbPath = path.resolve('target/debug/beefcake.pdb');
+const debugPath = path.resolve('target/debug');
 
 function killProcess(name) {
   try {
@@ -45,17 +45,33 @@ function removeWithRetry(targetPath, retries = 5, delay = 1000) {
   }
 }
 
+function cleanPdbs(dir) {
+  if (!fs.existsSync(dir)) return;
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    if (fs.lstatSync(fullPath).isDirectory()) {
+      cleanPdbs(fullPath);
+    } else if (file.endsWith('.pdb')) {
+      removeWithRetry(fullPath);
+    }
+  }
+}
+
 console.log('--- Beefcake Build Cleanup ---');
+const pdbsOnly = process.argv.includes('--pdbs-only');
 
 // 1. Kill the app if it's running
 killProcess('beefcake');
 
-// 2. Try to clean dist
-console.log('Cleaning dist directory...');
-removeWithRetry(distPath);
+if (!pdbsOnly) {
+  // 2. Try to clean dist
+  console.log('Cleaning dist directory...');
+  removeWithRetry(distPath);
+}
 
-// 3. Try to clean problematic PDB
-console.log('Cleaning problematic PDB file...');
-removeWithRetry(pdbPath);
+// 3. Try to clean problematic PDBs
+console.log('Cleaning problematic PDB files...');
+cleanPdbs(debugPath);
 
 console.log('Cleanup complete.');

@@ -83,21 +83,55 @@ cargo test --test '*'
 
 Example test: `tests/integration_analysis.rs`
 
-### 3. E2E Tests (~ 5min)
+### 3. E2E Tests (~2-5min)
 
 **Playwright** - Full GUI automation:
 ```bash
 npm run test:e2e
 ```
 
-Example test: `e2e/example.spec.ts`
+Example tests:
+- `e2e/file-analysis.spec.ts` - File loading and analysis
+- `e2e/python-ide.spec.ts` - Python scripting features
+- `e2e/lifecycle-management.spec.ts` - Version control
+- `e2e/error-handling.spec.ts` - Error states
 
-**Note**: E2E tests require the Tauri app to be built first:
+**Note**: E2E tests run against the dev server (no build required):
 ```bash
-npm run build
-npm run tauri build
-npm run test:e2e
+npm run dev          # Start dev server
+npm run test:e2e     # Run tests in another terminal
 ```
+
+**Debugging E2E Tests**:
+```bash
+# Run with visible browser
+npx playwright test --headed
+
+# Interactive mode
+npx playwright test --ui
+
+# Debug specific test
+npx playwright test --debug e2e/python-ide.spec.ts
+
+# View test report
+npx playwright show-report
+```
+
+## E2E Test Suite Overview
+
+Beefcake now has **115+ comprehensive E2E tests** covering all major features:
+
+| Test File | Tests | What It Covers |
+|-----------|-------|----------------|
+| `file-analysis.spec.ts` | 22 | File loading, analysis display, column details, cleaning config |
+| `lifecycle-management.spec.ts` | 20 | Stage transitions, version diffs, column refactoring |
+| `python-ide.spec.ts` | 25 | Editor, script execution, security, package management |
+| `sql-ide.spec.ts` | 28 | SQL queries, refactoring, error handling |
+| `error-handling.spec.ts` | 20 | Loading states, abort, toasts, recovery |
+
+**Implementation Status**: Most tests are **skeleton tests** with detailed TODOs, ready to be implemented once UI components are connected to Tauri backend.
+
+See [`e2e/README.md`](../e2e/README.md) for complete test suite documentation.
 
 ## Writing Tests
 
@@ -153,23 +187,58 @@ fn test_analyze_clean_csv() {
 ### E2E Test Example
 
 ```typescript
-// e2e/analyser.spec.ts
+// e2e/file-analysis.spec.ts
 import { test, expect } from '@playwright/test';
+import { setupTauriMock, mockFileDialog } from './helpers/tauri-mock';
 
-test('should load and analyze file', async ({ page }) => {
-  await page.goto('http://localhost:1420');
+test.describe('File Analysis', () => {
+  test.beforeEach(async ({ page }) => {
+    // Mock Tauri IPC commands
+    await setupTauriMock(page, {
+      commands: {
+        analyze_file: {
+          type: 'success',
+          data: {
+            row_count: 100,
+            column_count: 5,
+            summary: [/* column data */],
+          },
+        },
+        get_config: {
+          type: 'success',
+          data: { settings: { /* ... */ } },
+        },
+      },
+      fileDialog: {
+        openFile: '/path/to/test.csv',
+      },
+    });
+  });
 
-  // Click open file
-  await page.getByTestId('dashboard-open-file-button').click();
+  test('should load and analyze file', async ({ page }) => {
+    await page.goto('http://localhost:14206');
 
-  // Wait for analysis
-  await expect(page.getByTestId('analysis-summary-panel')).toBeVisible();
+    // Click open file button
+    await page.getByTestId('dashboard-open-file-button').click();
 
-  // Verify results
-  const rowCount = await page.getByTestId('analyser-row-count').textContent();
-  expect(rowCount).toBe('10');
+    // Wait for analysis results
+    await expect(page.getByTestId('analysis-summary-panel')).toBeVisible();
+
+    // Verify row and column counts
+    await expect(page.getByTestId('analyser-row-count')).toContainText('100');
+    await expect(page.getByTestId('analyser-column-count')).toContainText('5');
+
+    // Verify health score badge
+    await expect(page.getByTestId('dataset-health-badge')).toBeVisible();
+  });
 });
 ```
+
+**Key Features**:
+- Tauri IPC mocking for deterministic tests
+- File dialog mocking
+- Data-testid selectors for reliability
+- Proper setup/teardown with beforeEach
 
 ## Test Data Fixtures
 

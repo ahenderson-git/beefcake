@@ -1,6 +1,6 @@
 {
   "productName": "beefcake",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "identifier": "au.com.ahenderson.beefcake",
   "build": {
     "beforeDevCommand": "npm run dev",
