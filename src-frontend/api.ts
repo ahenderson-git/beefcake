@@ -278,7 +278,7 @@ export async function applyTransforms(
   pipelineJson: string,
   stage: string
 ): Promise<string> {
-  let transforms: TransformSpec[] = [];
+  let transforms: TransformSpec[];
   try {
     const parsed = JSON.parse(pipelineJson) as TransformPipeline;
     transforms = Array.isArray(parsed?.transforms) ? parsed.transforms : [];

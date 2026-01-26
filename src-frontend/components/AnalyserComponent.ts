@@ -706,7 +706,7 @@ export class AnalyserComponent extends Component {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      let chartConfig: ChartConfiguration | null = null;
+      let chartConfig: ChartConfiguration | null;
 
       if (col.stats.Numeric?.histogram) {
         chartConfig = {
@@ -934,8 +934,7 @@ export class AnalyserComponent extends Component {
 
       // Reload the dataset versions to include the new Published version
       const updatedVersionsJson = await api.listVersions(state.currentDataset.id);
-      const updatedVersions = JSON.parse(updatedVersionsJson) as DatasetVersion[];
-      state.currentDataset.versions = updatedVersions;
+      state.currentDataset.versions = JSON.parse(updatedVersionsJson) as DatasetVersion[];
       state.currentDataset.activeVersionId = publishedVersionId;
 
       state.isLoading = false;

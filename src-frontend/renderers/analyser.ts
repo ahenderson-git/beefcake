@@ -1,14 +1,11 @@
 import { AnalysisResponse, ColumnCleanConfig, LifecycleStage } from '../types';
 
-import {
-  renderAnalyserHeader,
-  renderDatasetOverview,
-  renderEmptyAnalyser,
-  renderValidatedSummary,
-  renderPublishedView,
-  renderAnalyserRow,
-  renderSchemaSidebar,
-} from './analyser/index';
+import { renderAnalyserHeader } from './analyser/header';
+import { renderPublishedView } from './analyser/published';
+import { renderAnalyserRow } from './analyser/row';
+import { renderSchemaSidebar } from './analyser/sidebar';
+import { renderDatasetOverview, renderEmptyAnalyser } from './analyser/summary';
+import { renderValidatedSummary } from './analyser/validated';
 
 export {
   renderAnalyserHeader,
