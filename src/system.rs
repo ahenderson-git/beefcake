@@ -1,5 +1,4 @@
 use anyhow::{Result, anyhow};
-use beefcake::utils;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -63,7 +62,7 @@ fn allowed_roots() -> Vec<PathBuf> {
         roots.push(dir.join("beefcake"));
     }
 
-    let config = utils::load_app_config();
+    let config = beefcake::config::load_app_config();
     for entry in config.settings.trusted_paths {
         if !entry.trim().is_empty() {
             roots.push(PathBuf::from(entry));

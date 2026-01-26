@@ -196,12 +196,12 @@ export function renderDiffBadge(diff: DiffSummary | null): string {
   const badges = [];
 
   // Schema changes
-  if (diff.schema_changes.columns_added.length > 0) {
+  if ((diff.schema_changes.columns_added?.length ?? 0) > 0) {
     badges.push(
       `<span class="diff-badge diff-badge-add">+${diff.schema_changes.columns_added.length} cols</span>`
     );
   }
-  if (diff.schema_changes.columns_removed.length > 0) {
+  if ((diff.schema_changes.columns_removed?.length ?? 0) > 0) {
     badges.push(
       `<span class="diff-badge diff-badge-remove">-${diff.schema_changes.columns_removed.length} cols</span>`
     );
@@ -217,7 +217,9 @@ export function renderDiffBadge(diff: DiffSummary | null): string {
   }
 
   // Statistical changes (null reduction is common)
-  const nullChanges = diff.statistical_changes.filter(c => c.metric.toLowerCase().includes('null'));
+  const nullChanges = (diff.statistical_changes || []).filter(c =>
+    c.metric.toLowerCase().includes('null')
+  );
   if (nullChanges.length > 0) {
     const avgNullChange =
       nullChanges.reduce((sum, c) => sum + (c.change_percent ?? 0), 0) / nullChanges.length;

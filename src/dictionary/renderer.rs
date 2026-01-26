@@ -301,7 +301,8 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
-    fn test_render_basic_markdown() {
+    fn test_render_basic_markdown() -> Result<()> {
+        use anyhow::anyhow;
         let dict = DataDictionary {
             snapshot_id: Uuid::new_v4(),
             dataset_name: "Test Dataset".to_owned(),
@@ -333,10 +334,11 @@ mod tests {
             previous_snapshot_id: None,
         };
 
-        let markdown = render_markdown(&dict).unwrap();
+        let markdown = render_markdown(&dict).map_err(|e| anyhow!("Renderer test failed: {e}"))?;
 
         assert!(markdown.contains("# Data Dictionary: Test Dataset"));
         assert!(markdown.contains("A test dataset"));
         assert!(markdown.contains("## Column Catalog"));
+        Ok(())
     }
 }

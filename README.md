@@ -41,6 +41,7 @@ Beefcake is a **high-performance desktop application** for data analysis, qualit
 - **👁️ Filesystem Watcher**: Automatically detect and ingest new CSV/JSON files from monitored folders
 - **🤖 AI Assistant**: Context-aware Q&A about your datasets powered by OpenAI GPT with markdown link support
 - **🗃️ Multi-Format Support**: Work with CSV, JSON, Parquet, and PostgreSQL databases
+- **🔐 Export Integrity Receipts**: Cryptographic hash verification for exported files with tamper detection
 - **🧠 Machine Learning Prep**: Basic preprocessing workflows including scaling, encoding, and train/test splits
 - **💻 Embedded IDEs**: Execute SQL queries and Python scripts directly on datasets with syntax highlighting
 - **📦 Automation Ready**: Export pipelines as PowerShell scripts for scheduling
@@ -203,12 +204,23 @@ cd beefcake
 # Install dependencies
 npm install
 
-# Build the application
-npm run tauri build
+# Run in development mode (automatically builds frontend first)
+npm run tauri:dev
 
-# Run in development mode
+# OR build production version (automatically builds frontend first)
+npm run tauri:build
+```
+
+**Alternative**: If you prefer to build manually:
+```bash
+# Build the frontend separately
+npm run build
+
+# Then run in development mode
 npm run tauri dev
 ```
+
+> **⚠️ Troubleshooting**: If you see a "Frontend Not Built" error message or "Placeholder" in the window, the frontend wasn't built. Run `npm run build` (or use the `npm run tauri:dev` convenience script which does this automatically).
 
 ### Quick Start
 

@@ -58,6 +58,7 @@ import { CliHelpComponent } from './components/CliHelpComponent';
 import { Component } from './components/Component';
 import { DashboardComponent } from './components/DashboardComponent';
 import { DictionaryComponent } from './components/DictionaryComponent';
+import { IntegrityComponent } from './components/IntegrityComponent';
 import { LifecycleComponent } from './components/LifecycleComponent';
 import { LifecycleRailComponent } from './components/LifecycleRailComponent';
 import { PipelineComponent } from './components/PipelineComponent';
@@ -68,15 +69,15 @@ import { SettingsComponent } from './components/SettingsComponent';
 import { SQLComponent } from './components/SQLComponent';
 import { WatcherComponent } from './components/WatcherComponent';
 import * as renderers from './renderers';
+import { WatcherService } from './services/WatcherService';
+import { WizardService } from './services/WizardService';
 import {
   View,
   AppState,
   AppConfig,
   getDefaultColumnCleanConfig,
-  WatcherState,
-  WatcherActivity,
+  getDefaultAppConfig,
   DatasetVersion,
-  StandardPaths,
 } from './types';
 
 /**
@@ -151,49 +152,98 @@ class BeefcakeApp {
   private components: Partial<Record<View, Component>> = {};
   private lifecycleRail: LifecycleRailComponent | null = null;
   private aiSidebar: AIAssistantComponent | null = null;
-  private standardPaths: StandardPaths | null = null;
-  private wizardWorkspacePath: string | null = null;
-  private wizardOpen = false;
+  private watcherService: WatcherService | null = null;
+  private wizardService: WizardService | null = null;
 
   constructor() {
-    this.init().catch(() => {
-      // Error is handled inside init
+    console.log('[BeefcakeApp] Constructor called');
+    this.init().catch(err => {
+      console.error('[BeefcakeApp] Fatal initialization error:', err);
+      // Error is handled inside init, but log it for debugging
     });
   }
 
   async init(): Promise<void> {
+    console.log('[BeefcakeApp] init() started');
     this.renderInitialLayout();
+    console.log('[BeefcakeApp] Initial layout rendered');
+
+    // Default values if API calls fail
+    this.state.config = getDefaultAppConfig();
+    this.state.version = '0.0.0';
 
     try {
-      // Set a timeout for the initial data load to prevent permanent hang
+      // Set a short timeout for the initial data load to prevent permanent hang
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Initialization timeout')), 5000)
+        setTimeout(() => reject(new Error('Initialization timeout')), 2000)
       );
 
       const dataPromise = (async (): Promise<[AppConfig, string]> => {
+        console.log('[BeefcakeApp] Loading config and version...');
         const config = await api.loadAppConfig();
+        console.log('[BeefcakeApp] Config loaded:', config);
         const version = await api.getAppVersion();
+        console.log('[BeefcakeApp] Version loaded:', version);
         return [config, version];
       })();
 
       const [config, version] = await Promise.race([dataPromise, timeoutPromise]);
 
-      this.state.config = config;
-      this.state.version = version;
+      this.state.config = config || getDefaultAppConfig();
+      this.state.version = version || 'unknown';
+      console.log('[BeefcakeApp] Config and version set in state');
     } catch (err) {
-      // We still proceed so the UI renders, but we show a toast
-      setTimeout(() => {
-        this.showToast('Initialization error: ' + String(err), 'error');
-      }, 1000);
+      console.warn('[BeefcakeApp] API initialization warning (continuing with defaults):', err);
+      // We still proceed so the UI renders
+      if (err instanceof Error && err.message !== 'Initialization timeout') {
+        setTimeout(() => {
+          this.showToast('Initialization warning: ' + String(err), 'info');
+        }, 1000);
+      }
     }
 
     try {
       this.initComponents();
+      console.log('[BeefcakeApp] Setting up navigation...');
       this.setupNavigation();
-      void this.setupWatcherEvents();
+      console.log('[BeefcakeApp] Navigation setup complete');
+
+      console.log('[BeefcakeApp] Creating WatcherService...');
+      this.watcherService = new WatcherService(
+        this.state,
+        this.components,
+        () => this.render(),
+        (msg, type) => this.showToast(msg, type)
+      );
+      console.log('[BeefcakeApp] Initializing WatcherService...');
+      void this.watcherService.init();
+
+      console.log('[BeefcakeApp] Creating WizardService...');
+      this.wizardService = new WizardService(
+        this.state,
+        () => this.render(),
+        (msg, type) => this.showToast(msg, type)
+      );
+      console.log('[BeefcakeApp] Starting Polars version check...');
+      void this.checkPolarsVersion(); // Non-blocking Polars version check
+
+      console.log('[BeefcakeApp] First render...');
       this.render();
-      await this.maybeShowFirstRunWizard();
+      console.log('[BeefcakeApp] Render complete');
+
+      // Check for first run wizard asynchronously
+      void (async () => {
+        try {
+          console.log('[BeefcakeApp] Checking for first run wizard...');
+          await this.wizardService?.maybeShowFirstRunWizard();
+        } catch (err) {
+          console.warn('[BeefcakeApp] Wizard check failed:', err);
+        }
+      })();
+
+      console.log('[BeefcakeApp] Initialization complete!');
     } catch (err) {
+      console.error('[BeefcakeApp] Initialization error:', err);
       this.showToast(`Initialization error: ${String(err)}`, 'error');
     } finally {
       // Hide loading screen after app is ready, even if there was an error
@@ -219,117 +269,25 @@ class BeefcakeApp {
     }
   }
 
-  private async maybeShowFirstRunWizard(): Promise<void> {
-    if (!this.state.config || this.state.config.first_run_completed || this.wizardOpen) {
-      return;
-    }
+  private async checkPolarsVersion(): Promise<void> {
     try {
-      this.standardPaths = await api.getStandardPaths();
-      this.wizardWorkspacePath = null;
-      this.renderFirstRunWizard();
+      const result = await api.checkPythonEnvironment();
+      // Parse version from response like "Polars 1.18.0 installed"
+      const match = result.match(/Polars\s+(\d+\.\d+\.\d+)\s+installed/);
+      if (match?.[1]) {
+        this.state.polarsVersion = match[1];
+        this.render(); // Update UI to show version
+      }
     } catch (err) {
-      this.showToast(`Failed to load standard folders: ${String(err)}`, 'error');
+      // Silently fail - version will remain "unknown"
+      /* eslint-disable-next-line no-console */
+      console.debug('Failed to detect Polars version:', err);
     }
   }
 
   private async showWizardOnDemand(): Promise<void> {
-    if (this.wizardOpen) {
-      return;
-    }
-    try {
-      this.standardPaths = await api.getStandardPaths();
-      this.wizardWorkspacePath = null;
-      this.renderFirstRunWizard();
-    } catch (err) {
-      this.showToast(`Failed to load standard folders: ${String(err)}`, 'error');
-    }
-  }
-
-  private renderFirstRunWizard(): void {
-    const modal = document.getElementById('modal-container');
-    if (!modal) return;
-    this.wizardOpen = true;
-    modal.classList.add('active');
-    modal.innerHTML = renderers.renderFirstRunWizard(this.standardPaths, this.wizardWorkspacePath);
-
-    modal.querySelectorAll<HTMLButtonElement>('.wizard-folder-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const path = btn.dataset.path;
-        if (path) {
-          void api.openPath(path);
-        }
-      });
-    });
-
-    modal.querySelectorAll<HTMLButtonElement>('.wizard-copy-path').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const path = btn.dataset.copy;
-        if (path) {
-          void this.copyPath(path);
-        }
-      });
-    });
-
-    modal
-      .querySelector<HTMLButtonElement>('#btn-wizard-choose-workspace')
-      ?.addEventListener('click', () => {
-        void (async () => {
-          const selected = await api.openFolderDialog();
-          if (selected) {
-            this.wizardWorkspacePath = selected;
-            this.renderFirstRunWizard();
-          }
-        })();
-      });
-
-    modal.querySelector<HTMLButtonElement>('#btn-wizard-skip')?.addEventListener('click', () => {
-      this.closeWizard();
-    });
-
-    modal.querySelector<HTMLButtonElement>('#btn-wizard-close')?.addEventListener('click', () => {
-      this.closeWizard();
-    });
-
-    modal.querySelector<HTMLButtonElement>('#btn-wizard-finish')?.addEventListener('click', () => {
-      void this.completeWizard();
-    });
-  }
-
-  private async copyPath(path: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(path);
-      this.showToast('Path copied to clipboard', 'success');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.showToast(`Failed to copy path: ${message}`, 'error');
-    }
-  }
-
-  private closeWizard(): void {
-    const modal = document.getElementById('modal-container');
-    if (!modal) return;
-    modal.classList.remove('active');
-    modal.innerHTML = '';
-    this.wizardOpen = false;
-  }
-
-  private async completeWizard(): Promise<void> {
-    if (!this.state.config) {
-      this.closeWizard();
-      return;
-    }
-
-    try {
-      if (this.wizardWorkspacePath) {
-        await api.addTrustedPath(this.wizardWorkspacePath);
-      }
-      this.state.config.first_run_completed = true;
-      await api.saveAppConfig(this.state.config);
-      this.showToast('Setup complete', 'success');
-    } catch (err) {
-      this.showToast(`Failed to save setup: ${String(err)}`, 'error');
-    } finally {
-      this.closeWizard();
+    if (this.wizardService) {
+      await this.wizardService.showWizardOnDemand();
     }
   }
 
@@ -370,6 +328,7 @@ class BeefcakeApp {
       Pipeline: new PipelineComponent('view-container', actions),
       Watcher: new WatcherComponent('view-container', actions),
       Dictionary: new DictionaryComponent('view-container', actions),
+      Integrity: new IntegrityComponent('view-container', actions),
     };
 
     // Initialize lifecycle rail component
@@ -439,6 +398,14 @@ class BeefcakeApp {
       if (this.aiSidebar) {
         this.aiSidebar.updateContext(this.state);
       }
+
+      // Setup IDE sidebar toggle when in Python or SQL view
+      if (this.state.currentView === 'Python' || this.state.currentView === 'SQL') {
+        // Use setTimeout to ensure DOM is ready
+        setTimeout(() => {
+          this.setupIDESidebarToggle();
+        }, 0);
+      }
     } catch (err) {
       this.showToast(`Render error: ${String(err)}`, 'error');
     }
@@ -457,7 +424,7 @@ class BeefcakeApp {
 
       // Initialize cleaning configs
       this.state.cleaningConfigs = {};
-      response.summary.forEach(col => {
+      (response.summary || []).forEach(col => {
         this.state.cleaningConfigs[col.name] = getDefaultColumnCleanConfig(col);
       });
 
@@ -537,6 +504,8 @@ class BeefcakeApp {
     const toastEl = toast.firstElementChild!;
     container.appendChild(toastEl);
 
+    this.recordToastEvent(message, type);
+
     const duration = type === 'error' ? 10000 : 3000;
     setTimeout(() => {
       toastEl.classList.add('fade-out');
@@ -544,65 +513,26 @@ class BeefcakeApp {
     }, duration);
   }
 
-  private async setupWatcherEvents(): Promise<void> {
-    try {
-      const { listen } = await import('@tauri-apps/api/event');
+  private recordToastEvent(message: string, type: 'info' | 'error' | 'success'): void {
+    const view = this.state.currentView;
+    const action = 'Toast';
+    const details = `[${type}] ${message} (${view})`;
 
-      // Listen for watcher status updates
-      void listen<WatcherState>('watcher:status', event => {
-        this.state.watcherState = event.payload;
-        this.render();
+    if (this.state.config?.audit_log) {
+      this.state.config.audit_log.push({
+        timestamp: new Date().toISOString(),
+        action,
+        details,
       });
 
-      // Listen for file detected
-      void listen<WatcherActivity>('watcher:file_detected', event => {
-        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
-        if (watcherComp) {
-          watcherComp.handleWatcherEvent(this.state, 'watcher:file_detected', event.payload);
-        }
-      });
-
-      // Listen for file ready
-      void listen<WatcherActivity>('watcher:file_ready', event => {
-        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
-        if (watcherComp) {
-          watcherComp.handleWatcherEvent(this.state, 'watcher:file_ready', event.payload);
-        }
-      });
-
-      // Listen for ingest started
-      void listen<WatcherActivity>('watcher:ingest_started', event => {
-        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
-        if (watcherComp) {
-          watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_started', event.payload);
-        }
-      });
-
-      // Listen for ingest succeeded
-      void listen<WatcherActivity>('watcher:ingest_succeeded', event => {
-        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
-        if (watcherComp) {
-          watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_succeeded', event.payload);
-        }
-      });
-
-      // Listen for ingest failed
-      void listen<WatcherActivity>('watcher:ingest_failed', event => {
-        const watcherComp = this.components['Watcher'] as unknown as WatcherComponent;
-        if (watcherComp) {
-          watcherComp.handleWatcherEvent(this.state, 'watcher:ingest_failed', event.payload);
-        }
-      });
-
-      // Load initial watcher state
-      try {
-        this.state.watcherState = await api.watcherGetState();
-      } catch (err) {
-        this.showToast(`Failed to load watcher state: ${String(err)}`, 'error');
+      if (this.state.config.audit_log.length > 1000) {
+        const overflow = this.state.config.audit_log.length - 1000;
+        this.state.config.audit_log.splice(0, overflow);
       }
-    } catch (err) {
-      this.showToast(`Failed to setup watcher events: ${String(err)}`, 'error');
     }
+
+    const level = type === 'error' ? 'error' : 'info';
+    void api.logFrontendEvent(level, action, details, { view, type }).catch(() => {});
   }
 
   private setupAISidebarToggle(): void {
@@ -639,6 +569,42 @@ class BeefcakeApp {
     });
   }
 
+  private setupIDESidebarToggle(): void {
+    const ideSidebar = document.getElementById('ide-sidebar');
+    if (!ideSidebar) return;
+
+    // Load saved collapsed state
+    const isCollapsed = localStorage.getItem('ide-sidebar-collapsed') === 'true';
+    if (isCollapsed) {
+      ideSidebar.classList.add('collapsed');
+    } else {
+      ideSidebar.classList.remove('collapsed');
+    }
+
+    const toggleSidebar = (): void => {
+      ideSidebar.classList.toggle('collapsed');
+      const collapsed = ideSidebar.classList.contains('collapsed');
+      localStorage.setItem('ide-sidebar-collapsed', collapsed.toString());
+    };
+
+    // Handle collapse button click (created dynamically by IDE renderers)
+    // Use event delegation since the button is created after this runs
+    ideSidebar.addEventListener('click', e => {
+      const target = e.target as HTMLElement;
+      if (target.closest('#ide-collapse-btn') ?? target.closest('#ide-collapsed-tab')) {
+        toggleSidebar();
+      }
+    });
+
+    // Handle double-click on header to toggle
+    ideSidebar.addEventListener('dblclick', e => {
+      const target = e.target as HTMLElement;
+      if (target.closest('#ide-sidebar-header')) {
+        toggleSidebar();
+      }
+    });
+  }
+
   private async loadDatasetById(_datasetId: string): Promise<void> {
     try {
       // This would need to be implemented to load a dataset by ID
@@ -651,6 +617,99 @@ class BeefcakeApp {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  void new BeefcakeApp();
+/* eslint-disable no-console */
+console.log('[Beefcake] Script loaded, waiting for DOMContentLoaded...');
+
+// Set up global error handlers to catch all errors and log to file
+window.addEventListener('error', event => {
+  const errorMessage = `Uncaught error: ${event.message}`;
+  const errorObj = event.error as Error | undefined;
+  const context = {
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+    error: errorObj?.stack || String(event.error),
+  };
+  console.error(errorMessage, context);
+  void api.logFrontendError('error', errorMessage, context);
 });
+
+// Capture resource loading failures (e.g. CSS, scripts, images)
+window.addEventListener(
+  'error',
+  event => {
+    const target = event.target;
+    if (!target || target === window) return;
+
+    const el = target as HTMLElement;
+    const tag = (el.tagName || '').toLowerCase();
+    if (!['link', 'style', 'script', 'img'].includes(tag)) return;
+
+    const url =
+      (el as HTMLLinkElement).href ||
+      (el as HTMLScriptElement).src ||
+      (el as HTMLImageElement).src ||
+      undefined;
+
+    const details = `Failed to load ${tag}: ${url ?? 'unknown'}`;
+    void api.logFrontendEvent('error', 'Resource', details, { tag, url }).catch(() => {});
+  },
+  true
+);
+
+window.addEventListener('unhandledrejection', event => {
+  const errorMessage = `Unhandled promise rejection: ${String(event.reason)}`;
+  const reasonObj = event.reason as Error | undefined;
+  const context = {
+    reason: reasonObj?.stack || String(event.reason),
+    promise: String(event.promise),
+  };
+  console.error(errorMessage, context);
+  void api.logFrontendError('error', errorMessage, context);
+});
+
+// Override console.error to also log to file
+const originalConsoleError = console.error;
+console.error = (...args: unknown[]) => {
+  originalConsoleError.apply(console, args);
+  const message = args.map(arg => String(arg)).join(' ');
+  void api.logFrontendError('error', message, { args });
+};
+
+// Override console.warn to also log to file
+const originalConsoleWarn = console.warn;
+console.warn = (...args: unknown[]) => {
+  originalConsoleWarn.apply(console, args);
+  const message = args.map(arg => String(arg)).join(' ');
+  void api.logFrontendError('warn', message, { args });
+};
+
+// Override console.log to also log to file
+const originalConsoleLog = console.log;
+console.log = (...args: unknown[]) => {
+  originalConsoleLog.apply(console, args);
+  const message = args.map(arg => String(arg)).join(' ');
+  void api.logFrontendEvent('info', 'Console', message, { args }).catch(() => {});
+};
+
+// Override console.info to also log to file
+const originalConsoleInfo = console.info;
+console.info = (...args: unknown[]) => {
+  originalConsoleInfo.apply(console, args);
+  const message = args.map(arg => String(arg)).join(' ');
+  void api.logFrontendEvent('info', 'Console', message, { args }).catch(() => {});
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('[Beefcake] DOMContentLoaded fired, creating BeefcakeApp...');
+  try {
+    void new BeefcakeApp();
+  } catch (err) {
+    console.error('[Beefcake] Failed to create BeefcakeApp:', err);
+    void api.logFrontendError('error', 'Failed to create BeefcakeApp', {
+      error: err instanceof Error ? err.stack : String(err),
+    });
+  }
+});
+
+console.log('[Beefcake] Event listener registered');

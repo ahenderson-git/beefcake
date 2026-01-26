@@ -5,11 +5,12 @@ export function renderWatcherPanel(
   watcherState: WatcherState | null,
   activities: WatcherActivity[]
 ): string {
+  const acts = activities || [];
   return `
     <div class="watcher-container">
       ${renderWatcherControls(watcherState)}
       ${renderWatcherStatus(watcherState)}
-      ${renderActivityFeed(activities)}
+      ${renderActivityFeed(acts)}
     </div>
   `;
 }
@@ -140,12 +141,13 @@ function renderWatcherStatus(state: WatcherState | null): string {
 }
 
 function renderActivityFeed(activities: WatcherActivity[]): string {
+  const acts = activities || [];
   return `
     <div class="watcher-activity-section">
       <div class="activity-header">
         <h3>Recent Activity</h3>
         ${
-          activities.length > 0
+          acts.length > 0
             ? `
           <button id="btn-clear-activities" class="btn-text btn-small">
             <i class="ph ph-trash"></i> Clear
@@ -155,7 +157,7 @@ function renderActivityFeed(activities: WatcherActivity[]): string {
         }
       </div>
       ${
-        activities.length === 0
+        acts.length === 0
           ? `
         <div class="activity-empty">
           <i class="ph ph-tray"></i>
@@ -164,7 +166,7 @@ function renderActivityFeed(activities: WatcherActivity[]): string {
       `
           : `
         <div class="activity-list">
-          ${activities.map(activity => renderActivityItem(activity)).join('')}
+          ${acts.map(activity => renderActivityItem(activity)).join('')}
         </div>
       `
       }

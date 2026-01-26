@@ -168,14 +168,30 @@ export function renderSQLView(state: AppState): string {
   `;
 }
 
-function renderColumnSidebar(state: AppState): string {
+export function renderColumnSidebar(state: AppState): string {
   // If we have stage-specific columns, use those; otherwise fall back to analysisResponse
   const columns = state.currentIdeColumns;
 
   if (!columns && !state.analysisResponse) {
     return `
-      <div class="ide-sidebar">
-        <div class="sidebar-info">No dataset loaded.</div>
+      <div class="ide-sidebar" id="ide-sidebar">
+        <div class="ide-sidebar-collapsed-tab" id="ide-collapsed-tab">
+          <span>Columns</span>
+        </div>
+        <div class="ide-sidebar-content">
+          <div class="sidebar-header" id="ide-sidebar-header">
+            <div class="sidebar-title">
+              <i class="ph ph-table"></i>
+              <span>Columns</span>
+            </div>
+            <div class="sidebar-header-controls">
+              <button class="sidebar-collapse-btn" id="ide-collapse-btn" title="Collapse sidebar">
+                <i class="ph ph-caret-right"></i>
+              </button>
+            </div>
+          </div>
+          <div class="sidebar-info">No dataset loaded.</div>
+        </div>
       </div>
     `;
   }
@@ -192,24 +208,39 @@ function renderColumnSidebar(state: AppState): string {
       }));
 
   return `
-    <div class="ide-sidebar" data-testid="ide-column-sidebar">
-      <div class="sidebar-header">Columns</div>
-      <div class="sidebar-list">
-        ${columnsToRender
-          .map(
-            col => `
-          <div class="sidebar-item" data-testid="ide-column-item-${escapeHtml(col.name)}">
-            <div class="col-info">
-              <span class="col-name" title="${escapeHtml(col.name)}" data-testid="ide-column-name-${escapeHtml(col.name)}">${escapeHtml(col.name)}</span>
-              <span class="col-dtype" title="${escapeHtml(col.dtype)}">${escapeHtml(col.dtype)}</span>
-            </div>
-            <button class="btn-insert-col btn-ghost btn-xs" data-col="${escapeHtml(col.name)}" title="Insert column name into editor" data-testid="ide-insert-column-${escapeHtml(col.name)}">
-              <i class="ph ph-plus-circle"></i>
+    <div class="ide-sidebar" id="ide-sidebar" data-testid="ide-column-sidebar">
+      <div class="ide-sidebar-collapsed-tab" id="ide-collapsed-tab">
+        <span>Columns</span>
+      </div>
+      <div class="ide-sidebar-content">
+        <div class="sidebar-header" id="ide-sidebar-header">
+          <div class="sidebar-title">
+            <i class="ph ph-table"></i>
+            <span>Columns</span>
+          </div>
+          <div class="sidebar-header-controls">
+            <button class="sidebar-collapse-btn" id="ide-collapse-btn" title="Collapse sidebar">
+              <i class="ph ph-caret-right"></i>
             </button>
           </div>
-        `
-          )
-          .join('')}
+        </div>
+        <div class="sidebar-list">
+          ${columnsToRender
+            .map(
+              col => `
+            <div class="sidebar-item" data-testid="ide-column-item-${escapeHtml(col.name)}">
+              <div class="col-info">
+                <span class="col-name" title="${escapeHtml(col.name)}" data-testid="ide-column-name-${escapeHtml(col.name)}">${escapeHtml(col.name)}</span>
+                <span class="col-dtype" title="${escapeHtml(col.dtype)}">${escapeHtml(col.dtype)}</span>
+              </div>
+              <button class="btn-insert-col btn-ghost btn-xs" data-col="${escapeHtml(col.name)}" title="Insert column name into editor" data-testid="ide-insert-column-${escapeHtml(col.name)}">
+                <i class="ph ph-plus-circle"></i>
+              </button>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
       </div>
     </div>
   `;

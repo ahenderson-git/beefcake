@@ -29,6 +29,7 @@
 //!   - [`analyser::logic`]: Core analysis algorithms
 //!   - [`analyser::lifecycle`]: Dataset version management
 //! - [`dictionary`]: Data dictionary snapshots and metadata management
+//! - [`integrity`]: Export integrity receipts and verification
 //! - [`pipeline`]: Automation and transformation pipeline system
 //! - [`error`]: Error types and handling utilities
 //! - [`utils`]: Common utility functions
@@ -105,8 +106,11 @@
 
 pub mod ai;
 pub mod analyser;
+pub mod config;
 pub mod dictionary;
 pub mod error;
+pub mod integrity;
+pub mod logging;
 pub mod pipeline;
 pub mod utils;
 pub mod watcher;

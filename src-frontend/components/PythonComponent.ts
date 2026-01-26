@@ -4,6 +4,7 @@ import * as monaco from 'monaco-editor';
 
 import * as api from '../api';
 import * as renderers from '../renderers';
+import { renderColumnSidebar } from '../renderers/ide';
 import { AppState, ExportSource } from '../types';
 import { getDataPathForExecution } from '../utils';
 
@@ -72,21 +73,53 @@ export class PythonComponent extends Component {
 
   private async updateColumnSchema(state: AppState): Promise<void> {
     // If we have a dataset with versions, fetch the schema for the selected version
-    if (state.currentDataset && state.currentDataset.versions.length > 0) {
+    if (state.currentDataset && (state.currentDataset.versions?.length ?? 0) > 0) {
       const selectedVersionId = state.selectedVersionId ?? state.currentDataset.activeVersionId;
       try {
         state.currentIdeColumns = await api.getVersionSchema(
           state.currentDataset.id,
           selectedVersionId
         );
+        // Update only the sidebar, not the entire component
+        this.updateSidebarDisplay(state);
       } catch (err) {
         console.error('Failed to fetch version schema:', err);
         // Fall back to analysisResponse columns if API fails
         state.currentIdeColumns = null;
+        this.updateSidebarDisplay(state);
       }
     } else {
       // No dataset versions, use analysisResponse
       state.currentIdeColumns = null;
+      this.updateSidebarDisplay(state);
+    }
+  }
+
+  private updateSidebarDisplay(state: AppState): void {
+    // Find the sidebar container in the current layout
+    const sidebarContainer = document.querySelector('.ide-layout .ide-sidebar');
+    if (!sidebarContainer) return;
+
+    // Get the current collapsed state before re-rendering
+    const wasCollapsed = sidebarContainer.classList.contains('collapsed');
+
+    // Re-render just the sidebar HTML
+    const newSidebarHTML = renderColumnSidebar(state);
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = newSidebarHTML;
+    const newSidebar = tempDiv.firstElementChild;
+
+    if (newSidebar) {
+      // Preserve collapsed state
+      if (wasCollapsed) {
+        newSidebar.classList.add('collapsed');
+      }
+
+      // Replace the old sidebar with the new one
+      sidebarContainer.replaceWith(newSidebar);
+
+      // Re-bind sidebar events (insert column buttons)
+      this.bindSidebarEvents();
     }
   }
 
@@ -221,9 +254,25 @@ export class PythonComponent extends Component {
     try {
       output.textContent = await api.installPythonPackage('polars');
       this.actions.showToast('Polars installed successfully', 'success');
+      // Refresh Polars version in UI
+      await this.refreshPolarsVersion(state);
     } catch (err) {
       output.textContent = `Error installing polars: ${String(err)}`;
       this.actions.showToast('Failed to install polars', 'error');
+    }
+  }
+
+  private async refreshPolarsVersion(state: AppState): Promise<void> {
+    try {
+      const result = await api.checkPythonEnvironment();
+      const match = result.match(/Polars\s+(\d+\.\d+\.\d+)\s+installed/);
+      if (match?.[1]) {
+        state.polarsVersion = match[1];
+        this.render(state); // Re-render to show updated version
+      }
+    } catch (err) {
+      /* eslint-disable-next-line no-console */
+      console.debug('Failed to refresh Polars version:', err);
     }
   }
 

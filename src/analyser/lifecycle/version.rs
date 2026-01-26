@@ -117,7 +117,7 @@ impl DatasetVersion {
 }
 
 /// Tree structure tracking version lineage
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionTree {
     versions: HashMap<Uuid, DatasetVersion>,
     root_id: Uuid,
@@ -185,7 +185,7 @@ impl VersionTree {
 }
 
 /// Top-level dataset containing all versions
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Dataset {
     pub id: Uuid,
     pub name: String,
@@ -193,6 +193,7 @@ pub struct Dataset {
     pub active_version_id: Uuid,
     pub versions: VersionTree,
     pub created_at: DateTime<Utc>,
+    #[serde(skip)]
     pub store: Arc<VersionStore>,
 }
 
@@ -240,7 +241,7 @@ impl Dataset {
         let should_reuse_data = pipeline.is_empty() || is_pipeline_no_op(&pipeline, active_version);
 
         let data_location = if should_reuse_data {
-            crate::utils::log_event(
+            crate::config::log_event(
                 "Lifecycle",
                 &format!(
                     "Stage '{}' pipeline does not modify data, reusing parent data location",
@@ -352,30 +353,30 @@ fn is_pipeline_no_op(pipeline: &TransformPipeline, active_version: &DatasetVersi
 
     // Single transform optimizations
     if pipeline.len() == 1 {
-        let transform_spec = pipeline.iter().next().unwrap();
+        if let Some(transform_spec) = pipeline.iter().next() {
+            // Case 1: Column selection is metadata-only for Parquet files
+            // Parquet supports native column projection, so we don't need to rewrite the file
+            // This optimization provides massive performance gains for large files
+            if transform_spec.transform_type == "select_columns" {
+                crate::config::log_event(
+                    "Lifecycle",
+                    "Column selection detected - using metadata-only optimization",
+                );
+                return true;
+            }
 
-        // Case 1: Column selection is metadata-only for Parquet files
-        // Parquet supports native column projection, so we don't need to rewrite the file
-        // This optimization provides massive performance gains for large files
-        if transform_spec.transform_type == "select_columns" {
-            crate::utils::log_event(
-                "Lifecycle",
-                "Column selection detected - using metadata-only optimization",
-            );
-            return true;
-        }
+            // Case 2: Clean transform with restricted=true (Cleaned -> Advanced transition)
+            if transform_spec.transform_type == "clean" {
+                let restricted = transform_spec
+                    .parameters
+                    .get("restricted")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
 
-        // Case 2: Clean transform with restricted=true (Cleaned -> Advanced transition)
-        if transform_spec.transform_type == "clean" {
-            let restricted = transform_spec
-                .parameters
-                .get("restricted")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-
-            // If restricted=true and parent is Cleaned stage, this is a no-op
-            // because Cleaned -> Advanced with restricted=true doesn't actually transform data
-            return restricted && active_version.stage == LifecycleStage::Cleaned;
+                // If restricted=true and parent is Cleaned stage, this is a no-op
+                // because Cleaned -> Advanced with restricted=true doesn't actually transform data
+                return restricted && active_version.stage == LifecycleStage::Cleaned;
+            }
         }
     }
 

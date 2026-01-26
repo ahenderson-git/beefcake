@@ -300,7 +300,7 @@ pub fn build_histogram_streaming(
         let max_rows = get_adaptive_sample_size(total_count, custom_sample_size);
         let effective_rows = total_count.min(max_rows);
         let chunk_size = 50_000;
-        let total_chunks = effective_rows.div_ceil(chunk_size);
+        let total_chunks = if chunk_size > 0 { effective_rows.div_ceil(chunk_size) } else { 0 };
 
         for i in 0..total_chunks {
             let offset = (i * chunk_size) as i64;

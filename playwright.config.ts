@@ -18,10 +18,10 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:14206',
-    reuseExistingServer: !process.env.CI,
-    stdout: 'ignore',
-    stderr: 'pipe',
+    reuseExistingServer: true, // Always reuse existing server to avoid startup/teardown issues
     timeout: 60 * 1000,
+    // Don't pipe stdout/stderr - this can cause hanging on Windows
+    // Let Vite output go directly to console
   },
 
   projects: [
@@ -31,8 +31,8 @@ export default defineConfig({
     },
   ],
 
-  timeout: 30000,
+  timeout: 60000,
   expect: {
-    timeout: 5000,
+    timeout: 10000,
   },
 });

@@ -1,6 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 import type { AppState } from '../types';
+import { getDefaultAppConfig } from '../types';
 
 import { Component, type ComponentActions } from './Component';
 
@@ -30,23 +31,7 @@ const createMockState = (): AppState => ({
   version: '0.2.0',
   currentView: 'Dashboard',
   analysisResponse: null,
-  config: {
-    connections: [],
-    active_import_id: null,
-    active_export_id: null,
-    powershell_font_size: 14,
-    python_font_size: 14,
-    sql_font_size: 14,
-    analysis_sample_size: 10000,
-    sampling_strategy: 'first',
-    ai_config: {
-      enabled: false,
-      model: 'gpt-4',
-      temperature: 0.7,
-      max_tokens: 1000,
-    },
-    audit_log: [],
-  },
+  config: getDefaultAppConfig(),
   expandedRows: new Set<string>(),
   cleaningConfigs: {},
   isAddingConnection: false,
@@ -117,7 +102,9 @@ describe('Component', () => {
       const actions = createMockActions();
       const component = new TestComponent('non-existent', actions);
 
-      expect(() => component['getContainer']()).toThrow('Container not found');
+      expect(() => component['getContainer']()).toThrow(
+        'Container non-existent not found for component'
+      );
     });
   });
 

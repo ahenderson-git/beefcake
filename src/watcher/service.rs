@@ -24,7 +24,6 @@ use super::events::{
     FileDetectedPayload, FileReadyPayload, IngestFailedPayload, IngestStartedPayload,
     IngestSucceededPayload, WatcherServiceState, WatcherStatusPayload,
 };
-use crate::utils;
 
 /// Maximum time to wait for file stability (30 seconds)
 const STABILITY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -165,7 +164,7 @@ impl WatcherService {
                                     }
                                     _watcher = Some(Box::new(w));
                                     Self::emit_status(&app, &state, None);
-                                    utils::log_event(
+                                    crate::config::log_event(
                                         "Watcher",
                                         &format!("Started watching: {}", folder.display()),
                                     );
@@ -186,7 +185,7 @@ impl WatcherService {
                             *s = WatcherServiceState::Idle;
                         }
                         Self::emit_status(&app, &state, None);
-                        utils::log_event("Watcher", "Stopped watching");
+                        crate::config::log_event("Watcher", "Stopped watching");
                     }
                     WatcherMessage::IngestNow(path) => {
                         Self::handle_file_ingestion(&app, &config, &state, path);
@@ -245,7 +244,7 @@ impl WatcherService {
             },
         );
 
-        utils::log_event("Watcher", &format!("Detected file: {}", path.display()));
+        crate::config::log_event("Watcher", &format!("Detected file: {}", path.display()));
 
         // Check if auto-ingest is enabled
         let should_ingest = config.lock().map(|cfg| cfg.auto_ingest).unwrap_or(false);
@@ -314,7 +313,7 @@ impl WatcherService {
                 },
             );
 
-            utils::log_event(
+            crate::config::log_event(
                 "Watcher",
                 &format!("Ingesting file: {}", path_clone.display()),
             );
@@ -332,7 +331,7 @@ impl WatcherService {
                         },
                     );
 
-                    utils::log_event(
+                    crate::config::log_event(
                         "Watcher",
                         &format!(
                             "Successfully ingested {} ({} rows, {} cols) -> dataset {}",
@@ -352,7 +351,7 @@ impl WatcherService {
                         },
                     );
 
-                    utils::log_event("Watcher", &format!("Ingestion failed: {e}"));
+                    crate::config::log_event("Watcher", &format!("Ingestion failed: {e}"));
                 }
             }
 

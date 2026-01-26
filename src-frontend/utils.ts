@@ -12,7 +12,8 @@ export function fmtDuration(duration: { secs: number; nanos: number }): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-export function escapeHtml(unsafe: string): string {
+export function escapeHtml(unsafe: string | null | undefined): string {
+  if (unsafe === null || unsafe === undefined) return '';
   return unsafe
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -43,7 +44,7 @@ export function getDataPathForExecution(state: {
   analysisResponse: { path: string } | null;
 }): string | undefined {
   // If we have a dataset with versions, use the selected version's path
-  if (state.currentDataset && state.currentDataset.versions.length > 0) {
+  if (state.currentDataset && (state.currentDataset.versions?.length ?? 0) > 0) {
     const selectedVersionId = state.selectedVersionId ?? state.currentDataset.activeVersionId;
     const selectedVersion = state.currentDataset.versions.find(v => v.id === selectedVersionId);
     if (selectedVersion) {

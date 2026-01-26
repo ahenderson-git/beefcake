@@ -159,6 +159,15 @@ export class ExportModal extends Component {
       }
     }
 
+    // Check if receipt creation is enabled (only for file exports)
+    let createReceipt = true; // Default
+    if (this.currentDestType === 'File') {
+      const receiptCheckbox = document.getElementById('export-create-receipt') as HTMLInputElement;
+      if (receiptCheckbox) {
+        createReceipt = receiptCheckbox.checked;
+      }
+    }
+
     const options: ExportOptions = {
       source: this.source,
       configs: state.cleaningConfigs,
@@ -168,6 +177,7 @@ export class ExportModal extends Component {
         ...(format && { format }),
       },
       create_dictionary: createDictionary,
+      create_receipt: createReceipt,
     };
 
     try {

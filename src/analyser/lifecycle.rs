@@ -198,6 +198,12 @@ impl DatasetRegistry {
         compute_version_diff(&v1, &v2, &self.store)
     }
 
+    /// Get a specific version for a dataset
+    pub fn get_version(&self, dataset_id: &Uuid, version_id: &Uuid) -> Result<DatasetVersion> {
+        let dataset = self.get_dataset(dataset_id)?;
+        dataset.get_version(version_id)
+    }
+
     /// List all versions for a dataset
     pub fn list_versions(&self, dataset_id: &Uuid) -> Result<Vec<DatasetVersion>> {
         let dataset = self.get_dataset(dataset_id)?;

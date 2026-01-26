@@ -54,42 +54,44 @@ export class AnalyserComponent extends Component {
     const isReadOnly = this.isReadOnlyStage(currentStage);
 
     // Initialize selectedColumns if empty (default to all selected)
-    if (state.selectedColumns.size === 0 && state.analysisResponse.summary.length > 0) {
-      state.analysisResponse.summary.forEach(col => {
+    if (state.selectedColumns.size === 0 && (state.analysisResponse.summary || []).length > 0) {
+      (state.analysisResponse.summary || []).forEach(col => {
         state.selectedColumns.add(col.name);
       });
     }
 
-    // Special rendering for Validated stage - show summary view
-    if (currentStage === 'Validated') {
-      const existingWrapper = container.querySelector('.analyser-wrapper');
-      if (!existingWrapper) {
-        container.innerHTML = `
-          <div class="analyser-wrapper">
-            <div id="lifecycle-rail-container"></div>
-            <div id="analyser-content-container" class="analyser-container">
-              ${renderers.renderValidatedSummary(state.analysisResponse, state.currentDataset)}
-            </div>
-          </div>
-        `;
-      } else {
-        const contentContainer = document.getElementById('analyser-content-container');
-        if (contentContainer) {
-          contentContainer.innerHTML = renderers.renderValidatedSummary(
-            state.analysisResponse,
-            state.currentDataset
-          );
-        }
-      }
-      this.bindValidatedEvents(state);
-      return;
-    }
-
-    // Check if this is the first render (container is empty or doesn't have wrapper)
+    // Ensure we have the basic wrapper structure
     const existingWrapper = container.querySelector('.analyser-wrapper');
     if (!existingWrapper) {
-      // First render: set entire HTML including wrapper structure
-      container.innerHTML = renderers.renderAnalyser(
+      container.innerHTML = `
+        <div class="analyser-wrapper">
+          <div id="lifecycle-rail-container"></div>
+          <div id="analyser-content-container" class="analyser-container-outer"></div>
+        </div>
+      `;
+    }
+
+    const contentContainer = document.getElementById('analyser-content-container');
+    if (!contentContainer) {
+      // Fallback if something went wrong
+      container.innerHTML = `
+        <div class="analyser-wrapper">
+          <div id="lifecycle-rail-container"></div>
+          <div id="analyser-content-container" class="analyser-container-outer"></div>
+        </div>
+      `;
+    }
+
+    const targetContentContainer = document.getElementById('analyser-content-container')!;
+
+    // Generate content based on stage
+    let contentHTML = '';
+    if (currentStage === 'Validated') {
+      contentHTML = renderers.renderValidatedSummary(state.analysisResponse, state.currentDataset);
+    } else if (currentStage === 'Published') {
+      contentHTML = renderers.renderPublishedView(state.analysisResponse, state.currentDataset);
+    } else {
+      contentHTML = renderers.renderAnalyser(
         state.analysisResponse,
         state.expandedRows,
         state.cleaningConfigs,
@@ -99,51 +101,24 @@ export class AnalyserComponent extends Component {
         state.useOriginalColumnNames,
         state.advancedProcessingEnabled
       );
+    }
+
+    // Update content
+    targetContentContainer.innerHTML = contentHTML;
+
+    // Post-render bindings
+    if (currentStage === 'Validated') {
+      this.bindValidatedEvents(state);
+    } else if (currentStage === 'Published') {
+      this.bindPublishedEvents(state);
     } else {
-      // Subsequent renders: only update content container to preserve lifecycle rail
-      const contentContainer = document.getElementById('analyser-content-container');
-      if (contentContainer) {
-        // Temporarily store the content HTML by re-generating it
-        const fullHTML = renderers.renderAnalyser(
-          state.analysisResponse,
-          state.expandedRows,
-          state.cleaningConfigs,
-          currentStage,
-          isReadOnly,
-          state.selectedColumns,
-          state.useOriginalColumnNames,
-          state.advancedProcessingEnabled
-        );
-
-        // Extract just the content container portion from the generated HTML
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = fullHTML;
-        const newContentContainer = tempDiv.querySelector('#analyser-content-container');
-
-        if (newContentContainer) {
-          contentContainer.innerHTML = newContentContainer.innerHTML;
-        }
-      }
+      this.bindEvents(state);
+      this.initCharts(state);
     }
-
-    const header = document.getElementById('analyser-header-container');
-    if (header) {
-      header.innerHTML = renderers.renderAnalyserHeader(
-        state.analysisResponse,
-        currentStage,
-        isReadOnly,
-        state.useOriginalColumnNames,
-        state.cleanAllActive,
-        state.advancedProcessingEnabled
-      );
-    }
-
-    this.bindEvents(state);
-    this.initCharts(state);
   }
 
   private bindEmptyAnalyserEvents(_state: AppState): void {
-    document.getElementById('btn-open-file')?.addEventListener('click', () => {
+    document.getElementById('btn-open-file-empty')?.addEventListener('click', () => {
       void (async () => {
         const path = await api.openFileDialog();
         if (path) {
@@ -154,7 +129,46 @@ export class AnalyserComponent extends Component {
   }
 
   override bindEvents(state: AppState): void {
-    if (!state.analysisResponse) return;
+    /* eslint-disable no-console */
+    console.log('[AnalyserComponent] bindEvents called, hasAnalysis:', !!state.analysisResponse);
+
+    // Always bind these buttons even if no analysis yet
+    const btnOpenFile = document.getElementById('btn-open-file');
+    if (btnOpenFile) {
+      console.log('[AnalyserComponent] Binding btn-open-file');
+      btnOpenFile.addEventListener('click', () => {
+        console.log('[AnalyserComponent] Open file clicked!');
+        void (async () => {
+          const path = await api.openFileDialog();
+          if (path) {
+            this.actions.runAnalysis(path);
+          }
+        })();
+      });
+    }
+
+    const btnReanalyze = document.getElementById('btn-reanalyze');
+    if (btnReanalyze) {
+      console.log('[AnalyserComponent] Binding btn-reanalyze');
+      btnReanalyze.addEventListener('click', () => {
+        console.log('[AnalyserComponent] Reanalyze clicked!');
+        void (async () => {
+          const path = await api.openFileDialog();
+          if (path) {
+            this.actions.runAnalysis(path);
+          }
+        })();
+      });
+    }
+
+    // If no analysis response, we're done here
+    if (!state.analysisResponse) {
+      console.log('[AnalyserComponent] No analysis response, skipping data-specific bindings');
+      return;
+    }
+
+    console.log('[AnalyserComponent] Binding analysis-specific events...');
+    /* eslint-enable no-console */
 
     // Expand/Collapse rows
     document.querySelectorAll('.analyser-row').forEach(row => {
@@ -241,7 +255,7 @@ export class AnalyserComponent extends Component {
           state.useOriginalColumnNames = checked;
           // Update all configs to use either original or standardized names
           if (state.analysisResponse) {
-            state.analysisResponse.summary.forEach(s => {
+            (state.analysisResponse.summary || []).forEach(s => {
               const config = state.cleaningConfigs[s.name];
               if (config) {
                 config.new_name = checked ? s.name : s.standardized_name;
@@ -253,7 +267,7 @@ export class AnalyserComponent extends Component {
 
           // Only apply to compatible columns based on column type
           if (state.analysisResponse) {
-            state.analysisResponse.summary.forEach(col => {
+            (state.analysisResponse.summary || []).forEach(col => {
               const config = state.cleaningConfigs[col.name];
               if (!config) return;
 
@@ -282,7 +296,7 @@ export class AnalyserComponent extends Component {
 
           // Only apply to numeric columns (normalisation requires numeric operations)
           if (state.analysisResponse) {
-            state.analysisResponse.summary.forEach(col => {
+            (state.analysisResponse.summary || []).forEach(col => {
               const config = state.cleaningConfigs[col.name];
               if (!config) return;
 
@@ -312,7 +326,7 @@ export class AnalyserComponent extends Component {
         const target = e.currentTarget as HTMLElement;
         const action = target.dataset.action!;
         if (action === 'standardize-all' && state.analysisResponse) {
-          state.analysisResponse.summary.forEach(s => {
+          (state.analysisResponse.summary || []).forEach(s => {
             const config = state.cleaningConfigs[s.name];
             if (config) {
               config.new_name = s.standardized_name;
@@ -474,7 +488,7 @@ export class AnalyserComponent extends Component {
       const pipeline: { transforms: unknown[] } = { transforms: [] };
 
       if (state.selectedColumns.size > 0 && state.analysisResponse) {
-        const allColumns = state.analysisResponse.summary.map(c => c.name);
+        const allColumns = (state.analysisResponse.summary || []).map(c => c.name);
         const selectedCols = Array.from(state.selectedColumns);
 
         // Only add SelectColumnsTransform if some columns were excluded
@@ -491,7 +505,7 @@ export class AnalyserComponent extends Component {
       // Update configs to use standardized names for the Cleaning stage
       // (unless user has explicitly chosen to use original names)
       if (state.analysisResponse && !state.useOriginalColumnNames) {
-        state.analysisResponse.summary.forEach(col => {
+        (state.analysisResponse.summary || []).forEach(col => {
           const config = state.cleaningConfigs[col.name];
           if (config) {
             config.new_name = col.standardized_name || col.name;
@@ -664,18 +678,12 @@ export class AnalyserComponent extends Component {
     // Publish Dataset button
     const btnPublish = document.getElementById('btn-publish-dataset');
     btnPublish?.addEventListener('click', () => {
+      // eslint-disable-next-line @typescript-eslint/require-await
       void (async () => {
         if (!state.currentDataset || !state.analysisResponse) return;
 
-        // Open export modal
-        const modal = new ExportModal('modal-container', this.actions, {
-          type: 'Analyser',
-          path: state.analysisResponse.path,
-        });
-
-        document.getElementById('modal-container')?.classList.add('active');
-        await modal.show(state);
-        document.getElementById('modal-container')?.classList.remove('active');
+        // Show publish modal to choose View or Snapshot mode
+        this.showPublishModal(state);
       })();
     });
   }
@@ -689,7 +697,7 @@ export class AnalyserComponent extends Component {
     if (!state.analysisResponse) return;
 
     state.expandedRows.forEach(colName => {
-      const col = state.analysisResponse!.summary.find(s => s.name === colName);
+      const col = (state.analysisResponse?.summary ?? []).find(s => s.name === colName);
       if (!col) return;
 
       const canvas = document.getElementById(`chart-${colName}`) as HTMLCanvasElement;
@@ -760,10 +768,8 @@ export class AnalyserComponent extends Component {
             },
           },
         };
-      } else if (col.stats.Categorical) {
-        const entries = Object.entries(col.stats.Categorical)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 10);
+      } else if (col.stats.Categorical?.top_values) {
+        const entries = col.stats.Categorical.top_values.sort((a, b) => b[1] - a[1]).slice(0, 10);
         chartConfig = {
           type: 'doughnut',
           data: {
@@ -807,5 +813,138 @@ export class AnalyserComponent extends Component {
         this.charts.set(colName, new Chart(ctx, chartConfig));
       }
     });
+  }
+
+  private bindPublishedEvents(state: AppState): void {
+    // Bind tab switching
+    document.querySelectorAll('.command-tab').forEach(tab => {
+      tab.addEventListener('click', e => {
+        const target = e.currentTarget as HTMLElement;
+        const tabName = target.dataset.tab;
+
+        // Update tab active state
+        document.querySelectorAll('.command-tab').forEach(t => t.classList.remove('active'));
+        target.classList.add('active');
+
+        // Update panel active state
+        document.querySelectorAll('.command-panel').forEach(p => p.classList.remove('active'));
+        document.querySelector(`.command-panel[data-panel="${tabName}"]`)?.classList.add('active');
+      });
+    });
+
+    // Bind copy buttons
+    document.getElementById('copy-powershell')?.addEventListener('click', () => {
+      const code = document.getElementById('powershell-code');
+      if (code) {
+        void navigator.clipboard.writeText(code.textContent ?? '');
+        this.actions.showToast('PowerShell command copied!', 'success');
+      }
+    });
+
+    document.getElementById('copy-python')?.addEventListener('click', () => {
+      const code = document.getElementById('python-code');
+      if (code) {
+        void navigator.clipboard.writeText(code.textContent ?? '');
+        this.actions.showToast('Python script copied!', 'success');
+      }
+    });
+
+    document.getElementById('copy-json')?.addEventListener('click', () => {
+      const code = document.getElementById('json-code');
+      if (code) {
+        void navigator.clipboard.writeText(code.textContent ?? '');
+        this.actions.showToast('Pipeline JSON copied!', 'success');
+      }
+    });
+
+    // Bind export button
+    document.getElementById('btn-export-published')?.addEventListener('click', () => {
+      void (async () => {
+        if (!state.analysisResponse) return;
+
+        const modal = new ExportModal('modal-container', this.actions, {
+          type: 'Analyser',
+          path: state.analysisResponse.path,
+        });
+
+        document.getElementById('modal-container')?.classList.add('active');
+        await modal.show(state);
+        document.getElementById('modal-container')?.classList.remove('active');
+      })();
+    });
+
+    // Bind lifecycle button
+    document.getElementById('btn-view-lifecycle')?.addEventListener('click', () => {
+      this.actions.switchView('Lifecycle');
+    });
+  }
+
+  private showPublishModal(state: AppState): void {
+    if (!state.currentDataset) return;
+
+    const modalContainer = document.getElementById('modal-container');
+    if (!modalContainer) return;
+
+    // Render the publish modal
+    modalContainer.innerHTML = renderers.renderPublishModal();
+    modalContainer.classList.add('active');
+
+    // Bind close button
+    document.getElementById('modal-close')?.addEventListener('click', () => {
+      modalContainer.classList.remove('active');
+      modalContainer.innerHTML = '';
+    });
+
+    // Bind Publish as View button
+    document.getElementById('btn-publish-view')?.addEventListener('click', () => {
+      void this.handlePublish(state, 'view');
+    });
+
+    // Bind Publish as Snapshot button
+    document.getElementById('btn-publish-snapshot')?.addEventListener('click', () => {
+      void this.handlePublish(state, 'snapshot');
+    });
+  }
+
+  private async handlePublish(state: AppState, mode: 'view' | 'snapshot'): Promise<void> {
+    if (!state.currentDataset) return;
+
+    const modalContainer = document.getElementById('modal-container');
+    if (!modalContainer) return;
+
+    try {
+      // Close modal
+      modalContainer.classList.remove('active');
+      modalContainer.innerHTML = '';
+
+      // Show loading state
+      state.isLoading = true;
+      state.loadingMessage = `Publishing dataset as ${mode}...`;
+      this.actions.onStateChange();
+
+      // Create Published version
+      const publishedVersionId = await api.publishVersion(
+        state.currentDataset.id,
+        state.currentDataset.activeVersionId,
+        mode
+      );
+
+      // Set the new Published version as active
+      await api.setActiveVersion(state.currentDataset.id, publishedVersionId);
+
+      // Reload the dataset versions to include the new Published version
+      const updatedVersionsJson = await api.listVersions(state.currentDataset.id);
+      const updatedVersions = JSON.parse(updatedVersionsJson) as DatasetVersion[];
+      state.currentDataset.versions = updatedVersions;
+      state.currentDataset.activeVersionId = publishedVersionId;
+
+      state.isLoading = false;
+      this.actions.onStateChange();
+      this.actions.showToast(`✓ Dataset published as ${mode}!`, 'success');
+    } catch (err) {
+      state.isLoading = false;
+      this.actions.onStateChange();
+      this.actions.showToast(`Failed to publish: ${String(err)}`, 'error');
+    }
   }
 }

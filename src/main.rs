@@ -70,6 +70,7 @@
 
 // Private modules - only accessible within this binary
 mod cli;
+mod commands;
 mod export;
 mod python_runner;
 mod system;
@@ -102,9 +103,15 @@ use clap::Parser as _;
 /// - Tokio runtime initialization fails
 /// - Tauri application fails to start
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize environment logger for debugging
-    // Set RUST_LOG=debug to see detailed logs
-    env_logger::init();
+    // Initialize comprehensive file and console logging
+    // Logs will be written to platform-specific app data directory
+    if let Err(e) = beefcake::logging::init() {
+        // Fall back to env_logger if file logging fails
+        env_logger::init();
+        eprintln!("Warning: Failed to initialize file logging, using stderr only: {}", e);
+    }
+
+    tracing::info!("Beefcake application starting");
 
     // Parse command-line arguments using clap
     // This reads std::env::args() and validates against Cli struct
@@ -116,12 +123,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         //
         // We need a Tokio runtime because some operations are async
         // (database queries, HTTP requests, etc.)
+        tracing::info!("Running CLI command");
         tokio::runtime::Runtime::new()?.block_on(cli::run_command(command))?;
+        tracing::info!("CLI command completed successfully");
         return Ok(());
     }
 
     // GUI mode: Launch Tauri desktop application
     // This call blocks until the application window is closed
+    tracing::info!("Launching Tauri GUI application");
     tauri_app::run();
+    tracing::info!("Application shutdown complete");
     Ok(())
 }

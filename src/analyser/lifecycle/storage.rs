@@ -18,6 +18,14 @@ pub enum DataLocation {
     OriginalFile(PathBuf),
 }
 
+impl DataLocation {
+    pub fn path(&self) -> &std::path::Path {
+        match self {
+            Self::ParquetFile(p) | Self::OriginalFile(p) => p,
+        }
+    }
+}
+
 /// Storage backend for dataset versions
 #[derive(Debug)]
 pub struct VersionStore {
@@ -55,7 +63,7 @@ impl VersionStore {
         // For raw data, reference the original file instead of copying
         // This avoids expensive re-loading and Parquet conversion during analysis
         // The file will be converted to Parquet only when transforms are applied
-        crate::utils::log_event(
+        crate::config::log_event(
             "Lifecycle",
             &format!(
                 "Created raw version reference to: {}",

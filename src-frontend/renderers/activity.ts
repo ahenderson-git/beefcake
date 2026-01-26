@@ -2,7 +2,9 @@ import { AppConfig } from '../types';
 import { escapeHtml } from '../utils';
 
 export function renderActivityLogView(config: AppConfig): string {
-  const auditLogs = [...(config.audit_log || [])].reverse();
+  // Safely handle audit_log which might be undefined, null, or not an array
+  const auditLogArray = Array.isArray(config.audit_log) ? config.audit_log : [];
+  const auditLogs = [...auditLogArray].reverse();
 
   return `
     <div class="activity-view">

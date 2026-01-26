@@ -307,7 +307,7 @@ export class AIAssistantComponent extends Component {
       fileName: state.analysisResponse.file_name,
       rowCount: state.analysisResponse.row_count,
       columnCount: state.analysisResponse.column_count,
-      columns: state.analysisResponse.summary.slice(0, 20).map(col => ({
+      columns: (state.analysisResponse.summary || []).slice(0, 20).map(col => ({
         name: col.name,
         type: col.kind,
         nullCount: col.nulls,

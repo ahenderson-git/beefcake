@@ -9,13 +9,15 @@ export function renderSettingsView(
 ): string {
   const folders = standardPaths ?? null;
   const trusted = trustedPaths ?? [];
+  const connections = config.connections ?? [];
+
   return `
     <div class="settings-view">
       <div class="settings-section">
         <h3><i class="ph ph-plug-connect"></i> Database Connections</h3>
         <div class="connections-list">
-          ${config.connections.length === 0 ? '<p class="empty-msg">No connections configured.</p>' : ''}
-          ${config.connections
+          ${connections.length === 0 ? '<p class="empty-msg">No connections configured.</p>' : ''}
+          ${connections
             .map(
               conn => `
             <div class="connection-card">
@@ -39,8 +41,8 @@ export function renderSettingsView(
           <div class="connection-form active">
             <h4>Add New Connection</h4>
             <div class="form-grid">
-              <input type="text" id="new-conn-name" placeholder="Connection Name (e.g. Production DB)">
-              <input type="text" id="new-conn-host" placeholder="Host (localhost)">
+              <input type="text" id="new-conn-name" data-testid="settings-connection-name-input" placeholder="Connection Name (e.g. Production DB)">
+              <input type="text" id="new-conn-host" data-testid="settings-connection-host-input" placeholder="Host (localhost)">
               <input type="number" id="new-conn-port" value="5432" placeholder="Port">
               <input type="text" id="new-conn-user" placeholder="User">
               <input type="password" id="new-conn-pass" placeholder="Password">
@@ -56,7 +58,7 @@ export function renderSettingsView(
           </div>
         `
             : `
-          <button id="btn-add-conn" class="btn-secondary"><i class="ph ph-plus"></i> Add Connection</button>
+          <button id="btn-add-conn" class="btn-secondary" data-testid="settings-add-connection-button"><i class="ph ph-plus"></i> Add Connection</button>
         `
         }
       </div>
@@ -146,7 +148,7 @@ export function renderSettingsView(
               <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.input_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-tray-arrow-down"></i> Open Input
               </button>
-              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.input_dir) : ''}" ${folders ? '' : 'disabled'}>
+              <button class="btn-secondary btn-small btn-copy-path" title="Copy input path" aria-label="Copy input path" data-copy="${folders ? escapeHtml(folders.input_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-copy"></i>
               </button>
             </div>
@@ -154,7 +156,7 @@ export function renderSettingsView(
               <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.output_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-tray-arrow-up"></i> Open Output
               </button>
-              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.output_dir) : ''}" ${folders ? '' : 'disabled'}>
+              <button class="btn-secondary btn-small btn-copy-path" title="Copy output path" aria-label="Copy output path" data-copy="${folders ? escapeHtml(folders.output_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-copy"></i>
               </button>
             </div>
@@ -162,7 +164,7 @@ export function renderSettingsView(
               <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.scripts_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-code"></i> Open Scripts
               </button>
-              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.scripts_dir) : ''}" ${folders ? '' : 'disabled'}>
+              <button class="btn-secondary btn-small btn-copy-path" title="Copy scripts path" aria-label="Copy scripts path" data-copy="${folders ? escapeHtml(folders.scripts_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-copy"></i>
               </button>
             </div>
@@ -170,7 +172,7 @@ export function renderSettingsView(
               <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.logs_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-file-text"></i> Open Logs
               </button>
-              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.logs_dir) : ''}" ${folders ? '' : 'disabled'}>
+              <button class="btn-secondary btn-small btn-copy-path" title="Copy logs path" aria-label="Copy logs path" data-copy="${folders ? escapeHtml(folders.logs_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-copy"></i>
               </button>
             </div>
@@ -178,7 +180,7 @@ export function renderSettingsView(
               <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.templates_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-grid-four"></i> Open Templates
               </button>
-              <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.templates_dir) : ''}" ${folders ? '' : 'disabled'}>
+              <button class="btn-secondary btn-small btn-copy-path" title="Copy templates path" aria-label="Copy templates path" data-copy="${folders ? escapeHtml(folders.templates_dir) : ''}" ${folders ? '' : 'disabled'}>
                 <i class="ph ph-copy"></i>
               </button>
             </div>
@@ -187,7 +189,7 @@ export function renderSettingsView(
             <button class="btn-secondary btn-small folder-btn" data-path="${folders ? escapeHtml(folders.base_dir) : ''}" ${folders ? '' : 'disabled'}>
               <i class="ph ph-house"></i> Open Base Folder
             </button>
-            <button class="btn-secondary btn-small btn-copy-path" data-copy="${folders ? escapeHtml(folders.base_dir) : ''}" ${folders ? '' : 'disabled'}>
+            <button class="btn-secondary btn-small btn-copy-path" title="Copy base path" aria-label="Copy base path" data-copy="${folders ? escapeHtml(folders.base_dir) : ''}" ${folders ? '' : 'disabled'}>
               <i class="ph ph-copy"></i> Copy Base Path
             </button>
           </div>
@@ -198,11 +200,11 @@ export function renderSettingsView(
           }
         </div>
 
-        <div class="pref-subsection">
+        <div class="pref-subsection" data-testid="settings-trusted-paths-section">
           <h4><i class="ph ph-shield-check"></i> Trusted Workspaces</h4>
           <p class="subsection-description">Add a folder to allow file read/write outside the app data directory.</p>
           <div class="trusted-path-actions">
-            <button id="btn-add-trusted-path" class="btn-secondary btn-small">
+            <button id="btn-add-trusted-path" class="btn-secondary btn-small" data-testid="settings-add-trusted-path-button">
               <i class="ph ph-plus"></i> Add Trusted Folder
             </button>
             <button id="btn-show-onboarding" class="btn-secondary btn-small">
@@ -237,7 +239,7 @@ export function renderSettingsView(
             Enable AI Assistant
             <i class="ph ph-info help-icon" title="Enable ChatGPT integration for in-app help" aria-label="Help: Enable ChatGPT integration"></i>
           </label>
-          <input type="checkbox" id="ai-enabled" ${config.ai_config?.enabled ? 'checked' : ''}>
+          <input type="checkbox" id="ai-enabled" data-testid="settings-ai-enabled-toggle" ${config.ai_config?.enabled ? 'checked' : ''}>
         </div>
 
         <div class="pref-item">
@@ -301,6 +303,77 @@ export function renderSettingsView(
           <input type="number" id="ai-max-tokens"
             min="100" max="4000" step="100"
             value="${config.ai_config?.max_tokens ?? 1000}">
+        </div>
+      </div>
+
+      <div class="settings-section" data-testid="settings-font-size-section">
+        <h3><i class="ph ph-text-aa"></i> Appearance</h3>
+        <p class="section-description">Customize the application appearance</p>
+
+        <div class="pref-item">
+          <label for="app-theme">Theme</label>
+          <select id="app-theme" data-testid="settings-theme-select">
+            <option value="dark" selected>Dark</option>
+            <option value="light">Light</option>
+            <option value="auto">Auto (System)</option>
+          </select>
+        </div>
+
+        <div class="pref-item">
+          <label>Editor Font Sizes</label>
+          <div class="font-size-controls">
+            <div class="font-size-item">
+              <span>Python IDE:</span>
+              <span>${config.python_font_size ?? 14}px</span>
+            </div>
+            <div class="font-size-item">
+              <span>SQL IDE:</span>
+              <span>${config.sql_font_size ?? 14}px</span>
+            </div>
+            <div class="font-size-item">
+              <span>PowerShell:</span>
+              <span>${config.powershell_font_size ?? 14}px</span>
+            </div>
+          </div>
+          <p class="hint-text">Adjust font sizes using the +/- buttons in each IDE</p>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3><i class="ph ph-file-text"></i> Application Logs</h3>
+        <p class="section-description">Access log files for troubleshooting and error diagnosis</p>
+
+        <div class="pref-item">
+          <label>Log Directory</label>
+          <div class="log-path-display">
+            <span id="log-directory-path" class="path-text">Loading...</span>
+            <button id="btn-open-log-dir" class="btn-secondary btn-small">
+              <i class="ph ph-folder-open"></i> Open Folder
+            </button>
+          </div>
+        </div>
+
+        <div class="pref-item">
+          <label>Current Log Files</label>
+          <div class="log-files-list">
+            <div class="log-file-row">
+              <span>All Logs (beefcake.log)</span>
+              <button id="btn-open-main-log" class="btn-secondary btn-small">
+                <i class="ph ph-file-text"></i> Open
+              </button>
+            </div>
+            <div class="log-file-row">
+              <span>Errors Only (error.log)</span>
+              <button id="btn-open-error-log" class="btn-secondary btn-small">
+                <i class="ph ph-file-text"></i> Open
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="log-info">
+          <p><i class="ph ph-info"></i> Logs capture all application activity including errors, warnings, and diagnostic information.</p>
+          <p>Log files rotate daily and are kept for 10 days.</p>
         </div>
       </div>
     </div>

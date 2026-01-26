@@ -25,4 +25,4 @@ pub use types::{
 };
 
 #[cfg(test)]
-mod tests;
+pub mod tests;

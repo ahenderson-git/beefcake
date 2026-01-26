@@ -12,11 +12,21 @@ export class DashboardComponent extends Component {
   render(state: AppState): void {
     const container = this.getContainer();
     container.innerHTML = renderers.renderDashboardView(state);
+    /* eslint-disable no-console */
+    console.log('[DashboardComponent] Rendered, calling bindEvents...');
     this.bindEvents(state);
+    console.log('[DashboardComponent] bindEvents complete');
   }
 
   override bindEvents(_state: AppState): void {
-    document.getElementById('btn-open-file')?.addEventListener('click', () => {
+    console.log('[DashboardComponent] bindEvents called');
+
+    const btnOpenFile = document.getElementById('btn-open-file');
+    console.log('[DashboardComponent] btn-open-file element:', btnOpenFile);
+
+    btnOpenFile?.addEventListener('click', () => {
+      console.log('[DashboardComponent] Open file button clicked!');
+      /* eslint-enable no-console */
       void this.handleOpenFile();
     });
 

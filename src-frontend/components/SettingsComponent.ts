@@ -28,6 +28,7 @@ export class SettingsComponent extends Component {
     // Check and display API key status on render
     void this.updateAPIKeyStatus();
     void this.loadPaths();
+    void this.loadLogPath();
   }
 
   override bindEvents(state: AppState): void {
@@ -180,7 +181,8 @@ export class SettingsComponent extends Component {
       btn.addEventListener('click', () => {
         const path = btn.dataset.copy;
         if (path) {
-          void this.copyPath(path);
+          const label = (btn.title || btn.getAttribute('aria-label')) ?? 'Path';
+          void this.copyPath(path, label);
         }
       });
     });
@@ -191,6 +193,19 @@ export class SettingsComponent extends Component {
 
     document.getElementById('btn-show-onboarding')?.addEventListener('click', () => {
       this.actions.showFirstRunWizard?.();
+    });
+
+    // Log file access buttons
+    document.getElementById('btn-open-log-dir')?.addEventListener('click', () => {
+      void this.openLogDirectory();
+    });
+
+    document.getElementById('btn-open-main-log')?.addEventListener('click', () => {
+      void this.openLogFile('main');
+    });
+
+    document.getElementById('btn-open-error-log')?.addEventListener('click', () => {
+      void this.openLogFile('error');
     });
 
     document.querySelectorAll<HTMLButtonElement>('.btn-open-trusted-path').forEach(btn => {
@@ -253,10 +268,11 @@ export class SettingsComponent extends Component {
     }
   }
 
-  private async copyPath(path: string): Promise<void> {
+  private async copyPath(path: string, label?: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(path);
-      this.actions.showToast('Path copied to clipboard', 'success');
+      const msg = label ? `${label} copied` : 'Path copied to clipboard';
+      this.actions.showToast(msg, 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.actions.showToast(`Failed to copy path: ${message}`, 'error');
@@ -606,6 +622,45 @@ export class SettingsComponent extends Component {
       await api.saveAppConfig(state.config);
       this.actions.onStateChange();
       this.actions.showToast('Connection deleted', 'success');
+    }
+  }
+
+  private async openLogDirectory(): Promise<void> {
+    try {
+      const logDir = await api.getLogDirectory();
+      const pathDisplay = document.getElementById('log-directory-path');
+      if (pathDisplay) {
+        pathDisplay.textContent = logDir;
+      }
+      await api.openPath(logDir);
+      this.actions.showToast('Log directory opened', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.actions.showToast(`Failed to open log directory: ${message}`, 'error');
+    }
+  }
+
+  private async openLogFile(type: 'main' | 'error'): Promise<void> {
+    try {
+      const logPath =
+        type === 'main' ? await api.getCurrentLogFile() : await api.getCurrentErrorLogFile();
+      await api.openPath(logPath);
+      this.actions.showToast(`${type === 'main' ? 'Main' : 'Error'} log file opened`, 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.actions.showToast(`Failed to open log file: ${message}`, 'error');
+    }
+  }
+
+  private async loadLogPath(): Promise<void> {
+    try {
+      const logDir = await api.getLogDirectory();
+      const pathDisplay = document.getElementById('log-directory-path');
+      if (pathDisplay) {
+        pathDisplay.textContent = logDir;
+      }
+    } catch (error) {
+      console.error('Failed to load log directory path:', error);
     }
   }
 }

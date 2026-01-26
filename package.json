@@ -9,6 +9,8 @@
     "build": "tsc && vite build --emptyOutDir false",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:dev": "npm run build && tauri dev",
+    "tauri:build": "npm run build && tauri build",
     "clean-pdbs": "node scripts/clean.js --pdbs-only",
     "fix-locks": "node scripts/clean.js",
     "reset": "node -e \"require('fs').rmSync('node_modules', {recursive:true, force:true}); require('fs').rmSync('package-lock.json', {force:true})\" && npm install",

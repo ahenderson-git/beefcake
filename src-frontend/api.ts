@@ -72,6 +72,9 @@ import {
   DocFileMetadata,
   ColumnInfo,
   StandardPaths,
+  VerificationResult,
+  TransformPipeline,
+  TransformSpec,
 } from './types';
 
 /**
@@ -165,6 +168,16 @@ export async function exportData(options: ExportOptions): Promise<void> {
   await invoke('export_data', { options });
 }
 
+/**
+ * Verify the integrity of a file using its receipt.
+ *
+ * @param receiptPath - Path to .receipt.json file
+ * @returns Promise resolving to verification result
+ */
+export async function verifyReceipt(receiptPath: string): Promise<VerificationResult> {
+  return await invoke('verify_receipt', { receiptPath });
+}
+
 export async function abortProcessing(): Promise<void> {
   await invoke('abort_processing');
 }
@@ -179,6 +192,15 @@ export async function getStandardPaths(): Promise<StandardPaths> {
 
 export async function openPath(path: string): Promise<void> {
   await invoke('open_path', { path });
+}
+
+export async function logFrontendEvent(
+  level: 'info' | 'warn' | 'error' | 'debug',
+  action: string,
+  details: string,
+  context?: Record<string, unknown>
+): Promise<void> {
+  await invoke('log_frontend_event', { level, action, details, context });
 }
 
 export async function readTextFile(path: string): Promise<string> {
@@ -247,7 +269,7 @@ export async function removeTrustedPath(path: string): Promise<string[]> {
 
 export async function createDataset(name: string, path: string): Promise<string> {
   return await invoke('lifecycle_create_dataset', {
-    request: { name, path },
+    request: { name, source_path: path },
   });
 }
 
@@ -256,8 +278,16 @@ export async function applyTransforms(
   pipelineJson: string,
   stage: string
 ): Promise<string> {
+  let transforms: TransformSpec[] = [];
+  try {
+    const parsed = JSON.parse(pipelineJson) as TransformPipeline;
+    transforms = Array.isArray(parsed?.transforms) ? parsed.transforms : [];
+  } catch {
+    transforms = [];
+  }
+
   return await invoke('lifecycle_apply_transforms', {
-    request: { dataset_id: datasetId, pipeline_json: pipelineJson, stage },
+    request: { dataset_id: datasetId, transforms, next_stage: stage },
   });
 }
 
@@ -283,7 +313,7 @@ export async function getVersionDiff(
   version2Id: string
 ): Promise<DiffSummary> {
   return await invoke('lifecycle_get_version_diff', {
-    request: { dataset_id: datasetId, version1_id: version1Id, version2_id: version2Id },
+    request: { dataset_id: datasetId, from_version_id: version1Id, to_version_id: version2Id },
   });
 }
 
@@ -401,4 +431,61 @@ export async function listDocumentationFiles(): Promise<DocFileMetadata[]> {
  */
 export async function readDocumentationFile(docPath: string): Promise<string> {
   return await invoke('read_documentation_file', { docPath });
+}
+
+/**
+ * Check Python environment and Polars installation status.
+ *
+ * @returns String describing Python version and Polars installation status
+ * @throws Error if Python is not available
+ */
+export async function checkPythonEnvironment(): Promise<string> {
+  return await invoke('check_python_environment');
+}
+
+/**
+ * Log a frontend error to the backend log files.
+ *
+ * @param level - Log level (error, warn, info, debug)
+ * @param message - The error message
+ * @param context - Optional context object with additional details
+ */
+export async function logFrontendError(
+  level: 'error' | 'warn' | 'info' | 'debug',
+  message: string,
+  context?: Record<string, unknown>
+): Promise<void> {
+  try {
+    await invoke('log_frontend_error', { level, message, context });
+  } catch (err) {
+    // Silently fail - don't want logging errors to crash the app
+    console.error('Failed to log to backend:', err);
+  }
+}
+
+/**
+ * Get the path to the log directory.
+ *
+ * @returns Absolute path to the log directory
+ */
+export async function getLogDirectory(): Promise<string> {
+  return await invoke('get_log_directory');
+}
+
+/**
+ * Get the path to the current log file.
+ *
+ * @returns Absolute path to the current log file
+ */
+export async function getCurrentLogFile(): Promise<string> {
+  return await invoke('get_current_log_file');
+}
+
+/**
+ * Get the path to the current error log file.
+ *
+ * @returns Absolute path to the current error log file
+ */
+export async function getCurrentErrorLogFile(): Promise<string> {
+  return await invoke('get_current_error_log_file');
 }

@@ -25,6 +25,9 @@ export function renderLayout(): string {
           <button class="nav-item" data-view="Dictionary" data-testid="nav-dictionary">
             <i class="ph ph-book-open"></i> Dictionary
           </button>
+          <button class="nav-item" data-view="Integrity" data-testid="nav-integrity">
+            <i class="ph ph-shield-check"></i> Integrity
+          </button>
           <button class="nav-item" data-view="PowerShell" data-testid="nav-powershell">
             <i class="ph ph-terminal"></i> PowerShell
           </button>

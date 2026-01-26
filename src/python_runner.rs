@@ -103,18 +103,18 @@ pub async fn execute_python_with_env(
     if let Some(path) = &data_path
         && !path.is_empty()
     {
-        beefcake::utils::log_event(log_tag, &format!("Setting BEEFCAKE_DATA_PATH to: {path}"));
+        beefcake::config::log_event(log_tag, &format!("Setting BEEFCAKE_DATA_PATH to: {path}"));
         cmd.env("BEEFCAKE_DATA_PATH", path);
     }
 
     if let Some(query) = &sql_query
         && !query.is_empty()
     {
-        beefcake::utils::log_event(log_tag, "Setting BEEFCAKE_SQL_QUERY environment variable");
+        beefcake::config::log_event(log_tag, "Setting BEEFCAKE_SQL_QUERY environment variable");
         cmd.env("BEEFCAKE_SQL_QUERY", query);
     }
 
-    beefcake::utils::log_event(log_tag, "Spawning Python process...");
+    beefcake::config::log_event(log_tag, "Spawning Python process...");
 
     let mut child = cmd
         .stdin(Stdio::piped())
@@ -134,7 +134,7 @@ pub async fn execute_python_with_env(
         .context("Failed to write script to stdin")?;
     drop(stdin);
 
-    beefcake::utils::log_event(log_tag, "Waiting for Python to complete...");
+    beefcake::config::log_event(log_tag, "Waiting for Python to complete...");
 
     let timeout_duration = python_timeout();
     let out = match timeout(timeout_duration, child.wait_with_output()).await {
@@ -147,7 +147,7 @@ pub async fn execute_python_with_env(
         }
     };
 
-    beefcake::utils::log_event(
+    beefcake::config::log_event(
         log_tag,
         &format!(
             "Python process completed with exit code: {:?}",
@@ -206,14 +206,14 @@ pub async fn prepare_data(
     // Optimisation: Check if any configs are actually active before proceeding
     let has_active_configs = cfgs.values().any(|config| config.active);
     if !has_active_configs {
-        beefcake::utils::log_event(
+        beefcake::config::log_event(
             log_tag,
             "No active cleaning configs, skipping data preparation",
         );
         return Ok((data_path, None));
     }
 
-    beefcake::utils::log_event(
+    beefcake::config::log_event(
         log_tag,
         "Applying cleaning configurations before execution (streaming)",
     );
@@ -236,7 +236,7 @@ pub async fn prepare_data(
         .context("Failed to determine Parquet options")?;
 
     if let Some(rgs) = options.row_group_size {
-        beefcake::utils::log_event(
+        beefcake::config::log_event(
             log_tag,
             &format!("Streaming to Parquet (adaptive). Row group size: {rgs}"),
         );
@@ -340,7 +340,7 @@ fn suggest_sql_fix(query: &str) -> Option<String> {
         } else {
             // Track existing aliases to avoid conflicts with new ones
             if has_alias && let Some(caps) = as_re.captures(trimmed) {
-                let alias_part = &trimmed[caps.get(0).unwrap().end()..].trim();
+                let alias_part = &trimmed[caps.get(0).map_or(trimmed.len(), |m| m.end())..].trim();
                 used_aliases.insert(alias_part.trim_matches('"').to_owned());
             }
             fixed_parts.push(part.clone());

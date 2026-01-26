@@ -13,8 +13,16 @@ export abstract class Component {
   protected container: HTMLElement | null;
   protected actions: ComponentActions;
 
-  constructor(containerId: string, actions: ComponentActions) {
+  constructor(
+    private containerId: string,
+    actions: ComponentActions
+  ) {
     this.container = document.getElementById(containerId);
+    if (!this.container) {
+      console.warn(
+        `[Component] Container ${containerId} not found during construction. Will retry during getContainer().`
+      );
+    }
     this.actions = actions;
   }
 
@@ -22,7 +30,12 @@ export abstract class Component {
 
   protected getContainer(): HTMLElement {
     if (!this.container) {
-      throw new Error(`Container not found for component`);
+      // Re-attempt to find container in case it was added to DOM later
+      this.container = document.getElementById(this.containerId);
+
+      if (!this.container) {
+        throw new Error(`Container ${this.containerId} not found for component`);
+      }
     }
     return this.container;
   }

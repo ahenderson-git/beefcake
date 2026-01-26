@@ -16,7 +16,7 @@ fn stratified_sample(lf: LazyFrame, total_rows: usize, sample_size: u32) -> Resu
     // Calculate stride (how many rows to skip between samples)
     let stride = (total_rows / sample_size as usize).max(1);
 
-    crate::utils::log_event(
+    crate::config::log_event(
         "Analyser",
         &format!(
             "Using stratified sampling: every {}th row from {} total rows",
@@ -34,6 +34,19 @@ fn stratified_sample(lf: LazyFrame, total_rows: usize, sample_size: u32) -> Resu
         .collect()?;
 
     Ok(sampled)
+}
+
+use std::str::FromStr as _;
+use crate::config::DbSettings;
+
+pub async fn test_connection_flow(settings: DbSettings, password: String) -> Result<String> {
+    let url = format!(
+        "postgres://{}:{}@{}:{}/{}",
+        settings.user, password, settings.host, settings.port, settings.database
+    );
+    let opts = PgConnectOptions::from_str(&url).context("Invalid connection URL")?;
+    let _client = DbClient::connect(opts).await?;
+    Ok("Connection successful".to_owned())
 }
 
 pub async fn push_to_db_flow(
@@ -56,7 +69,7 @@ pub async fn push_to_db_flow(
     // Use RAII guard for automatic cleanup
     let _temp_guard = crate::utils::TempFileGuard::new(temp_path.clone());
 
-    crate::utils::log_event(
+    crate::config::log_event(
         "Database",
         "Sinking to temp CSV for database push (streaming)...",
     );
@@ -97,7 +110,7 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
     let path_str = path.to_string_lossy().to_string();
 
     // Load config to get custom sample size
-    let config = crate::utils::load_app_config();
+    let config = crate::config::load_app_config();
     let custom_sample_size = config.settings().analysis_sample_size as usize;
 
     let lf = load_df_lazy(&path).context("Failed to probe file")?;
@@ -153,7 +166,7 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
         let (sampled_df, method_used) = match (sampling_strategy, true_total_rows) {
             // Small files: Use fast method regardless of strategy
             (_, n) if n < 10_000_000 => {
-                crate::utils::log_event(
+                crate::config::log_event(
                     "Analyser",
                     &format!(
                         "Small dataset ({}), using fast sequential sampling",
@@ -168,7 +181,7 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
 
             // Fast strategy: Always use current method
             ("fast", _) => {
-                crate::utils::log_event(
+                crate::config::log_event(
                     "Analyser",
                     &format!(
                         "Using fast sequential sampling: {sample_rows} from first {} rows",
@@ -183,7 +196,7 @@ pub async fn analyze_file_flow(path: PathBuf) -> Result<AnalysisResponse> {
 
             // Balanced strategy (default): Use stratified for medium/large files
             ("balanced" | _, _) => {
-                crate::utils::log_event(
+                crate::config::log_event(
                     "Analyser",
                     &format!(
                         "Using stratified sampling: {} rows from {} total",

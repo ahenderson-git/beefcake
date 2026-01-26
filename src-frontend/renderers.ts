@@ -11,3 +11,4 @@ export * from './renderers/cli';
 export * from './renderers/lifecycle';
 export * from './renderers/dictionary';
 export * from './renderers/onboarding';
+export * from './renderers/integrity';

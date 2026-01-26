@@ -19,13 +19,13 @@ pub struct Cli {
 
 /// Context object for CLI operations, holding shared application state.
 struct CliContext {
-    app_config: beefcake::utils::AppConfig,
+    app_config: beefcake::config::AppConfig,
 }
 
 impl CliContext {
     fn new() -> Self {
         Self {
-            app_config: beefcake::utils::load_app_config(),
+            app_config: beefcake::config::load_app_config(),
         }
     }
 

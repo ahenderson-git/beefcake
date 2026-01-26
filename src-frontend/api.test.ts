@@ -344,7 +344,7 @@ describe('API', () => {
       const datasetId = await api.createDataset('My Dataset', '/path/to/data.csv');
 
       expect(invoke).toHaveBeenCalledWith('lifecycle_create_dataset', {
-        request: { name: 'My Dataset', path: '/path/to/data.csv' },
+        request: { name: 'My Dataset', source_path: '/path/to/data.csv' },
       });
       expect(datasetId).toBe('dataset-123');
     });
@@ -372,8 +372,8 @@ describe('API', () => {
       expect(invoke).toHaveBeenCalledWith('lifecycle_apply_transforms', {
         request: {
           dataset_id: 'dataset-123',
-          pipeline_json: '{"steps":[]}',
-          stage: 'Cleaned',
+          transforms: [],
+          next_stage: 'Cleaned',
         },
       });
       expect(versionId).toBe('version-456');
@@ -429,7 +429,7 @@ describe('API', () => {
       const result = await api.getVersionDiff('dataset-123', 'v1', 'v2');
 
       expect(invoke).toHaveBeenCalledWith('lifecycle_get_version_diff', {
-        request: { dataset_id: 'dataset-123', version1_id: 'v1', version2_id: 'v2' },
+        request: { dataset_id: 'dataset-123', from_version_id: 'v1', to_version_id: 'v2' },
       });
       expect(result).toEqual(mockDiff);
     });

@@ -447,6 +447,12 @@
           "markdownDescription": "Allows the analyze_file command"
         },
         {
+          "description": "Allows the check_python_environment command",
+          "type": "string",
+          "const": "allow-check-python-environment",
+          "markdownDescription": "Allows the check_python_environment command"
+        },
+        {
           "description": "Allows the delete_connection command",
           "type": "string",
           "const": "allow-delete-connection",
@@ -541,6 +547,12 @@
           "type": "string",
           "const": "allow-lifecycle-get-version-diff",
           "markdownDescription": "Allows the lifecycle_get_version_diff command"
+        },
+        {
+          "description": "Allows the lifecycle_get_version_schema command",
+          "type": "string",
+          "const": "allow-lifecycle-get-version-schema",
+          "markdownDescription": "Allows the lifecycle_get_version_schema command"
         },
         {
           "description": "Allows the lifecycle_list_versions command",

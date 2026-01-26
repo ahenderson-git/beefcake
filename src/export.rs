@@ -49,9 +49,15 @@ pub struct ExportOptions {
     pub destination: ExportDestination,
     #[serde(default = "default_create_dictionary")]
     pub create_dictionary: bool,
+    #[serde(default = "default_create_receipt")]
+    pub create_receipt: bool,
 }
 
 fn default_create_dictionary() -> bool {
+    true // Default ON
+}
+
+fn default_create_receipt() -> bool {
     true // Default ON
 }
 
@@ -196,7 +202,7 @@ pub async fn execute_export_destination(
             let temp_path = temp_dir.join(format!("beefcake_export_{}.{}", Uuid::new_v4(), ext));
             temp_files.add(temp_path.clone());
 
-            beefcake::utils::log_event(
+            beefcake::config::log_event(
                 "Export",
                 &format!("Sinking data to temporary file: {}", temp_path.display()),
             );
@@ -229,7 +235,7 @@ pub async fn execute_export_destination(
                 let _ = std::fs::remove_file(&temp_path);
             }
 
-            beefcake::utils::log_event(
+            beefcake::config::log_event(
                 "Export",
                 &format!("Successfully exported to {}", final_path.display()),
             );
@@ -242,13 +248,13 @@ pub async fn execute_export_destination(
             let temp_path = temp_dir.join(format!("beefcake_db_push_{}.csv", Uuid::new_v4()));
             temp_files.add(temp_path.clone());
 
-            beefcake::utils::log_event("Export", "Sinking to temp CSV for database push...");
+            beefcake::config::log_event("Export", "Sinking to temp CSV for database push...");
 
             lf.sink_csv(&temp_path, Default::default(), None)
                 .context("Failed to prepare database push")?;
 
             // Resolve connection and call flow
-            let config = beefcake::utils::load_app_config();
+            let config = beefcake::config::load_app_config();
             let conn = config
                 .settings
                 .connections
@@ -281,7 +287,7 @@ pub async fn export_data_execution(
         return Err(BeefcakeError::Aborted);
     }
 
-    beefcake::utils::log_event(
+    beefcake::config::log_event(
         "Export",
         &format!(
             "Starting export: Source={:?}, Dest={:?}",
@@ -290,12 +296,12 @@ pub async fn export_data_execution(
     );
 
     // 1. Get the LazyFrame based on source
-    beefcake::utils::log_event("Export", "Step 1/3: Preparing data source (streaming)...");
+    beefcake::config::log_event("Export", "Step 1/3: Preparing data source (streaming)...");
     let mut lf = prepare_export_source(&options.source, temp_files).await?;
 
     // 2. Apply cleaning/transformation logic
     if !options.configs.is_empty() {
-        beefcake::utils::log_event(
+        beefcake::config::log_event(
             "Export",
             "Step 2/3: Applying optimized streaming cleaning pipeline...",
         );
@@ -319,11 +325,23 @@ pub async fn export_data_execution(
         && matches!(options.destination.dest_type, ExportDestinationType::File)
         && let Err(e) = create_dictionary_snapshot(&options).await
     {
-        beefcake::utils::log_event(
+        beefcake::config::log_event(
             "Export",
             &format!("Warning: Failed to create data dictionary: {e}"),
         );
         // Don't fail the export if dictionary creation fails
+    }
+
+    // 5. Create integrity receipt if requested and destination is a file
+    if options.create_receipt
+        && matches!(options.destination.dest_type, ExportDestinationType::File)
+        && let Err(e) = create_integrity_receipt(&options).await
+    {
+        beefcake::config::log_event(
+            "Export",
+            &format!("Warning: Failed to create integrity receipt: {e}"),
+        );
+        // Don't fail the export if receipt creation fails
     }
 
     Ok(())
@@ -331,7 +349,7 @@ pub async fn export_data_execution(
 
 /// Create a data dictionary snapshot for the exported dataset.
 async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
-    beefcake::utils::log_event("Export", "Creating data dictionary snapshot...");
+    beefcake::config::log_event("Export", "Creating data dictionary snapshot...");
 
     // Get input path
     let input_path = match &options.source.path {
@@ -345,7 +363,7 @@ async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
     // Load the exported file to analyze it
     let dummy_progress = Arc::new(AtomicU64::new(0));
     let Ok(df) = beefcake::analyser::logic::load_df(&output_path, &dummy_progress) else {
-        beefcake::utils::log_event(
+        beefcake::config::log_event(
             "Export",
             "Could not load exported file for dictionary analysis",
         );
@@ -378,7 +396,7 @@ async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
 
     let snapshot_path = beefcake::dictionary::save_snapshot(&snapshot, &dict_base_path)?;
 
-    beefcake::utils::log_event(
+    beefcake::config::log_event(
         "Export",
         &format!("Data dictionary saved: {}", snapshot_path.display()),
     );
@@ -389,9 +407,34 @@ async fn create_dictionary_snapshot(options: &ExportOptions) -> Result<()> {
     std::fs::write(&md_path, markdown)
         .with_context(|| format!("Failed to write markdown dictionary: {}", md_path.display()))?;
 
-    beefcake::utils::log_event(
+    beefcake::config::log_event(
         "Export",
         &format!("Data dictionary markdown: {}", md_path.display()),
+    );
+
+    Ok(())
+}
+
+/// Create an integrity receipt for the exported file.
+async fn create_integrity_receipt(options: &ExportOptions) -> Result<()> {
+    beefcake::config::log_event("Export", "Creating integrity receipt...");
+
+    // Get output path
+    let output_path = PathBuf::from(&options.destination.target);
+
+    // Load the exported file to get schema information
+    let dummy_progress = Arc::new(AtomicU64::new(0));
+    let df_opt = beefcake::analyser::logic::load_df(&output_path, &dummy_progress).ok();
+
+    // Create receipt
+    let receipt = beefcake::integrity::create_receipt(&output_path, df_opt.as_ref())?;
+
+    // Save receipt alongside export
+    let receipt_path = beefcake::integrity::save_receipt(&receipt, &output_path)?;
+
+    beefcake::config::log_event(
+        "Export",
+        &format!("Integrity receipt saved: {}", receipt_path.display()),
     );
 
     Ok(())

@@ -23,6 +23,13 @@ export function renderExportConfig(
         </label>
         <p class="help-text">Automatically generates metadata documentation (JSON + Markdown)</p>
       </div>
+      <div class="export-step">
+        <label class="checkbox-label">
+          <input type="checkbox" id="export-create-receipt" checked>
+          <span>Create integrity receipt</span>
+        </label>
+        <p class="help-text">SHA-256 cryptographic hash for tamper detection (.receipt.json)</p>
+      </div>
     `;
   } else {
     return `

@@ -50,7 +50,7 @@ export function renderDashboardView(state: AppState): string {
         </div>
         <div class="stat-card">
           <h3>Connections</h3>
-          <div class="stat-value">${state.config?.connections.length ?? 0}</div>
+          <div class="stat-value">${state.config?.connections?.length ?? 0}</div>
           <p>Configured Endpoints</p>
         </div>
         <div class="stat-card">

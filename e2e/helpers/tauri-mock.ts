@@ -33,8 +33,9 @@ export interface TauriMockOptions {
   >;
   // Mock file dialog responses
   fileDialog?: {
-    openFile?: string | null;
+    openFile?: string | string[] | null; // Support single file or multiple files
     saveFile?: string | null;
+    directory?: string | null; // Support directory picker
   };
 }
 
@@ -48,9 +49,38 @@ export async function setupTauriMock(page: Page, options: TauriMockOptions = {})
     const mockResponses = opts.commands || {};
     const fileDialogMocks = opts.fileDialog || {};
 
-    // Mock the Tauri invoke function
-    (window as any).__TAURI_INVOKE__ = async (cmd: string, args: any) => {
-      console.log('[Tauri Mock] Intercepted command:', cmd, args);
+    // Mock the Tauri v2 internals
+    if (!(window as any).__TAURI_INTERNALS__) {
+      (window as any).__TAURI_INTERNALS__ = {};
+    }
+
+    // Mock the invoke function (used by @tauri-apps/api/core)
+    (window as any).__TAURI_INTERNALS__.invoke = async (cmd: string, args: any) => {
+      // Don't log successful commands to avoid infinite loops with console logging overrides
+      // Only log warnings for missing mocks
+
+      // Handle dialog plugin commands
+      if (cmd === 'plugin:dialog|open') {
+        // Handle directory picker
+        if (args?.directory && fileDialogMocks.directory !== undefined) {
+          return fileDialogMocks.directory;
+        }
+
+        // Handle file picker
+        if (fileDialogMocks.openFile !== undefined) {
+          return fileDialogMocks.openFile;
+        }
+
+        return null;
+      }
+
+      if (cmd === 'plugin:dialog|save') {
+        if (fileDialogMocks.saveFile !== undefined) {
+          return fileDialogMocks.saveFile;
+        }
+
+        return null;
+      }
 
       // Check if we have a mock for this command
       const mockResponse = mockResponses[cmd];
@@ -67,7 +97,10 @@ export async function setupTauriMock(page: Page, options: TauriMockOptions = {})
       }
 
       // If no mock, throw an error to make tests fail explicitly
-      console.warn('[Tauri Mock] No mock defined for command:', cmd);
+      // Use a direct console method to avoid triggering overridden console
+      if ((window as any)._originalConsoleWarn) {
+        (window as any)._originalConsoleWarn('[Tauri Mock] No mock defined for command:', cmd);
+      }
       throw new Error(`No mock defined for Tauri command: ${cmd}`);
     };
 
@@ -78,28 +111,32 @@ export async function setupTauriMock(page: Page, options: TauriMockOptions = {})
 
     (window as any).__TAURI__.dialog = {
       open: async (options: any) => {
-        console.log('[Tauri Mock] File dialog open requested:', options);
+        // Silent - no logging to avoid infinite loops
 
+        // Handle directory picker
+        if (options?.directory && fileDialogMocks.directory !== undefined) {
+          return fileDialogMocks.directory;
+        }
+
+        // Handle file picker
         if (fileDialogMocks.openFile !== undefined) {
           return fileDialogMocks.openFile;
         }
 
-        console.warn('[Tauri Mock] No mock defined for file dialog');
         return null;
       },
-      save: async (options: any) => {
-        console.log('[Tauri Mock] File dialog save requested:', options);
+      save: async (_options: any) => {
+        // Silent - no logging to avoid infinite loops
 
         if (fileDialogMocks.saveFile !== undefined) {
           return fileDialogMocks.saveFile;
         }
 
-        console.warn('[Tauri Mock] No mock defined for save dialog');
         return null;
       },
     };
 
-    console.log('[Tauri Mock] Setup complete');
+    // Setup complete - no console.log to avoid infinite loop with console overrides
   }, options);
 }
 
@@ -124,21 +161,38 @@ export async function mockCommand(
 
 /**
  * Mock file dialog to return a specific path
+ * Can be used dynamically during a test (after page load)
  */
-export async function mockFileDialog(page: Page, filePath: string | null): Promise<void> {
-  await page.evaluate(path => {
-    if (!(window as any).__TAURI__) {
-      (window as any).__TAURI__ = {};
-    }
+export async function mockFileDialog(
+  page: Page,
+  filePath: string | string[] | null,
+  type: 'open' | 'save' | 'directory' = 'open'
+): Promise<void> {
+  await page.evaluate(
+    ({ path, dialogType }) => {
+      if (!(window as any).__TAURI__) {
+        (window as any).__TAURI__ = {};
+      }
 
-    (window as any).__TAURI__.dialog = {
-      open: async () => {
-        console.log('[Tauri Mock] Returning mocked file path:', path);
-        return path;
-      },
-      save: async () => path,
-    };
-  }, filePath);
+      if (!(window as any).__TAURI__.dialog) {
+        (window as any).__TAURI__.dialog = {};
+      }
+
+      if (dialogType === 'directory') {
+        (window as any).__TAURI__.dialog.open = async (options: any) => {
+          if (options?.directory) {
+            return path;
+          }
+          return null;
+        };
+      } else if (dialogType === 'save') {
+        (window as any).__TAURI__.dialog.save = async () => path;
+      } else {
+        (window as any).__TAURI__.dialog.open = async () => path;
+      }
+    },
+    { path: filePath, dialogType: type }
+  );
 }
 
 /**

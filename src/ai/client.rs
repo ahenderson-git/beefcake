@@ -14,7 +14,7 @@ use async_openai::{
     },
 };
 
-pub use crate::utils::AIConfig;
+pub use crate::config::AIConfig;
 
 /// AI Assistant client for interacting with OpenAI API
 pub struct AIAssistant {
