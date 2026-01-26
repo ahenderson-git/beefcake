@@ -33,8 +33,10 @@
         z-index: 9999;
         transition: opacity 0.3s ease-out;
       }
-      #loading-screen.hidden {
-        display: none;
+      /* noinspection CssUnusedSymbol */
+      #loading-screen.loading-screen-fade-out {
+        opacity: 0 !important;
+        pointer-events: none !important;
       }
       .loading-spinner {
         width: 48px;

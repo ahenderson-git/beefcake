@@ -85,7 +85,7 @@ export class AnalyserComponent extends Component {
     const targetContentContainer = document.getElementById('analyser-content-container')!;
 
     // Generate content based on stage
-    let contentHTML = '';
+    let contentHTML: string;
     if (currentStage === 'Validated') {
       contentHTML = renderers.renderValidatedSummary(state.analysisResponse, state.currentDataset);
     } else if (currentStage === 'Published') {

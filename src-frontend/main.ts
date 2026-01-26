@@ -254,7 +254,7 @@ class BeefcakeApp {
   private hideLoadingScreen(): void {
     const loadingScreen = document.getElementById('loading-screen');
     if (loadingScreen) {
-      loadingScreen.classList.add('hidden');
+      loadingScreen.classList.add('loading-screen-fade-out');
       // Remove from DOM after transition completes
       setTimeout(() => {
         loadingScreen.remove();
