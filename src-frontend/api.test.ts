@@ -197,13 +197,13 @@ describe('API', () => {
       vi.mocked(invoke).mockResolvedValue('Query results');
 
       const result = await api.runSql(
-        // noinspection SqlNoDataSourceInspection
+        // noinspection SqlNoDataSourceInspection,SqlDialectInspection
         'SELECT * FROM data LIMIT 10'
       );
 
       expect(invoke).toHaveBeenCalledWith('run_sql', {
         query:
-          // noinspection SqlNoDataSourceInspection
+          // noinspection SqlNoDataSourceInspection,SqlDialectInspection
           'SELECT * FROM data LIMIT 10',
         dataPath: undefined,
         configs: undefined,
