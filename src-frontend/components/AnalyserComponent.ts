@@ -706,10 +706,8 @@ export class AnalyserComponent extends Component {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      let chartConfig: ChartConfiguration | null;
-
       if (col.stats.Numeric?.histogram) {
-        chartConfig = {
+        const config: ChartConfiguration = {
           type: 'bar',
           data: {
             labels: col.stats.Numeric.histogram.map(s => s[0].toFixed(2)),
@@ -738,8 +736,9 @@ export class AnalyserComponent extends Component {
             },
           },
         };
+        this.charts.set(colName, new Chart(ctx, config));
       } else if (col.stats.Temporal?.histogram) {
-        chartConfig = {
+        const config: ChartConfiguration = {
           type: 'bar',
           data: {
             labels: col.stats.Temporal.histogram.map(d => new Date(d[0]).toLocaleDateString()),
@@ -768,9 +767,10 @@ export class AnalyserComponent extends Component {
             },
           },
         };
+        this.charts.set(colName, new Chart(ctx, config));
       } else if (col.stats.Categorical?.top_values) {
         const entries = col.stats.Categorical.top_values.sort((a, b) => b[1] - a[1]).slice(0, 10);
-        chartConfig = {
+        const config: ChartConfiguration = {
           type: 'doughnut',
           data: {
             labels: entries.map(e => e[0]),
@@ -807,10 +807,7 @@ export class AnalyserComponent extends Component {
             },
           },
         };
-      }
-
-      if (chartConfig) {
-        this.charts.set(colName, new Chart(ctx, chartConfig));
+        this.charts.set(colName, new Chart(ctx, config));
       }
     });
   }

@@ -278,12 +278,14 @@ export async function applyTransforms(
   pipelineJson: string,
   stage: string
 ): Promise<string> {
-  let transforms: TransformSpec[];
+  let transforms: TransformSpec[] = [];
   try {
     const parsed = JSON.parse(pipelineJson) as TransformPipeline;
-    transforms = Array.isArray(parsed?.transforms) ? parsed.transforms : [];
+    if (Array.isArray(parsed?.transforms)) {
+      transforms = parsed.transforms;
+    }
   } catch {
-    transforms = [];
+    // Ignore parse errors, use empty array
   }
 
   return await invoke('lifecycle_apply_transforms', {
