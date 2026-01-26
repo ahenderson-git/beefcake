@@ -80,7 +80,7 @@ export class SQLComponent extends Component {
   private initMonaco(state: AppState): void {
     const editorContainer = document.getElementById('sql-editor');
     if (editorContainer) {
-      // noinspection SqlNoDataSourceInspection
+      //noinspection SqlNoDataSourceInspection,SqlDialectInspection
       const defaultValue =
         '-- SQL Query\n' +
         '-- The loaded dataset is automatically registered as the table "data"\n' +
