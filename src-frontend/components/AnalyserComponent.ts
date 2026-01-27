@@ -768,8 +768,10 @@ export class AnalyserComponent extends Component {
           },
         };
         this.charts.set(colName, new Chart(ctx, config));
-      } else if (col.stats.Categorical?.top_values) {
-        const entries = col.stats.Categorical.top_values.sort((a, b) => b[1] - a[1]).slice(0, 10);
+      } else if (col.stats.Categorical) {
+        const entries = Object.entries(col.stats.Categorical)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10);
         const config: ChartConfiguration = {
           type: 'doughnut',
           data: {

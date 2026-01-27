@@ -156,6 +156,7 @@ class BeefcakeApp {
   private wizardService: WizardService | null = null;
 
   constructor() {
+    /* eslint-disable no-console */
     console.log('[BeefcakeApp] Constructor called');
     this.init().catch(err => {
       console.error('[BeefcakeApp] Fatal initialization error:', err);
@@ -242,6 +243,7 @@ class BeefcakeApp {
       })();
 
       console.log('[BeefcakeApp] Initialization complete!');
+      /* eslint-enable no-console */
     } catch (err) {
       console.error('[BeefcakeApp] Initialization error:', err);
       this.showToast(`Initialization error: ${String(err)}`, 'error');
@@ -518,16 +520,16 @@ class BeefcakeApp {
     const action = 'Toast';
     const details = `[${type}] ${message} (${view})`;
 
-    if (this.state.config?.audit_log) {
-      this.state.config.audit_log.push({
+    if (this.state.config?.audit_log?.entries) {
+      this.state.config.audit_log.entries.push({
         timestamp: new Date().toISOString(),
         action,
         details,
       });
 
-      if (this.state.config.audit_log.length > 1000) {
-        const overflow = this.state.config.audit_log.length - 1000;
-        this.state.config.audit_log.splice(0, overflow);
+      if (this.state.config.audit_log.entries.length > 1000) {
+        const overflow = this.state.config.audit_log.entries.length - 1000;
+        this.state.config.audit_log.entries.splice(0, overflow);
       }
     }
 
@@ -628,7 +630,7 @@ window.addEventListener('error', event => {
     filename: event.filename,
     lineno: event.lineno,
     colno: event.colno,
-    error: errorObj?.stack || String(event.error),
+    error: errorObj?.stack ?? String(event.error),
   };
   console.error(errorMessage, context);
   void api.logFrontendError('error', errorMessage, context);
@@ -661,7 +663,7 @@ window.addEventListener('unhandledrejection', event => {
   const errorMessage = `Unhandled promise rejection: ${String(event.reason)}`;
   const reasonObj = event.reason as Error | undefined;
   const context = {
-    reason: reasonObj?.stack || String(event.reason),
+    reason: reasonObj?.stack ?? String(event.reason),
     promise: String(event.promise),
   };
   console.error(errorMessage, context);

@@ -4,8 +4,8 @@
 
 This document tracks the implementation status of the Beefcake testing infrastructure.
 
-**Date**: 2026-01-18 (Updated)
-**Status**: ✅ Phase 2 Complete - 181 Tests Passing (91 TS @ 100% coverage + 90 Rust)
+**Date**: 2026-01-27 (Updated)
+**Status**: ✅ Phase 2-3 In Progress - 308+ Tests (140 TS @ 100% coverage + 90 Rust + 178 E2E passing)
 
 ## Completed Tasks
 
@@ -55,10 +55,19 @@ This document tracks the implementation status of the Beefcake testing infrastru
 | `src-frontend/utils.test.ts` | Unit (TS) | ✅ Complete | 22 tests, 100% coverage |
 | `src-frontend/api.test.ts` | Unit (TS) | ✅ Complete | 55 tests, 100% coverage |
 | `src-frontend/components/Component.test.ts` | Unit (TS) | ✅ Complete | 10 tests, 100% coverage |
+| `src-frontend/components/AnalyserComponent.test.ts` | Unit (TS) | ✅ Complete | 17 tests, 100% coverage |
+| `src-frontend/components/PythonComponent.test.ts` | Unit (TS) | ✅ Complete | 19 tests, 100% coverage |
+| `src-frontend/components/DashboardComponent.test.ts` | Unit (TS) | ✅ Complete | 13 tests, 100% coverage |
 | `src/analyser/logic/types_test.rs` | Unit (Rust) | ✅ Complete | 40+ tests |
 | `src/pipeline/executor.rs` | Unit (Rust) | ✅ Complete | 10 tests |
 | `tests/integration_analysis.rs` | Integration (Rust) | ✅ Complete | 15 tests |
-| `e2e/example.spec.ts` | E2E | ✅ Created | Skeleton (awaiting test IDs) |
+| `e2e/example.spec.ts` | E2E | ✅ Created | 75 tests (58 pass, 17 skip) |
+| `e2e/error-handling.spec.ts` | E2E | ✅ Complete | 24 tests (100% pass) |
+| `e2e/file-analysis.spec.ts` | E2E | ✅ Created | 22 tests (100% pass) |
+| `e2e/python-ide.spec.ts` | E2E | ✅ Created | 25 tests (100% pass) |
+| `e2e/sql-ide.spec.ts` | E2E | ✅ Created | 28 tests (100% pass) |
+| `e2e/lifecycle-management.spec.ts` | E2E | ✅ Created | 20 tests (100% pass) |
+| `e2e/full-workflow.spec.ts` | E2E | 🔨 In Progress | 20 tests (3 pass, 17 skip) |
 
 ### 5. CI/CD ✅
 
@@ -145,10 +154,10 @@ Status: ✅ **Complete** - Target exceeded
 
 ### Phase 3: Implement Integration Tests
 
-Status: 🔨 **In Progress** - One example created, more needed
+Status: 🔨 **In Progress** - 15 tests complete, target 30
 
 **Rust**:
-- ✅ Full analysis workflow test
+- ✅ Full analysis workflow test (15 tests)
 - 📝 Need tests for:
   - Lifecycle transitions with temp files
   - Pipeline execution (load spec → transform → write)
@@ -156,31 +165,35 @@ Status: 🔨 **In Progress** - One example created, more needed
   - Database operations (with test containers)
   - File watcher with temp directories
 
-**Target**: 50 integration tests
+**Target**: 30 integration tests
+**Current**: 15 (50% complete)
 
 ### Phase 4: Implement E2E Tests
 
-Status: 📝 **Blocked** - Waiting for test IDs to be added
+Status: ✅ **Strong Progress** - 212 tests created, 178 passing, 34 skipped
 
-**P0 Workflows** (Must automate first):
-1. Load file via dialog
-2. Run analysis and view results
-3. Expand column for details
-4. Configure cleaning options
-5. Transition through lifecycle stages
-6. Export to file/database
-7. Handle error scenarios (invalid file, failures)
+**E2E Test Results**:
+- ✅ 178 tests passing (84%)
+- ⏭️ 34 tests skipped (16%)
+- ❌ 0 tests failing
+- Runtime: ~2 minutes
 
-**P1 Workflows** (Automate second):
-1. Create and edit pipeline
-2. Validate pipeline
-3. Execute pipeline
-4. File watcher ingestion
-5. Python/SQL/PowerShell execution
-6. Dictionary management
-7. Settings management
+**Completed Test Suites**:
+- ✅ Error handling (24 tests - 100% pass)
+- ✅ File analysis (22 tests - 100% pass)
+- ✅ Python IDE (25 tests - 100% pass)
+- ✅ SQL IDE (28 tests - 100% pass)
+- ✅ Lifecycle management (20 tests - 100% pass)
+- 🔨 Dashboard & Navigation (58 tests pass, 17 skip)
+- 🔨 Full workflow (3 tests pass, 17 skip)
 
-**Target**: 20 E2E tests (8 P0 + 12 P1)
+**Remaining Work**:
+1. Add missing `data-testid` attributes (blocking 24 P0 tests)
+2. Convert ~106 skeleton tests to real implementation
+3. Implement 34 skipped tests
+4. Fix AI Assistant timeout and Export navigation crash
+
+**See**: `docs/TEST_ROLLOUT_STATUS.md` for detailed analysis
 
 ### Phase 5: Golden Outputs
 
@@ -204,14 +217,16 @@ Create reference outputs in `testdata/golden/`:
 
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
-| Unit tests | 200 | 181 | ✅ 91% - Phase 2 Complete |
+| Unit tests | 200 | 230 | ✅ 115% - Exceeded target |
 | TypeScript coverage | >80% | 100% | ✅ Exceeded target |
+| TypeScript tests | 100 | 140 | ✅ 140% - Exceeded |
 | Rust tests | 150 | 90 | 🔨 60% - In progress |
 | Integration tests | 30 | 15 | 🔨 50% - Phase 3 in progress |
-| P0 features with E2E tests | 100% | 0% | 📝 Blocked (needs test IDs) |
-| P1 features with E2E tests | 90% | 0% | 📝 Blocked (needs test IDs) |
-| Test pass rate (CI) | >99.9% | 100% | ✅ All 181 tests passing |
-| Test suite duration (local) | <10min | <5s | ✅ Exceeded target |
+| E2E tests created | 200 | 212 | ✅ 106% - Exceeded |
+| E2E tests passing | 180 | 178 | ✅ 99% - Near target |
+| Real implementation E2E | 150 | ~108 | 🔨 72% - In progress |
+| Test pass rate (CI) | >99.9% | 100% | ✅ All active tests passing |
+| Test suite duration (local) | <10min | <4s | ✅ Exceeded target |
 
 ---
 
@@ -280,10 +295,10 @@ npm run test:e2e                # E2E tests (requires test IDs)
 |------|---------------|-----------------|-------------------|-----------|-------------|--------------|
 | 1-2  | 8 | 8 | 15 | 0 | ~60% | 100% |
 | 3-4  | 91 ✅ | 90 ✅ | 15 | 0 | 100% ✅ | 100% ✅ |
-| 5-6  | Target: 91 | Target: 90 | Target: 30 | 0 | 100% | 100% |
-| 7-8  | Target: 91 | Target: 90 | Target: 30 | Target: 8 | 100% | 100% |
+| 5-6  | 140 ✅ | 90 | 15 | 178 pass ✅ | 100% ✅ | 100% ✅ |
+| 7-8  | Target: 150 | Target: 150 | Target: 30 | Target: 200 real | 100% | 100% |
 | ... | ... | ... | ... | ... | ... | ... |
-| 13-14 | Target: 100 | Target: 150 | 50 | 20 | Target: >80% | Target: >99% |
+| 13-14 | Target: 150 | Target: 150 | 50 | 250 | Target: >80% | Target: >99% |
 
 ---
 
@@ -317,23 +332,25 @@ npm run test:e2e                # E2E tests (requires test IDs)
 
 ## Next Actions (Priority Order)
 
-1. **Add test IDs to P0 components** (Dashboard, Analyser, Lifecycle, Export, Global UI) - **CURRENT PRIORITY**
-2. **Write 15 more integration tests** for lifecycle and pipeline workflows
-3. **Implement 8 P0 E2E tests** for critical user workflows
-4. **Generate golden outputs** for fixture files
-5. **Expand Rust test coverage** to reach 150 tests target
-6. **Monitor CI** and maintain 100% pass rate
+1. **Add test IDs to P0 components** (Analyser, Export, Lifecycle) - **BLOCKS 24 TESTS**
+2. **Convert skeleton tests to real implementation** (~106 tests) - **HIGH VALUE**
+3. **Implement 34 skipped E2E tests** (17 P0, 9 P1, 1 P2)
+4. **Write 15 more Rust integration tests** for lifecycle and pipeline workflows
+5. **Expand Rust unit test coverage** to reach 150 tests target
+6. **Generate golden outputs** for fixture files
 
-## Recent Achievements (2026-01-18)
+## Recent Achievements (2026-01-27)
 
-✅ **Phase 2 Complete - Unit Testing**
-- 91 TypeScript tests with 100% coverage (exceeded 25 test target)
+✅ **Phase 3 Strong Progress - E2E Testing**
+- 212 E2E tests created (178 passing, 34 skipped)
+- 140 TypeScript unit tests with 100% coverage (49 new tests since 2026-01-18)
 - 90 Rust tests (60% toward 150 test target)
-- Zero linting warnings, zero clippy warnings
-- Removed 16 `unwrap()` calls from production code
-- Fixed all Rust compilation errors
-- Updated all testing documentation with current statistics
-- Test suite runs in <5 seconds (well under 10 minute target)
+- Fixed all Playwright configuration issues (Tauri v2 mocking, console loops)
+- Created reusable mock helpers (`getStandardMocks()`, etc.)
+- Comprehensive test analysis in `docs/TEST_ROLLOUT_STATUS.md`
+- Total test count: 308+ tests (140 TS + 90 Rust + 178 E2E)
+- Zero failing tests across all test suites
+- Test suite runs in <4 seconds (unit) + ~2 minutes (E2E)
 
 ---
 
@@ -346,8 +363,16 @@ npm run test:e2e                # E2E tests (requires test IDs)
 
 ---
 
-**Status**: Phase 2 Complete ✅ (181 tests passing, 100% TS coverage)
-**Current Phase**: Phase 1 (Test IDs) + Phase 3 (Integration Tests)
-**Next Milestone**: Add test IDs to P0 components + implement 15 integration tests
+**Status**: Phase 2-3 In Progress ✅ (308+ tests, 100% TS coverage, 178 E2E passing)
+**Current Phase**: Phase 3 (E2E Tests) + Phase 4 (Integration Tests)
+**Next Milestone**: Add test IDs to unlock 24 P0 tests + convert 106 skeleton tests to real implementation
+**Key Blockers**: Missing data-testid attributes on Analyser, Export, Lifecycle components
 **Responsible**: Development Team
-**ETA**: 2026-02-15 (4 weeks from foundation start)
+**ETA**: 2026-03-15 (8 weeks to complete all phases)
+
+## Additional Documentation
+
+For detailed test rollout analysis, see:
+- **`docs/TEST_ROLLOUT_STATUS.md`** - Comprehensive status report with test breakdown by category
+- **`e2e/README.md`** - E2E test suite documentation
+- **`docs/test-matrix.md`** - Feature test matrix

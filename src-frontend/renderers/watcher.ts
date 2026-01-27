@@ -7,7 +7,7 @@ export function renderWatcherPanel(
 ): string {
   const acts = activities || [];
   return `
-    <div class="watcher-container">
+    <div class="watcher-container" data-testid="watcher-view">
       ${renderWatcherControls(watcherState)}
       ${renderWatcherStatus(watcherState)}
       ${renderActivityFeed(acts)}

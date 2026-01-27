@@ -19,7 +19,9 @@ export class ActivityLogComponent extends Component {
   override bindEvents(state: AppState): void {
     document.getElementById('btn-clear-log')?.addEventListener('click', () => {
       if (state.config) {
-        state.config.audit_log = [];
+        state.config.audit_log = {
+          entries: [],
+        };
         void api.saveAppConfig(state.config).then(() => {
           this.actions.onStateChange();
         });

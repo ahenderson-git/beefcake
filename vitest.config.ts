@@ -4,16 +4,15 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: true,
+    typecheck: {
+      enabled: true,
+      checker: 'tsc',
+      tsconfig: './tsconfig.json',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'dist/',
-        'test/',
-        '**/*.config.ts',
-        '**/*.d.ts',
-      ],
+      exclude: ['node_modules/', 'dist/', 'test/', '**/*.config.ts', '**/*.d.ts'],
     },
     include: ['src-frontend/**/*.{test,spec}.ts'],
     exclude: ['node_modules', 'dist', 'build'],

@@ -18,7 +18,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:14206',
-    reuseExistingServer: true, // Always reuse existing server to avoid startup/teardown issues
+    reuseExistingServer: false, // Force a fresh Vite server to avoid stale/hung instances
     timeout: 60 * 1000,
     // Don't pipe stdout/stderr - this can cause hanging on Windows
     // Let Vite output go directly to console

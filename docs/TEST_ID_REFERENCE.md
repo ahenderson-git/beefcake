@@ -1,211 +1,352 @@
 # Test ID Reference
 
-This document lists all `data-testid` attributes used in the Beefcake application for E2E testing with Playwright.
+**Last Updated**: 2026-01-27
+**Purpose**: Complete reference of all `data-testid` attributes in the application
 
-**Last Updated**: 2026-01-18
+---
+
+## Usage
+
+All test IDs follow the pattern: `{component}-{element}-{type}` (e.g., `analyser-file-name`)
+
+Use in Playwright tests:
+```typescript
+await page.getByTestId('analyser-view').click();
+await expect(page.getByTestId('analyser-file-name')).toContainText('data.csv');
+```
+
+---
+
+## Navigation / Sidebar
+
+**File**: `src-frontend/renderers/layout.ts`
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `nav-dashboard` | Button | Dashboard navigation |
+| `nav-analyser` | Button | Analyser navigation |
+| `nav-lifecycle` | Button | Lifecycle navigation |
+| `nav-pipeline` | Button | Pipeline navigation |
+| `nav-watcher` | Button | Watcher navigation |
+| `nav-dictionary` | Button | Dictionary navigation |
+| `nav-integrity` | Button | Integrity navigation |
+| `nav-powershell` | Button | PowerShell IDE navigation |
+| `nav-python` | Button | Python IDE navigation |
+| `nav-sql` | Button | SQL IDE navigation |
+| `nav-settings` | Button | Settings navigation |
+| `nav-activity-log` | Button | Activity Log navigation |
+| `nav-cli` | Button | CLI Help navigation |
+| `nav-reference` | Button | Reference navigation |
+
+---
 
 ## Dashboard
 
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `dashboard-view` | Main dashboard container | `src-frontend/renderers/dashboard.ts:6` | Verify dashboard view is visible |
-| `dashboard-open-file-button` | "Analyze New Dataset" button | `src-frontend/renderers/dashboard.ts:64` | Trigger file dialog for analysis |
-| `dashboard-powershell-button` | "PowerShell Console" button | `src-frontend/renderers/dashboard.ts:67` | Navigate to PowerShell view |
-| `dashboard-python-button` | "Python IDE" button | `src-frontend/renderers/dashboard.ts:70` | Navigate to Python view |
-| `dashboard-sql-button` | "SQL Lab" button | `src-frontend/renderers/dashboard.ts:73` | Navigate to SQL view |
+**File**: `src-frontend/renderers/dashboard.ts`
 
-## Analyser
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `dashboard-view` | Container | Main dashboard container |
+| `dashboard-open-file-button` | Button | Open file button |
+| `dashboard-powershell-button` | Button | PowerShell IDE shortcut |
+| `dashboard-python-button` | Button | Python IDE shortcut |
+| `dashboard-sql-button` | Button | SQL IDE shortcut |
 
-### Main Container
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `analyser-view` | Main analyser wrapper | `src-frontend/renderers/analyser.ts:523` | Verify analyser view is visible |
-| `analyser-empty-state` | Empty state container | `src-frontend/renderers/analyser.ts:583` | Verify no data state |
-| `empty-open-file-button` | Open file from empty state | `src-frontend/renderers/analyser.ts:587` | Trigger file dialog from empty state |
+---
 
-### Health & Summary
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `health-score-banner` | Health score container | `src-frontend/renderers/analyser.ts:528` | Verify health banner visibility |
-| `health-score-badge` | Health score display wrapper | `src-frontend/renderers/analyser.ts:529` | Access health score element |
-| `health-score-value` | Health percentage value | `src-frontend/renderers/analyser.ts:531` | Verify health score percentage |
-| `analyser-row-count` | Dataset row count | `src-frontend/renderers/analyser.ts:94` | Verify row count display |
-| `analyser-column-count` | Dataset column count | `src-frontend/renderers/analyser.ts:95` | Verify column count display |
+## Analyser Component
+
+**File**: `src-frontend/renderers/analyser/*.ts`
+
+### Main Containers
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `analyser-view` | Container | Main analyser container |
+| `analyser-header` | Container | Header section |
+| `analyser-metadata` | Container | Metadata container |
+| `analyser-metrics-dashboard` | Container | Metrics overview dashboard |
+
+### File Information
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `analyser-file-name` | Text | File name display |
+| `analyser-file-size` | Text | File size (e.g., "2.5 MB") |
+| `analyser-row-count` | Text | Row count display |
+| `analyser-column-count` | Text | Column count display |
+| `analyser-analysis-duration` | Text | Analysis time (e.g., "0.5s") |
+
+### Quality Metrics
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `analyser-quality-score-card` | Container | Quality score card |
+| `analyser-quality-score` | Text | Quality score percentage |
+| `analyser-type-distribution-card` | Container | Type distribution card |
+
+### Column Table
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `analyser-column-row` | Container | Each column row (repeats for each column) |
+| `analyser-column-checkbox` | Checkbox | Column selection checkbox |
+| `analyser-column-expander` | Button | Expand/collapse button |
+| `analyser-column-name` | Text | Column name display |
+| `analyser-column-type` | Badge | Column type (Numeric, Text, etc.) |
+| `analyser-column-quality` | ProgressBar | Quality bar indicator |
+| `analyser-column-stats` | Container | Stats summary container |
+| `analyser-column-null-pct` | Text | Null percentage pill |
+| `analyser-column-unique-pct` | Text | Unique percentage pill |
 
 ### Actions
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `analyser-open-file-button` | "Select File" button | `src-frontend/renderers/analyser.ts:100` | Open file dialog from analyser |
-| `analyser-reanalyze-button` | "Re-analyze" button | `src-frontend/renderers/analyser.ts:103` | Re-run analysis on current file |
-| `btn-begin-cleaning` | "Begin Cleaning" button | `src-frontend/renderers/analyser.ts:107` | Transition to Cleaned stage |
-| `btn-continue-advanced` | "Continue to Advanced" button | `src-frontend/renderers/analyser.ts:113` | Transition to Advanced stage |
-| `btn-move-to-validated` | "Move to Validated" button | `src-frontend/renderers/analyser.ts:119` | Transition to Validated stage |
-| `btn-export-analyser` | "Export / ETL" button | `src-frontend/renderers/analyser.ts:124` | Open export modal |
 
-### Bulk Actions
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `header-active-all` | "Clean All" checkbox | `src-frontend/renderers/analyser.ts:139` | Toggle cleaning for all columns |
-| `header-use-original-names` | "Original Names" checkbox | `src-frontend/renderers/analyser.ts:142` | Toggle between original and renamed columns |
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `analyser-open-file-button` | Button | Open/select file button |
+| `analyser-export-button` | Button | Export button |
 
-### Column Rows (Dynamic)
-| Test ID Pattern | Element | Location | Purpose |
-|-----------------|---------|----------|---------|
-| `analyser-row-{colName}` | Column row (clickable) | `src-frontend/renderers/analyser.ts:820` | Click to expand column details |
-| `col-select-checkbox-{colName}` | Column selection checkbox | `src-frontend/renderers/analyser.ts:827` | Select/deselect column for operations |
-| `clean-active-{colName}` | "Enable Cleaning" checkbox | `src-frontend/renderers/analyser.ts:903` | Enable/disable cleaning for specific column |
+---
 
-**Example Usage**:
-```typescript
-// For a column named "age"
-await page.getByTestId('analyser-row-age').click();
-await page.getByTestId('clean-active-age').check();
-```
+## Lifecycle Component
 
-## Lifecycle
+**File**: `src-frontend/renderers/lifecycle.ts`
 
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `lifecycle-rail` | Lifecycle rail container | `src-frontend/renderers/lifecycle.ts:161` | Verify lifecycle rail is visible |
-| `lifecycle-stages` | Stages container | `src-frontend/renderers/lifecycle.ts:166` | Access all lifecycle stages |
-| `lifecycle-stage-raw` | Raw stage indicator | `src-frontend/renderers/lifecycle.ts:146` | Click or verify Raw stage |
-| `lifecycle-stage-profiled` | Profiled stage indicator | `src-frontend/renderers/lifecycle.ts:146` | Click or verify Profiled stage |
-| `lifecycle-stage-cleaned` | Cleaned stage indicator | `src-frontend/renderers/lifecycle.ts:146` | Click or verify Cleaned stage |
-| `lifecycle-stage-advanced` | Advanced stage indicator | `src-frontend/renderers/lifecycle.ts:146` | Click or verify Advanced stage |
-| `lifecycle-stage-validated` | Validated stage indicator | `src-frontend/renderers/lifecycle.ts:146` | Click or verify Validated stage |
-| `lifecycle-stage-published` | Published stage indicator | `src-frontend/renderers/lifecycle.ts:146` | Click or verify Published stage |
+### Lifecycle Rail
 
-### Publish Modal
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `publish-modal-overlay` | Modal overlay | `src-frontend/renderers/lifecycle.ts:235` | Verify modal is open |
-| `publish-modal` | Publish modal content | `src-frontend/renderers/lifecycle.ts:236` | Access modal content |
-| `publish-modal-close` | Close button | `src-frontend/renderers/lifecycle.ts:239` | Close modal |
-| `btn-publish-view` | "Publish as View" button | `src-frontend/renderers/lifecycle.ts:262` | Publish as logical view |
-| `btn-publish-snapshot` | "Publish as Snapshot" button | `src-frontend/renderers/lifecycle.ts:277` | Publish as materialized snapshot |
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `lifecycle-rail` | Container | Main lifecycle rail container |
+| `lifecycle-stages` | Container | Stages container |
+| `lifecycle-stage-raw` | Container | Raw stage indicator |
+| `lifecycle-stage-profiled` | Container | Profiled stage indicator |
+| `lifecycle-stage-cleaned` | Container | Cleaned stage indicator |
+| `lifecycle-stage-advanced` | Container | Advanced stage indicator |
+| `lifecycle-stage-validated` | Container | Validated stage indicator |
+| `lifecycle-stage-published` | Container | Published stage indicator |
+
+**Note**: Stage indicators have classes `stage-completed`, `stage-active`, `stage-locked` to indicate status.
+
+---
 
 ## Export Modal
 
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `export-modal-overlay` | Modal overlay | `src-frontend/renderers/export.ts:55` | Verify export modal is open |
-| `export-modal` | Export modal content | `src-frontend/renderers/export.ts:56` | Access modal content |
-| `export-modal-close` | Close button | `src-frontend/renderers/export.ts:59` | Close modal |
-| `export-modal-body` | Modal body container | `src-frontend/renderers/export.ts:61` | Access modal body |
-| `export-dest-file` | "Local File" toggle button | `src-frontend/renderers/export.ts:65` | Select file export destination |
-| `export-dest-database` | "Database" toggle button | `src-frontend/renderers/export.ts:68` | Select database export destination |
-| `export-cancel-button` | "Cancel" button | `src-frontend/renderers/export.ts:87` | Cancel export operation |
-| `export-confirm-button` | "Start Export" button | `src-frontend/renderers/export.ts:94` | Begin export operation |
-| `export-abort-button` | "Abort" button (during export) | `src-frontend/renderers/export.ts:92` | Abort running export |
+**File**: `src-frontend/renderers/export.ts`
 
-## Global UI
+### Modal Structure
 
-### Loading States
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `loading-overlay` | Loading overlay container | `src-frontend/renderers/common.ts:61` | Verify loading state is visible |
-| `loading-spinner` | Loading spinner animation | `src-frontend/renderers/common.ts:62` | Verify spinner is animating |
-| `loading-message` | Loading status message | `src-frontend/renderers/common.ts:63` | Read loading message text |
-| `btn-abort-op` | "Abort" button | `src-frontend/renderers/common.ts:65` | Abort long-running operation |
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `export-modal-overlay` | Container | Modal overlay |
+| `export-modal` | Container | Modal container |
+| `export-modal-close` | Button | Close button (X) |
+| `export-modal-body` | Container | Modal body |
 
-### Toast Notifications
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `toast-success` | Success toast | `src-frontend/renderers/common.ts:75` | Verify success notification |
-| `toast-error` | Error toast | `src-frontend/renderers/common.ts:75` | Verify error notification |
-| `toast-info` | Info toast | `src-frontend/renderers/common.ts:75` | Verify info notification |
+### Destination Selection
 
-## AI Assistant (Bonus)
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `export-dest-file` | Button | File destination toggle |
+| `export-dest-database` | Button | Database destination toggle |
 
-| Test ID | Element | Location | Purpose |
-|---------|---------|----------|---------|
-| `ai-assistant` | AI sidebar container | `src-frontend/components/AIAssistantComponent.ts:47` | Verify AI assistant is visible |
-| `ai-status` | AI status indicator | `src-frontend/components/AIAssistantComponent.ts:54` | Verify AI connection status |
-| `ai-messages` | Messages container | `src-frontend/components/AIAssistantComponent.ts:63` | Access AI message history |
-| `ai-input-area` | Input area container | `src-frontend/components/AIAssistantComponent.ts:76` | Access input area |
-| `ai-input` | Message input textarea | `src-frontend/components/AIAssistantComponent.ts:79` | Type AI messages |
-| `ai-send-button` | Send message button | `src-frontend/components/AIAssistantComponent.ts:87` | Send message to AI |
-| `ai-clear-button` | Clear conversation button | `src-frontend/components/AIAssistantComponent.ts:95` | Clear AI conversation |
-| `ai-message-user` | User message | `src-frontend/components/AIAssistantComponent.ts:230` | Access user messages |
-| `ai-message-assistant` | Assistant message | `src-frontend/components/AIAssistantComponent.ts:230` | Access assistant messages |
+### File Export
 
-## Usage in E2E Tests
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `export-file-path-input` | Input | File path input field ✅ NEW |
+| `export-file-browse-button` | Button | Browse for file button ✅ NEW |
 
-### Basic Element Selection
-```typescript
-// By test ID
-await page.getByTestId('dashboard-open-file-button').click();
+### Database Export
 
-// Wait for visibility
-await expect(page.getByTestId('analyser-view')).toBeVisible();
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `export-db-connection-select` | Select | Database connection dropdown ✅ NEW |
 
-// Check if enabled
-await expect(page.getByTestId('btn-begin-cleaning')).toBeEnabled();
+### Actions
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `export-cancel-button` | Button | Cancel button |
+| `export-confirm-button` | Button | Confirm/Start Export button |
+| `export-abort-button` | Button | Abort export button (appears during export) |
+
+---
+
+## Python IDE
+
+**File**: `src-frontend/renderers/ide.ts`
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `python-ide-view` | Container | Main Python IDE container |
+| `python-ide-run-button` | Button | Run script button |
+| `python-ide-output` | Container | Output panel |
+| `python-ide-clear-button` | Button | Clear output button |
+| `python-ide-save-button` | Button | Save script button |
+| `python-ide-load-button` | Button | Load script button |
+| `python-ide-copy-output-button` | Button | Copy output button |
+| `python-ide-font-increase` | Button | Increase font size |
+| `python-ide-font-decrease` | Button | Decrease font size |
+
+---
+
+## SQL IDE
+
+**File**: `src-frontend/renderers/ide.ts`
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `sql-ide-view` | Container | Main SQL IDE container |
+| `sql-ide-run-button` | Button | Run query button |
+| `sql-ide-output` | Container | Output panel |
+| `sql-ide-clear-button` | Button | Clear output button |
+| `sql-ide-save-button` | Button | Save query button |
+| `sql-ide-load-button` | Button | Load query button |
+| `sql-ide-copy-output-button` | Button | Copy output button |
+| `sql-ide-font-increase` | Button | Increase font size |
+| `sql-ide-font-decrease` | Button | Decrease font size |
+| `sql-ide-skip-cleaning-checkbox` | Checkbox | Skip cleaning checkbox |
+| `sql-ide-install-polars-button` | Button | Install Polars button |
+
+---
+
+## PowerShell Console
+
+**File**: `src-frontend/renderers/ide.ts`
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `powershell-console-view` | Container | Main PowerShell console container |
+| `powershell-run-button` | Button | Run script button |
+| `powershell-output` | Container | Output panel |
+| `powershell-clear-button` | Button | Clear output button |
+| `powershell-save-button` | Button | Save script button |
+| `powershell-load-button` | Button | Load script button |
+| `powershell-copy-output-button` | Button | Copy output button |
+| `powershell-font-increase` | Button | Increase font size |
+| `powershell-font-decrease` | Button | Decrease font size |
+
+---
+
+## Settings
+
+**File**: `src-frontend/renderers/settings.ts`
+
+**Note**: Settings test IDs are not yet fully implemented. Expected IDs based on tests:
+
+| Test ID | Element | Description | Status |
+|---------|---------|-------------|--------|
+| `settings-add-connection-button` | Button | Add connection button | ⚠️ To be added (P1) |
+| `settings-connection-name-input` | Input | Connection name field | ⚠️ To be added (P1) |
+| `settings-connection-type-select` | Select | Connection type dropdown | ⚠️ To be added (P1) |
+| `settings-trusted-paths-section` | Container | Trusted paths section | ⚠️ To be added (P1) |
+| `settings-ai-enabled-toggle` | Checkbox | AI enabled toggle | ⚠️ To be added (P1) |
+| `settings-font-size-section` | Container | Font size settings | ⚠️ To be added (P1) |
+| `settings-theme-select` | Select | Theme selector | ⚠️ To be added (P1) |
+
+---
+
+## Loading States
+
+**File**: `src-frontend/renderers/common.ts`
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `loading-overlay` | Container | Loading overlay |
+| `loading-message` | Text | Loading message text |
+| `btn-abort-op` | Button | Abort operation button (ID, not test ID) |
+
+---
+
+## Toast Notifications
+
+**File**: `src-frontend/renderers/common.ts`
+
+| Test ID | Element | Description |
+|---------|---------|-------------|
+| `toast-container` | Container | Toast container (ID, not test ID) |
+| `toast-{type}` | Container | Individual toast (success, error, info, warning) |
+
+**Note**: Toast test IDs may need to be added for better E2E testing.
+
+---
+
+## Test ID Naming Conventions
+
+### Pattern
+
+```
+{component}-{element}-{type}
 ```
 
-### Dynamic Test IDs
-```typescript
-// For columns with dynamic names
-const columnName = 'age';
-await page.getByTestId(`analyser-row-${columnName}`).click();
-await page.getByTestId(`clean-active-${columnName}`).check();
+### Examples
+
+- `analyser-file-name` - Component: analyser, Element: file name
+- `export-modal-close` - Component: export modal, Element: close button
+- `lifecycle-stage-raw` - Component: lifecycle, Element: raw stage
+- `python-ide-run-button` - Component: python ide, Element: run button
+
+### Types
+
+- No suffix: Text/Display elements
+- `-button`: Clickable buttons
+- `-input`: Text input fields
+- `-select`: Dropdown/select fields
+- `-checkbox`: Checkboxes
+- `-view`: Main container/view
+- `-modal`: Modal containers
+- `-card`: Card containers
+
+---
+
+## Finding Test IDs in Code
+
+### Search by Component
+
+```bash
+# Find all test IDs in analyser
+grep -r "data-testid.*analyser" src-frontend/renderers/
+
+# Find all button test IDs
+grep -r "data-testid.*button" src-frontend/
 ```
 
-### Toast Notifications
-```typescript
-// Wait for success toast
-await expect(page.getByTestId('toast-success')).toBeVisible();
-await expect(page.getByTestId('toast-success')).toContainText('Export successful');
+### Add New Test IDs
 
-// Wait for error toast
-await expect(page.getByTestId('toast-error')).toBeVisible();
-```
+1. Add to renderer file (`src-frontend/renderers/*.ts`)
+2. Use kebab-case naming
+3. Follow naming convention: `{component}-{element}-{type}`
+4. Update this document
+5. Test with E2E tests
 
-### Modal Interactions
-```typescript
-// Open and interact with export modal
-await page.getByTestId('btn-export-analyser').click();
-await expect(page.getByTestId('export-modal')).toBeVisible();
-await page.getByTestId('export-dest-file').click();
-await page.getByTestId('export-confirm-button').click();
-```
+---
 
-### Loading States
-```typescript
-// Verify loading indicator appears
-await expect(page.getByTestId('loading-spinner')).toBeVisible();
-await expect(page.getByTestId('loading-message')).toContainText('Analyzing');
+## Related Documentation
 
-// Abort operation
-await page.getByTestId('btn-abort-op').click();
+- **E2E Test Guide**: `e2e/README.md`
+- **Testing Guide**: `docs/TESTING.md`
+- **Test Implementation Status**: `docs/TESTING_IMPLEMENTATION_STATUS.md`
+- **Missing Test IDs Analysis**: `docs/MISSING_TEST_IDS.md`
+- **Test Rollout Status**: `docs/TEST_ROLLOUT_STATUS.md`
+- **Test ID Implementation Summary**: `docs/TEST_ID_IMPLEMENTATION_SUMMARY.md`
 
-// Wait for loading to complete
-await expect(page.getByTestId('loading-spinner')).toBeHidden();
-```
+---
 
-## Naming Conventions
+## Changelog
 
-Test IDs follow this pattern: `{component}-{element}-{type}`
+### 2026-01-27
+- ✅ Added 3 export modal test IDs
+  - `export-file-path-input`
+  - `export-file-browse-button`
+  - `export-db-connection-select`
+- ✅ Documented all existing test IDs across components
+- ✅ Verified Analyser and Lifecycle test IDs are complete
 
-- **Component prefix**: Lowercase component name (e.g., `dashboard`, `analyser`, `export`)
-- **Element name**: Descriptive element identifier (e.g., `open-file`, `row-count`, `modal`)
-- **Type suffix**: Element type when applicable (e.g., `button`, `checkbox`, `modal`, `overlay`)
+### Previous
+- Initial test ID implementation across all components
+- Comprehensive E2E test infrastructure setup
 
-### Special Cases
+---
 
-- **Dynamic IDs**: Use template literals with variable names (e.g., `analyser-row-{colName}`)
-- **State-based IDs**: Include state in name (e.g., `toast-success`, `toast-error`, `toast-info`)
-- **Stage indicators**: Include stage name (e.g., `lifecycle-stage-cleaned`)
-
-## Test ID Coverage
-
-**Summary**: 50+ unique test IDs defined across 6 renderer files
-
-- ✅ Dashboard: 5 test IDs
-- ✅ Analyser: 20+ test IDs (+ dynamic column IDs)
-- ✅ Lifecycle: 10 test IDs
-- ✅ Export Modal: 9 test IDs
-- ✅ Global UI: 7 test IDs
-- ✅ AI Assistant: 9 test IDs
-
-**Status**: Ready for comprehensive E2E testing implementation
+**Document Owner**: Development Team
+**Maintenance**: Update when adding new test IDs

@@ -21,7 +21,7 @@
     "test:e2e": "playwright test",
     "test:rust": "npm run clean-pdbs && cargo test",
     "test:rust:integration": "cargo test --test '*'",
-    "test:all": "npm run test:rust && npm test -- --run && npm run test:e2e",
+    "test:all": "npm run type-check && npm run test:rust && npm test -- --run && npm run test:e2e",
     "lint": "eslint src-frontend --ext .ts",
     "lint:fix": "eslint src-frontend --ext .ts --fix",
     "format": "prettier --write \"src-frontend/**/*.ts\"",
@@ -47,7 +47,8 @@
     "chart.js": "^4.4.1",
     "dompurify": "^3.2.7",
     "marked": "^14.0.0",
-    "monaco-editor": "^0.55.1"
+    "monaco-editor": "^0.55.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",

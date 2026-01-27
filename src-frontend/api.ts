@@ -114,7 +114,19 @@ export async function getAppVersion(): Promise<string> {
 }
 
 export async function loadAppConfig(): Promise<AppConfig> {
-  return await invoke('get_config');
+  const rawConfig = await invoke('get_config');
+
+  // Optional: Add runtime validation with Zod (commented out by default for performance)
+  // Uncomment to enable strict runtime validation that would have caught the audit_log bug
+  // import { safeValidateBackendConfig } from './schemas/config';
+  // const result = safeValidateBackendConfig(rawConfig);
+  // if (!result.success) {
+  //   console.error('[loadAppConfig] Validation failed:', result.error);
+  //   throw new Error(result.error);
+  // }
+  // return result.data;
+
+  return rawConfig as AppConfig;
 }
 
 export async function saveAppConfig(config: AppConfig): Promise<void> {

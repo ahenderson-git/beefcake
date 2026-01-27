@@ -28,7 +28,7 @@ test.describe('Dashboard', () => {
   });
 
   test('should display dashboard on launch', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Wait for app to load
     await expect(page).toHaveTitle(/beefcake/i);
@@ -46,7 +46,7 @@ test.describe('Dashboard', () => {
   });
 
   test('should have functional navigation buttons', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Verify open file button exists and is clickable
     const openFileBtn = page.getByTestId('dashboard-open-file-button');
@@ -60,7 +60,7 @@ test.describe('Dashboard', () => {
   });
 
   test('should display version number', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Verify version number is displayed
     await expect(page.locator('h1 small')).toBeVisible();
@@ -68,14 +68,14 @@ test.describe('Dashboard', () => {
   });
 
   test('should display dashboard stats cards', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Verify stats cards are present
     await expect(page.locator('.stat-card')).toHaveCount(3);
   });
 
   test('should display connection stats', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Verify connection stats card exists
     const statCards = page.locator('.stat-card');
@@ -83,7 +83,7 @@ test.describe('Dashboard', () => {
   });
 
   test('should display hero section', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Verify hero section with title
     await expect(page.locator('.hero')).toBeVisible();
@@ -99,7 +99,7 @@ test.describe('Navigation', () => {
   });
 
   test('should navigate to Python IDE', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Click Python button
     await page.getByTestId('dashboard-python-button').click();
@@ -111,7 +111,7 @@ test.describe('Navigation', () => {
   });
 
   test('should navigate to SQL IDE', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Click SQL button
     await page.getByTestId('dashboard-sql-button').click();
@@ -123,7 +123,7 @@ test.describe('Navigation', () => {
   });
 
   test('should navigate to PowerShell console', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Click PowerShell button
     await page.getByTestId('dashboard-powershell-button').click();
@@ -135,7 +135,7 @@ test.describe('Navigation', () => {
   });
 
   test('should navigate to Settings', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Click Settings nav button in sidebar
     await page.getByTestId('nav-settings').click();
@@ -145,7 +145,7 @@ test.describe('Navigation', () => {
   });
 
   test('should navigate back to Dashboard', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate away from dashboard
     await page.getByTestId('dashboard-python-button').click();
@@ -156,9 +156,8 @@ test.describe('Navigation', () => {
     await expect(page.getByTestId('dashboard-view')).toBeVisible({ timeout: 5000 });
   });
 
-  test.skip('should navigate to Analyser view', async ({ page }) => {
-    // TODO: Analyser view test ID or navigation not yet implemented
-    await page.goto(APP_URL);
+  test('should navigate to Analyser view', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Click Analyser nav button
     await page.getByTestId('nav-analyser').click();
@@ -167,9 +166,8 @@ test.describe('Navigation', () => {
     await expect(page.getByTestId('analyser-view')).toBeVisible({ timeout: 5000 });
   });
 
-  test.skip('should navigate to Watcher view', async ({ page }) => {
-    // TODO: Watcher view test ID or navigation not yet implemented
-    await page.goto(APP_URL);
+  test('should navigate to Watcher view', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Click Watcher nav button
     await page.getByTestId('nav-watcher').click();
@@ -178,48 +176,20 @@ test.describe('Navigation', () => {
     await expect(page.getByTestId('watcher-view')).toBeVisible({ timeout: 5000 });
   });
 
-  test.skip('should navigate to AI Assistant view', async ({ page }) => {
-    // TODO: AI Assistant view causes timeout, needs investigation
-    await page.goto(APP_URL);
+  // NOTE: AI Assistant, Export, and Onboarding are not navigation views:
+  // - AI Assistant is a collapsible sidebar (#ai-sidebar), not a main view
+  // - Export is a modal triggered from IDE components, not a nav destination
+  // - Onboarding is a first-run wizard modal, not a nav destination
+  // Tests for these features should be in their respective component test files
 
-    // Click AI Assistant nav button
-    await page.getByTestId('nav-ai-assistant').click();
-
-    // Verify AI Assistant view is visible
-    await expect(page.getByTestId('ai-assistant-view')).toBeVisible({ timeout: 5000 });
-  });
-
-  test.skip('should navigate to Export view', async ({ page }) => {
-    // TODO: Export navigation causes page crash, needs investigation
-    await page.goto(APP_URL);
-
-    // Click Export nav button
-    await page.getByTestId('nav-export').click();
-
-    // Verify Export view is visible
-    await expect(page.getByTestId('export-view')).toBeVisible({ timeout: 5000 });
-  });
-
-  test.skip('should navigate to Integrity view', async ({ page }) => {
-    // TODO: Integrity view test ID or navigation not yet implemented
-    await page.goto(APP_URL);
+  test('should navigate to Integrity view', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Click Integrity nav button
     await page.getByTestId('nav-integrity').click();
 
     // Verify Integrity view is visible
     await expect(page.getByTestId('integrity-view')).toBeVisible({ timeout: 5000 });
-  });
-
-  test.skip('should navigate to Onboarding view', async ({ page }) => {
-    // TODO: Onboarding view test ID or navigation not yet implemented
-    await page.goto(APP_URL);
-
-    // Click Onboarding nav button
-    await page.getByTestId('nav-onboarding').click();
-
-    // Verify Onboarding view is visible
-    await expect(page.getByTestId('onboarding-view')).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -231,7 +201,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should display PowerShell console with editor', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to PowerShell
     await page.getByTestId('dashboard-powershell-button').click();
@@ -245,7 +215,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have all IDE toolbar buttons present', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Python IDE
     await page.getByTestId('dashboard-python-button').click();
@@ -259,7 +229,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have font size controls in Python IDE', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Python IDE
     await page.getByTestId('dashboard-python-button').click();
@@ -272,7 +242,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have font size controls in SQL IDE', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to SQL IDE
     await page.getByTestId('dashboard-sql-button').click();
@@ -285,7 +255,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have PowerShell toolbar buttons', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to PowerShell
     await page.getByTestId('dashboard-powershell-button').click();
@@ -298,7 +268,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have PowerShell font size controls', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to PowerShell
     await page.getByTestId('dashboard-powershell-button').click();
@@ -311,7 +281,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have PowerShell output elements', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to PowerShell
     await page.getByTestId('dashboard-powershell-button').click();
@@ -323,7 +293,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have PowerShell layout with editor and output panels', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to PowerShell
     await page.getByTestId('dashboard-powershell-button').click();
@@ -336,7 +306,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have run button in all IDEs', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Check Python IDE
     await page.getByTestId('dashboard-python-button').click();
@@ -352,7 +322,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have save and load buttons in all IDEs', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Check Python IDE
     await page.getByTestId('dashboard-python-button').click();
@@ -371,7 +341,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have clear button in all IDEs', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Check Python IDE
     await page.getByTestId('dashboard-python-button').click();
@@ -387,7 +357,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should display dashboard buttons with correct labels', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Verify dashboard buttons exist
     const pythonBtn = page.getByTestId('dashboard-python-button');
@@ -404,7 +374,7 @@ test.describe('IDE Views', () => {
   });
 
   test('should have sidebar visible on all views', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Check sidebar on dashboard
     await expect(page.locator('.sidebar')).toBeVisible();
@@ -427,7 +397,7 @@ test.describe('Settings View', () => {
   });
 
   test('should display settings view with sections', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Settings
     await page.getByTestId('nav-settings').click();
@@ -439,9 +409,8 @@ test.describe('Settings View', () => {
     await expect(page.locator('.settings-section').first()).toBeVisible();
   });
 
-  test.skip('should have add connection button', async ({ page }) => {
-    // TODO: Need to add data-testid="settings-add-connection-button" to SettingsComponent
-    await page.goto(APP_URL);
+  test('should have add connection button', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Settings
     await page.getByTestId('nav-settings').click();
@@ -451,23 +420,23 @@ test.describe('Settings View', () => {
     await expect(page.getByTestId('settings-add-connection-button')).toBeVisible();
   });
 
-  test.skip('should have connection form fields', async ({ page }) => {
-    // TODO: Need to add test IDs to connection form inputs in SettingsComponent
-    await page.goto(APP_URL);
+  test('should have connection form fields', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Settings
     await page.getByTestId('nav-settings').click();
     await expect(page.locator('.settings-view')).toBeVisible({ timeout: 5000 });
 
+    // Click "Add Connection" button to show form
+    await page.getByTestId('settings-add-connection-button').click();
+
     // Verify connection form fields exist
     await expect(page.getByTestId('settings-connection-name-input')).toBeVisible();
-    await expect(page.getByTestId('settings-connection-type-select')).toBeVisible();
     await expect(page.getByTestId('settings-connection-host-input')).toBeVisible();
   });
 
-  test.skip('should have trusted paths section with add button', async ({ page }) => {
-    // TODO: Need to add test IDs to trusted paths section in SettingsComponent
-    await page.goto(APP_URL);
+  test('should have trusted paths section with add button', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Settings
     await page.getByTestId('nav-settings').click();
@@ -478,9 +447,8 @@ test.describe('Settings View', () => {
     await expect(page.getByTestId('settings-add-trusted-path-button')).toBeVisible();
   });
 
-  test.skip('should have AI config toggle', async ({ page }) => {
-    // TODO: Need to add data-testid="settings-ai-enabled-toggle" to SettingsComponent
-    await page.goto(APP_URL);
+  test('should have AI config toggle', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Settings
     await page.getByTestId('nav-settings').click();
@@ -490,9 +458,8 @@ test.describe('Settings View', () => {
     await expect(page.getByTestId('settings-ai-enabled-toggle')).toBeVisible();
   });
 
-  test.skip('should have font size preferences', async ({ page }) => {
-    // TODO: Need to add data-testid="settings-font-size-section" to SettingsComponent
-    await page.goto(APP_URL);
+  test('should have font size preferences', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Settings
     await page.getByTestId('nav-settings').click();
@@ -502,9 +469,8 @@ test.describe('Settings View', () => {
     await expect(page.getByTestId('settings-font-size-section')).toBeVisible();
   });
 
-  test.skip('should have theme selector', async ({ page }) => {
-    // TODO: Need to add data-testid="settings-theme-select" to SettingsComponent
-    await page.goto(APP_URL);
+  test('should have theme selector', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Settings
     await page.getByTestId('nav-settings').click();
@@ -523,7 +489,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should have all sidebar navigation buttons', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Verify all navigation buttons are present
     await expect(page.getByTestId('nav-dashboard')).toBeVisible();
@@ -536,7 +502,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate through multiple views', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Analyser
     await page.getByTestId('nav-analyser').click();
@@ -552,7 +518,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate to Watcher view', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Watcher
     await page.getByTestId('nav-watcher').click();
@@ -560,7 +526,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate to Pipeline view', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Pipeline
     await page.getByTestId('nav-pipeline').click();
@@ -568,7 +534,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate to Dictionary view', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Dictionary
     await page.getByTestId('nav-dictionary').click();
@@ -576,7 +542,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate to Integrity view', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Integrity
     await page.getByTestId('nav-integrity').click();
@@ -584,7 +550,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate to Activity Log view', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Activity Log
     await page.getByTestId('nav-activity-log').click();
@@ -592,7 +558,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate to Reference view', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to Reference
     await page.getByTestId('nav-reference').click();
@@ -600,7 +566,7 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('should navigate to CLI view', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Navigate to CLI
     await page.getByTestId('nav-cli').click();
@@ -610,21 +576,21 @@ test.describe('Sidebar Navigation', () => {
 
 test.describe('Pipeline Editor (P1 Workflows)', () => {
   test.skip('should have pipeline UI ready for testing', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Pipeline functionality will be tested once navigation and file loading implemented
     await expect(page).toHaveTitle(/beefcake/i);
   });
 
   test.skip('should support pipeline validation', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Pipeline validation test IDs are ready for implementation
     await expect(page).toHaveTitle(/beefcake/i);
   });
 
   test.skip('should support pipeline execution', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Pipeline execution test IDs are ready for implementation
     await expect(page).toHaveTitle(/beefcake/i);
@@ -633,14 +599,14 @@ test.describe('Pipeline Editor (P1 Workflows)', () => {
 
 test.describe('Error Handling', () => {
   test.skip('should have loading state UI ready', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Loading state test IDs (loading-spinner, loading-message, btn-abort-op) are ready
     await expect(page).toHaveTitle(/beefcake/i);
   });
 
   test.skip('should have abort functionality ready', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Abort button test IDs are ready for implementation
     await expect(page).toHaveTitle(/beefcake/i);

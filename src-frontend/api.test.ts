@@ -35,7 +35,7 @@ describe('API', () => {
         total_row_count: 100,
         column_count: 5,
         summary: [],
-        health: { score: 0.95, risks: [] },
+        health: { score: 0.95, risks: [], notes: [] },
         analysis_duration: { secs: 1, nanos: 0 },
         correlation_matrix: null,
       };
@@ -83,7 +83,9 @@ describe('API', () => {
           temperature: 0.7,
           max_tokens: 1000,
         },
-        audit_log: [],
+        audit_log: {
+          entries: [],
+        },
       };
 
       vi.mocked(invoke).mockResolvedValue(mockConfig);
@@ -104,7 +106,9 @@ describe('API', () => {
         powershell_font_size: 12,
         python_font_size: 12,
         sql_font_size: 12,
-        audit_log: [],
+        audit_log: {
+          entries: [],
+        },
       };
 
       vi.mocked(invoke).mockResolvedValue(undefined);

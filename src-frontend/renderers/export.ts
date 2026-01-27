@@ -11,8 +11,8 @@ export function renderExportConfig(
       <div class="export-step">
         <label>2. Choose Format & Location</label>
         <div class="input-with-button">
-          <input type="text" id="export-file-path" placeholder="C:\\path\\to\\export.parquet" readonly>
-          <button type="button" id="btn-browse-export" class="btn-secondary btn-small">Browse</button>
+          <input type="text" id="export-file-path" data-testid="export-file-path-input" placeholder="C:\\path\\to\\export.parquet" readonly>
+          <button type="button" id="btn-browse-export" class="btn-secondary btn-small" data-testid="export-file-browse-button">Browse</button>
         </div>
         <p class="help-text">Recommended formats: .parquet (high performance), .csv, .json</p>
       </div>
@@ -35,7 +35,7 @@ export function renderExportConfig(
     return `
       <div class="export-step">
         <label>2. Select Connection</label>
-        <select id="export-connection-id">
+        <select id="export-connection-id" data-testid="export-db-connection-select">
           <option value="">-- Choose Connection --</option>
           ${connections
             .map(

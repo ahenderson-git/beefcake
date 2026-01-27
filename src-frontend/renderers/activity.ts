@@ -2,8 +2,8 @@ import { AppConfig } from '../types';
 import { escapeHtml } from '../utils';
 
 export function renderActivityLogView(config: AppConfig): string {
-  // Safely handle audit_log which might be undefined, null, or not an array
-  const auditLogArray = Array.isArray(config.audit_log) ? config.audit_log : [];
+  // Safely handle audit_log which might be undefined or have no entries
+  const auditLogArray = config.audit_log?.entries || [];
   const auditLogs = [...auditLogArray].reverse();
 
   return `
