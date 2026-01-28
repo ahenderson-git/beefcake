@@ -12,14 +12,19 @@ export class AnalyserComponent extends Component {
   private isTransitioning: boolean = false;
 
   private getCurrentStage(state: AppState): LifecycleStage | null {
-    if (!state.currentDataset?.activeVersionId) {
-      return null;
+    // If we have a dataset, use its active version's stage
+    if (state.currentDataset?.activeVersionId) {
+      const { activeVersionId, versions } = state.currentDataset;
+      const activeVersion = versions.find(v => v.id === activeVersionId);
+      return activeVersion?.stage ?? null;
     }
 
-    const { activeVersionId, versions } = state.currentDataset;
-    const activeVersion = versions.find(v => v.id === activeVersionId);
+    // For ad-hoc analysis (no dataset but has analysis response), default to Profiled
+    if (state.analysisResponse && !state.currentDataset) {
+      return 'Profiled';
+    }
 
-    return activeVersion?.stage ?? null;
+    return null;
   }
 
   private isReadOnlyStage(stage: LifecycleStage | null): boolean {
@@ -65,6 +70,7 @@ export class AnalyserComponent extends Component {
     if (!existingWrapper) {
       container.innerHTML = `
         <div class="analyser-wrapper">
+          <div id="stage-progress-container"></div>
           <div id="lifecycle-rail-container"></div>
           <div id="analyser-content-container" class="analyser-container-outer"></div>
         </div>
@@ -76,10 +82,20 @@ export class AnalyserComponent extends Component {
       // Fallback if something went wrong
       container.innerHTML = `
         <div class="analyser-wrapper">
+          <div id="stage-progress-container"></div>
           <div id="lifecycle-rail-container"></div>
           <div id="analyser-content-container" class="analyser-container-outer"></div>
         </div>
       `;
+    }
+
+    // Render stage progress bar
+    const stageProgressContainer = document.getElementById('stage-progress-container');
+    if (stageProgressContainer) {
+      stageProgressContainer.innerHTML = renderers.renderStageProgressBar(
+        currentStage,
+        state.currentDataset
+      );
     }
 
     // Note: lifecycle rail rendering is handled by LifecycleRailComponent in main.ts

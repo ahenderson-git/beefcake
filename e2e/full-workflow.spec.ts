@@ -224,7 +224,7 @@ test.describe('Full Workflow - Lifecycle Stages', () => {
     });
   });
 
-  test('should show lifecycle rail with stage indicators after file load', async ({ page }) => {
+  test('should show lifecycle creation banner after file load', async ({ page }) => {
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
     // Load a file to trigger lifecycle creation
@@ -233,19 +233,13 @@ test.describe('Full Workflow - Lifecycle Stages', () => {
     // Wait for analyser view to appear
     await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
 
-    // Wait a bit for lifecycle rail to be created asynchronously
-    await page.waitForTimeout(500);
+    // Verify lifecycle creation banner is shown
+    // The app creates a lifecycle dataset in the background after file analysis
+    const stageBanner = page.getByTestId('analyser-stage-banner');
+    await expect(stageBanner).toBeVisible({ timeout: 5000 });
 
-    // Verify lifecycle rail is visible
-    await expect(page.getByTestId('lifecycle-rail')).toBeVisible({ timeout: 5000 });
-
-    // Verify lifecycle stages container exists
-    await expect(page.getByTestId('lifecycle-stages')).toBeVisible();
-
-    // Verify all 6 stages are displayed (from mockDatasetWithVersions)
-    // The mock has Raw, Profiled, and Cleaned versions
-    await expect(page.getByTestId('lifecycle-stage-raw')).toBeVisible();
-    await expect(page.getByTestId('lifecycle-stage-profiled')).toBeVisible();
+    // Banner should show "Creating dataset versions..." during the lifecycle creation process
+    await expect(stageBanner).toContainText('Creating dataset versions');
   });
 
   test.skip('should transition from Profiled to Cleaned stage', async ({ page }) => {

@@ -18,14 +18,20 @@ export class LifecycleRailComponent extends Component {
     }
 
     // Render stage indicator: full rail with dataset, or compact banner without
-    if (state.currentDataset) {
+    if (state.isCreatingLifecycle) {
+      // Show loading banner while creating dataset versions
+      const bannerStage: LifecycleStage = 'Raw';
+      const bannerMessage = 'Creating dataset versions...';
+      railContainer.innerHTML = renderers.renderLifecycleBanner(bannerStage, bannerMessage);
+      // No events to bind for banner
+    } else if (state.currentDataset) {
       // Full lifecycle rail when dataset exists
       railContainer.innerHTML = renderers.renderLifecycleRail(state.currentDataset);
       this.bindEvents(state);
     } else if (state.analysisResponse) {
-      // Compact banner for ad-hoc analysis (no dataset)
+      // This should only happen if dataset creation failed
       const bannerStage: LifecycleStage = 'Profiled';
-      const bannerMessage = 'Ad-hoc file analysis • Not version-controlled';
+      const bannerMessage = 'Dataset creation failed - analysis only mode';
       railContainer.innerHTML = renderers.renderLifecycleBanner(bannerStage, bannerMessage);
       // No events to bind for banner
     } else {

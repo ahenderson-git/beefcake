@@ -131,6 +131,7 @@ class BeefcakeApp {
     isAddingConnection: false,
     isLoading: false,
     isAborting: false,
+    isCreatingLifecycle: false,
     loadingMessage: '',
     config: null,
     pythonScript: null,
@@ -430,16 +431,19 @@ class BeefcakeApp {
         this.state.cleaningConfigs[col.name] = getDefaultColumnCleanConfig(col);
       });
 
-      // Immediately show analysis results without waiting for lifecycle
+      // Show analysis results and begin creating lifecycle dataset
       this.state.isLoading = false;
+      this.state.isCreatingLifecycle = true;
       this.render();
       this.showToast('Analysis complete', 'success');
 
-      // Create lifecycle dataset asynchronously in background
-      // This avoids blocking the UI for large file operations
-      void this.createLifecycleDatasetAsync(response.file_name, path);
+      // Create lifecycle dataset (now awaited to track progress)
+      await this.createLifecycleDatasetAsync(response.file_name, path);
+      this.state.isCreatingLifecycle = false;
+      // render() is already called inside createLifecycleDatasetAsync
     } catch (err) {
       this.state.isLoading = false;
+      this.state.isCreatingLifecycle = false;
       this.render();
       this.showToast(`Analysis failed: ${String(err)}`, 'error');
     }

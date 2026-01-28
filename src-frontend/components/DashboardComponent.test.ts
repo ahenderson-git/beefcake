@@ -33,6 +33,7 @@ const createMockState = (overrides: Partial<AppState> = {}): AppState => ({
   isAddingConnection: false,
   isLoading: false,
   isAborting: false,
+  isCreatingLifecycle: false,
   loadingMessage: '',
   pythonScript: null,
   sqlScript: null,

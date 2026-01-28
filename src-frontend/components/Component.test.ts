@@ -37,6 +37,7 @@ const createMockState = (): AppState => ({
   isAddingConnection: false,
   isLoading: false,
   isAborting: false,
+  isCreatingLifecycle: false,
   loadingMessage: '',
   pythonScript: null,
   sqlScript: null,

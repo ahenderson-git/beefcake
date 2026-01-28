@@ -8,6 +8,7 @@ import {
   renderDatasetOverview,
   renderEmptyAnalyser,
   renderValidatedSummary,
+  renderStageProgressBar,
 } from './analyser/index';
 
 export {
@@ -18,6 +19,7 @@ export {
   renderPublishedView,
   renderAnalyserRow,
   renderSchemaSidebar,
+  renderStageProgressBar,
 };
 
 export function renderAnalyser(
