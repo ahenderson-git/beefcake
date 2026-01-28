@@ -352,31 +352,31 @@ fn is_pipeline_no_op(pipeline: &TransformPipeline, active_version: &DatasetVersi
     }
 
     // Single transform optimizations
-    if pipeline.len() == 1 {
-        if let Some(transform_spec) = pipeline.iter().next() {
-            // Case 1: Column selection is metadata-only for Parquet files
-            // Parquet supports native column projection, so we don't need to rewrite the file
-            // This optimization provides massive performance gains for large files
-            if transform_spec.transform_type == "select_columns" {
-                crate::config::log_event(
-                    "Lifecycle",
-                    "Column selection detected - using metadata-only optimization",
-                );
-                return true;
-            }
+    if pipeline.len() == 1
+        && let Some(transform_spec) = pipeline.iter().next()
+    {
+        // Case 1: Column selection is metadata-only for Parquet files
+        // Parquet supports native column projection, so we don't need to rewrite the file
+        // This optimization provides massive performance gains for large files
+        if transform_spec.transform_type == "select_columns" {
+            crate::config::log_event(
+                "Lifecycle",
+                "Column selection detected - using metadata-only optimization",
+            );
+            return true;
+        }
 
-            // Case 2: Clean transform with restricted=true (Cleaned -> Advanced transition)
-            if transform_spec.transform_type == "clean" {
-                let restricted = transform_spec
-                    .parameters
-                    .get("restricted")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
+        // Case 2: Clean transform with restricted=true (Cleaned -> Advanced transition)
+        if transform_spec.transform_type == "clean" {
+            let restricted = transform_spec
+                .parameters
+                .get("restricted")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
 
-                // If restricted=true and parent is Cleaned stage, this is a no-op
-                // because Cleaned -> Advanced with restricted=true doesn't actually transform data
-                return restricted && active_version.stage == LifecycleStage::Cleaned;
-            }
+            // If restricted=true and parent is Cleaned stage, this is a no-op
+            // because Cleaned -> Advanced with restricted=true doesn't actually transform data
+            return restricted && active_version.stage == LifecycleStage::Cleaned;
         }
     }
 

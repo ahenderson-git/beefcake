@@ -1,4 +1,4 @@
-﻿use chrono::Local;
+use chrono::Local;
 use keyring::Entry;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -53,7 +53,6 @@ pub fn ensure_standard_dirs() -> anyhow::Result<StandardPaths> {
     fs::create_dir_all(&paths.templates_dir)?;
     Ok(paths)
 }
-
 
 pub fn is_aborted() -> bool {
     ABORT_SIGNAL.load(Ordering::SeqCst)

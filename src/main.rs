@@ -108,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = beefcake::logging::init() {
         // Fall back to env_logger if file logging fails
         env_logger::init();
-        eprintln!("Warning: Failed to initialize file logging, using stderr only: {}", e);
+        eprintln!("Warning: Failed to initialize file logging, using stderr only: {e}");
     }
 
     tracing::info!("Beefcake application starting");

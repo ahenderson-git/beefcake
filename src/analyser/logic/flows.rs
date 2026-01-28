@@ -36,8 +36,8 @@ fn stratified_sample(lf: LazyFrame, total_rows: usize, sample_size: u32) -> Resu
     Ok(sampled)
 }
 
-use std::str::FromStr as _;
 use crate::config::DbSettings;
+use std::str::FromStr as _;
 
 pub async fn test_connection_flow(settings: DbSettings, password: String) -> Result<String> {
     let url = format!(

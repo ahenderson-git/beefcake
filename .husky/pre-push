@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run Rust CI checks before pushing
+node scripts/check-rust-ci.js

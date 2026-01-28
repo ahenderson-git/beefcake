@@ -31,7 +31,6 @@ pub fn run() {
             commands::system::get_log_directory,
             commands::system::get_current_log_file,
             commands::system::get_current_error_log_file,
-
             // Analysis
             commands::analysis::analyze_file,
             commands::analysis::run_powershell,
@@ -45,11 +44,9 @@ pub fn run() {
             commands::analysis::delete_connection,
             commands::analysis::install_python_package,
             commands::analysis::check_python_environment,
-
             // Integrity
             commands::integrity::export_data,
             commands::integrity::verify_receipt,
-
             // Lifecycle
             commands::lifecycle::lifecycle_create_dataset,
             commands::lifecycle::lifecycle_apply_transforms,
@@ -58,7 +55,6 @@ pub fn run() {
             commands::lifecycle::lifecycle_get_version_diff,
             commands::lifecycle::lifecycle_list_versions,
             commands::lifecycle::lifecycle_get_version_schema,
-
             // Pipeline
             commands::pipeline::save_pipeline_spec,
             commands::pipeline::load_pipeline_spec,
@@ -70,20 +66,17 @@ pub fn run() {
             commands::pipeline::list_pipeline_specs,
             commands::pipeline::list_pipeline_templates,
             commands::pipeline::load_pipeline_template,
-
             // Dictionary
             commands::dictionary::dictionary_load_snapshot,
             commands::dictionary::dictionary_list_snapshots,
             commands::dictionary::dictionary_update_business_metadata,
             commands::dictionary::dictionary_export_markdown,
-
             // Watcher
             commands::watcher::watcher_get_state,
             commands::watcher::watcher_start,
             commands::watcher::watcher_stop,
             commands::watcher::watcher_set_folder,
             commands::watcher::watcher_ingest_now,
-
             // AI
             commands::ai::ai_send_query,
             commands::ai::ai_set_api_key,

@@ -24,7 +24,9 @@ fn main() {
     let index_path = dist_path.join("index.html");
     if !index_path.exists() {
         println!("cargo:warning=index.html NOT found in dist, creating placeholder...");
-        println!("cargo:warning=⚠️  FRONTEND NOT BUILT! Run 'npm run build' first to build the frontend.");
+        println!(
+            "cargo:warning=⚠️  FRONTEND NOT BUILT! Run 'npm run build' first to build the frontend."
+        );
         fs::write(
             &index_path,
             r#"<!DOCTYPE html>
@@ -82,10 +84,12 @@ fn main() {
         .expect("Failed to create placeholder index.html");
     } else {
         // If index.html exists, check if it's our placeholder or a real build
-        if let Ok(content) = fs::read_to_string(&index_path) {
-            if content.contains("Beefcake - Build Required") {
-                println!("cargo:warning=⚠️  STILL USING PLACEHOLDER! Run 'npm run build' and then rebuild the backend.");
-            }
+        if let Ok(content) = fs::read_to_string(&index_path)
+            && content.contains("Beefcake - Build Required")
+        {
+            println!(
+                "cargo:warning=⚠️  STILL USING PLACEHOLDER! Run 'npm run build' and then rebuild the backend."
+            );
         }
     }
 
