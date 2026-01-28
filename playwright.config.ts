@@ -9,20 +9,28 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
-    baseURL: 'http://localhost:14206',
+    baseURL: 'http://127.0.0.1:14206',
+    // Ensure Playwright waits long enough for initial navigation on slow cold starts
+    navigationTimeout: 180000,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
 
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:14206',
-    reuseExistingServer: false, // Force a fresh Vite server to avoid stale/hung instances
-    timeout: 60 * 1000,
+    // Ensure any stale servers are terminated before starting a fresh one
+    command: 'npm run dev:clean',
+    url: 'http://127.0.0.1:14206',
+    // If something is already running locally (dev session), reuse it to avoid failures
+    reuseExistingServer: true,
+    // Vite + large deps (e.g., Monaco) on Windows/OneDrive can take >60s to boot
+    timeout: 180 * 1000,
     // Don't pipe stdout/stderr - this can cause hanging on Windows
     // Let Vite output go directly to console
   },
+
+  // Global teardown hook for port cleanup
+  globalTeardown: './e2e/helpers/global-teardown.ts',
 
   projects: [
     {
@@ -31,7 +39,8 @@ export default defineConfig({
     },
   ],
 
-  timeout: 60000,
+  // Allow more time for initial navigation on slower Windows environments
+  timeout: 180000,
   expect: {
     timeout: 10000,
   },

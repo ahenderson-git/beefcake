@@ -117,6 +117,23 @@ function canProgressTo(
   return completedStages.has('Raw');
 }
 
+export function renderLifecycleBanner(stage: LifecycleStage, message: string): string {
+  const config = getStageConfig(stage);
+  const stageColor = getStageColor(stage);
+
+  return `
+    <div class="analyser-stage-banner" data-testid="analyser-stage-banner">
+      <div class="stage-banner-icon" style="background-color: ${stageColor}">
+        <i class="ph ${config.icon}"></i>
+      </div>
+      <div class="stage-banner-content">
+        <div class="stage-banner-label">${escapeHtml(config.label)}</div>
+        <div class="stage-banner-message">${escapeHtml(message)}</div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderLifecycleRail(dataset: CurrentDataset | null): string {
   if (!dataset) {
     return '<div class="lifecycle-rail lifecycle-rail-empty">No dataset loaded</div>';

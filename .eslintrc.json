@@ -78,5 +78,16 @@
     "docs/typescript/",
     "*.config.ts",
     "*.d.ts"
+  ],
+  "overrides": [
+    {
+      "files": ["e2e/**/*.ts"],
+      "rules": {
+        "@typescript-eslint/no-unused-vars": "error",
+        "@typescript-eslint/no-explicit-any": "error",
+        "@typescript-eslint/no-floating-promises": "error",
+        "no-console": "off"
+      }
+    }
   ]
 }

@@ -82,6 +82,8 @@ export class AnalyserComponent extends Component {
       `;
     }
 
+    // Note: lifecycle rail rendering is handled by LifecycleRailComponent in main.ts
+
     const targetContentContainer = document.getElementById('analyser-content-container')!;
 
     // Generate content based on stage

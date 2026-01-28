@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from 'vite';
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
@@ -10,28 +10,28 @@ export default defineConfig(async () => ({
   server: {
     port: 14206,
     strictPort: true,
-    host: "localhost",
+    host: '127.0.0.1',
     hmr: {
-      protocol: "ws",
-      host: "localhost",
+      protocol: 'ws',
+      host: '127.0.0.1',
       port: 14207,
     },
     watch: {
       // 3. tell vite to ignore watching `src` (Rust backend)
       ignored: [
-        "**/src/**",
-        "**/target/**",
-        "**/node_modules/**",
-        "**/.git/**",
-        "**/data/**",
-        "**/gen/**",
-        "**/permissions/**",
-        "**/scripts/**",
-        "**/*.log",
-        "**/*.csv",
-        "**/*.parquet",
-        "**/*.json",
-        "**/*.py",
+        '**/src/**',
+        '**/target/**',
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/data/**',
+        '**/gen/**',
+        '**/permissions/**',
+        '**/scripts/**',
+        '**/*.log',
+        '**/*.csv',
+        '**/*.parquet',
+        '**/*.json',
+        '**/*.py',
       ],
       // Reduce polling frequency to avoid excessive reloads
       interval: 1000,
@@ -51,9 +51,9 @@ export default defineConfig(async () => ({
           // Monaco Editor is large (~5.6 MB), split into separate chunk
           'monaco-editor': ['monaco-editor'],
           // Chart.js is moderate (~2 MB), split into separate chunk
-          'chart': ['chart.js'],
+          chart: ['chart.js'],
           // Tauri APIs are frequently used, keep together
-          'tauri': ['@tauri-apps/api', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-shell'],
+          tauri: ['@tauri-apps/api', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-shell'],
         },
       },
     },

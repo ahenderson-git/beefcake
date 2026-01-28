@@ -388,12 +388,15 @@ describe('PythonComponent', () => {
       });
 
       vi.mocked(api.getVersionSchema).mockRejectedValue(new Error('API Error'));
+      // Suppress expected error log from the component to keep test output clean
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       component.render(state);
       await new Promise(resolve => setTimeout(resolve, 50));
 
       // Should not crash on error
       expect(container.innerHTML).toBeTruthy();
+      errorSpy.mockRestore();
     });
     /* eslint-enable @typescript-eslint/no-unsafe-assignment */
   });

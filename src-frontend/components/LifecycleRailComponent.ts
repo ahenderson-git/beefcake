@@ -17,8 +17,21 @@ export class LifecycleRailComponent extends Component {
       return;
     }
 
-    railContainer.innerHTML = renderers.renderLifecycleRail(state.currentDataset);
-    this.bindEvents(state);
+    // Render stage indicator: full rail with dataset, or compact banner without
+    if (state.currentDataset) {
+      // Full lifecycle rail when dataset exists
+      railContainer.innerHTML = renderers.renderLifecycleRail(state.currentDataset);
+      this.bindEvents(state);
+    } else if (state.analysisResponse) {
+      // Compact banner for ad-hoc analysis (no dataset)
+      const bannerStage: LifecycleStage = 'Profiled';
+      const bannerMessage = 'Ad-hoc file analysis • Not version-controlled';
+      railContainer.innerHTML = renderers.renderLifecycleBanner(bannerStage, bannerMessage);
+      // No events to bind for banner
+    } else {
+      // No analysis yet - empty placeholder
+      railContainer.innerHTML = renderers.renderLifecycleRail(null);
+    }
   }
 
   override bindEvents(state: AppState): void {
