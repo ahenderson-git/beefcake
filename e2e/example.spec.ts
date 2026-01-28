@@ -1,7 +1,13 @@
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
 import { test, expect } from '@playwright/test';
 
-import { getStandardMocks } from './helpers/common-mocks';
+import { getStandardMocks, mockAnalysisResponse } from './helpers/common-mocks';
 import { setupTauriMock } from './helpers/tauri-mock';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Example E2E test for Beefcake GUI
@@ -575,13 +581,26 @@ test.describe('Sidebar Navigation', () => {
 });
 
 test.describe('Pipeline Editor (P1 Workflows)', () => {
-  test.skip('should have pipeline UI ready for testing', async ({ page }) => {
+  test('should have pipeline UI ready for testing', async ({ page }) => {
+    await setupTauriMock(page, {
+      commands: getStandardMocks(),
+    });
+
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
-    // Pipeline functionality will be tested once navigation and file loading implemented
-    await expect(page).toHaveTitle(/beefcake/i);
+    // Navigate to Pipeline view using the nav button
+    await page.getByTestId('nav-pipeline').click();
+
+    // Verify pipeline container renders (either library or editor view)
+    const pipelineContainer = page.locator(
+      '#pipeline-library-container, #pipeline-editor-container'
+    );
+    await expect(pipelineContainer).toBeVisible({ timeout: 5000 });
   });
 
+  // SKIPPED: Requires pipeline validation infrastructure (P1 feature work).
+  // Pipeline validation testing needs backend mocks for validation rules and
+  // error scenarios, which are part of the pipeline feature development.
   test.skip('should support pipeline validation', async ({ page }) => {
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
@@ -589,6 +608,9 @@ test.describe('Pipeline Editor (P1 Workflows)', () => {
     await expect(page).toHaveTitle(/beefcake/i);
   });
 
+  // SKIPPED: Requires pipeline execution infrastructure (P1 feature work).
+  // Pipeline execution testing needs PipelineExecutor mocks and runtime state
+  // management, which are part of the pipeline feature development.
   test.skip('should support pipeline execution', async ({ page }) => {
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
@@ -597,18 +619,82 @@ test.describe('Pipeline Editor (P1 Workflows)', () => {
   });
 });
 
-test.describe('Error Handling', () => {
-  test.skip('should have loading state UI ready', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+test.describe('Error Handling - Loading & Abort', () => {
+  // SKIPPED: Async function mocks with setTimeout don't properly delay Tauri IPC
+  // responses. The loading overlay never appears because operations complete instantly.
+  // This requires enhancements to the tauri-mock helper to support real async delays.
+  test.skip('should show loading state during long operations', async ({ page }) => {
+    // Setup mock with async function that delays to show loading state
+    await setupTauriMock(page, {
+      commands: {
+        ...getStandardMocks(),
+        analyze_file: async () => {
+          // Delay for 1.5 seconds to allow loading state to be visible
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          return { type: 'success', data: mockAnalysisResponse };
+        },
+      },
+      fileDialog: {
+        openFile: path.resolve(__dirname, 'testdata/clean.csv'),
+      },
+    });
 
-    // Loading state test IDs (loading-spinner, loading-message, btn-abort-op) are ready
-    await expect(page).toHaveTitle(/beefcake/i);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('dashboard-view')).toBeVisible();
+
+    // Trigger file load
+    await page.getByTestId('dashboard-open-file-button').click();
+
+    // Verify loading state appears
+    await expect(page.getByTestId('loading-overlay')).toBeVisible({ timeout: 1000 });
+    await expect(page.getByTestId('loading-spinner')).toBeVisible();
+    await expect(page.getByTestId('loading-message')).toBeVisible();
+    await expect(page.getByTestId('btn-abort-op')).toBeVisible();
+
+    // Wait for operation to complete
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 5000 });
   });
 
-  test.skip('should have abort functionality ready', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+  // SKIPPED: Same as above - async mocks don't support real delays.
+  test.skip('should display abort button during loading', async ({ page }) => {
+    // Setup mock with async function that delays
+    await setupTauriMock(page, {
+      commands: {
+        ...getStandardMocks(),
+        analyze_file: async () => {
+          // Delay for 2 seconds
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return { type: 'success', data: mockAnalysisResponse };
+        },
+        abort_processing: {
+          type: 'success',
+          data: null,
+        },
+      },
+      fileDialog: {
+        openFile: path.resolve(__dirname, 'testdata/clean.csv'),
+      },
+    });
 
-    // Abort button test IDs are ready for implementation
-    await expect(page).toHaveTitle(/beefcake/i);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('dashboard-view')).toBeVisible();
+
+    // Trigger file load
+    await page.getByTestId('dashboard-open-file-button').click();
+
+    // Wait for loading state
+    await expect(page.getByTestId('loading-overlay')).toBeVisible();
+
+    // Verify abort button is present and functional
+    const abortButton = page.getByTestId('btn-abort-op');
+    await expect(abortButton).toBeVisible();
+    await expect(abortButton).toBeEnabled();
+
+    // Click abort button
+    await abortButton.click();
+
+    // After click, button should show "Aborting..." or be replaced
+    // The mock will complete anyway, but we verified the button works
+    await expect(page.getByTestId('loading-overlay')).toContainText(/Aborting/i, { timeout: 1000 });
   });
 });

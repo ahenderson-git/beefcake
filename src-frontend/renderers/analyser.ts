@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment */
 import { AnalysisResponse, ColumnCleanConfig, LifecycleStage } from '../types';
 
 import {
+  type FilterState,
   renderAnalyserHeader,
   renderPublishedView,
   renderAnalyserRow,
@@ -9,6 +11,9 @@ import {
   renderEmptyAnalyser,
   renderValidatedSummary,
   renderStageProgressBar,
+  renderFilterToolbar,
+  renderInsightsPanel,
+  createDefaultFilterState,
 } from './analyser/index';
 
 export {
@@ -20,6 +25,10 @@ export {
   renderAnalyserRow,
   renderSchemaSidebar,
   renderStageProgressBar,
+  renderFilterToolbar,
+  renderInsightsPanel,
+  createDefaultFilterState,
+  type FilterState,
 };
 
 export function renderAnalyser(
@@ -49,6 +58,9 @@ export function renderAnalyser(
   // Find problematic columns
   const issues = (response.summary || []).filter(col => (col.nulls / col.count) * 100 > 10);
 
+  // Create default filter state (will be managed by component)
+  const filterState = createDefaultFilterState();
+
   return `
     <div class="analyser-container" data-testid="analyser-view">
       ${renderAnalyserHeader(
@@ -61,6 +73,10 @@ export function renderAnalyser(
       )}
 
       ${renderDatasetOverview(response)}
+
+      ${!isReadOnly ? renderInsightsPanel(response) : ''}
+
+      ${renderFilterToolbar(response, filterState)}
 
       ${
         issues.length > 0

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url';
 
 import { test, expect } from '@playwright/test';
 
-import { getStandardMocks, getFileAnalysisMocks, getLifecycleMocks } from './helpers/common-mocks';
+import { getFileAnalysisMocks, getLifecycleMocks } from './helpers/common-mocks';
 import { setupTauriMock } from './helpers/tauri-mock';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -76,27 +76,86 @@ test.describe('Full Workflow - File Analysis', () => {
 
     // Verify file metadata is displayed - use getByTestId for specific elements
     await expect(page.getByTestId('analyser-file-name')).toContainText('customer_data.csv');
-    await expect(page.locator('text=10 rows')).toBeVisible();
-    await expect(page.locator('text=10 columns')).toBeVisible();
+    await expect(page.getByTestId('analyser-row-count')).toContainText('10 rows');
+    await expect(page.getByTestId('analyser-column-count')).toContainText('10 columns');
   });
 });
 
 test.describe('Full Workflow - Export Modal', () => {
   test.beforeEach(async ({ page }) => {
     await setupTauriMock(page, {
-      commands: getStandardMocks(),
+      commands: {
+        ...getFileAnalysisMocks(),
+        ...getLifecycleMocks(),
+      },
+      fileDialog: {
+        openFile: path.resolve(__dirname, 'testdata/clean.csv'),
+      },
     });
   });
 
-  test('should have export modal structure in codebase', async ({ page }) => {
+  test('should open export modal after file analysis', async ({ page }) => {
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
-    // Verify dashboard loads
-    await expect(page.getByTestId('dashboard-view')).toBeVisible({ timeout: 5000 });
+    // Load a file first
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
 
-    // Note: Export modal is only visible after loading a dataset and clicking export
-    // This test verifies the app structure is in place
-    // Full export workflow requires file loading which has separate issues
+    // Click export button
+    await page.getByTestId('analyser-export-button').click();
+
+    // Verify export modal opens
+    await expect(page.getByTestId('export-modal-overlay')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('export-modal')).toBeVisible();
+
+    // Verify modal header
+    await expect(page.getByTestId('export-modal').locator('h3')).toContainText('Export Data');
+  });
+
+  test('should allow selecting export destination', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+
+    // Load a file first
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
+
+    // Open export modal
+    await page.getByTestId('analyser-export-button').click();
+    await expect(page.getByTestId('export-modal')).toBeVisible({ timeout: 5000 });
+
+    // Verify File destination is active by default
+    await expect(page.getByTestId('export-dest-file')).toHaveClass(/active/);
+
+    // Click Database destination
+    await page.getByTestId('export-dest-database').click();
+
+    // Verify Database destination becomes active
+    await expect(page.getByTestId('export-dest-database')).toHaveClass(/active/);
+    await expect(page.getByTestId('export-dest-file')).not.toHaveClass(/active/);
+
+    // Verify database config appears
+    await expect(page.getByTestId('export-db-connection-select')).toBeVisible();
+  });
+
+  test('should have file export UI elements visible', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+
+    // Load a file
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
+
+    // Open export modal
+    await page.getByTestId('analyser-export-button').click();
+    await expect(page.getByTestId('export-modal')).toBeVisible({ timeout: 5000 });
+
+    // Verify File destination is selected
+    await expect(page.getByTestId('export-dest-file')).toHaveClass(/active/);
+
+    // Verify file export UI elements
+    await expect(page.getByTestId('export-file-path-input')).toBeVisible();
+    await expect(page.getByTestId('export-file-browse-button')).toBeVisible();
+    await expect(page.getByTestId('export-confirm-button')).toBeVisible();
+    await expect(page.getByTestId('export-cancel-button')).toBeVisible();
   });
 });
 
@@ -139,9 +198,9 @@ test.describe('Full Workflow - Data Quality', () => {
 
     // After file load, should see:
     // - Row count (10 rows from mockAnalysisResponse)
-    await expect(page.locator('text=10 rows')).toBeVisible();
+    await expect(page.getByTestId('analyser-row-count')).toContainText('10 rows');
     // - Column count (10 columns from mockAnalysisResponse)
-    await expect(page.locator('text=10 columns')).toBeVisible();
+    await expect(page.getByTestId('analyser-column-count')).toContainText('10 columns');
     // - Column names from mock data (use .first() to avoid strict mode violation)
     await expect(page.locator('text=customer_id').first()).toBeVisible();
     await expect(page.locator('text=customer_name').first()).toBeVisible();
@@ -189,24 +248,65 @@ test.describe('Full Workflow - Column Expansion', () => {
 });
 
 test.describe('Full Workflow - Cleaning Configuration', () => {
-  test.skip('should allow enabling cleaning for a column', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-
-    // After file load and column expansion:
-    // 1. Check "Enable Cleaning" checkbox
-    // 2. Select cleaning options (impute, normalize, etc.)
-    // 3. Apply cleaning
-
-    await expect(page).toHaveTitle(/beefcake/i);
+  test.beforeEach(async ({ page }) => {
+    await setupTauriMock(page, {
+      commands: {
+        ...getFileAnalysisMocks(),
+        ...getLifecycleMocks(),
+      },
+      fileDialog: {
+        openFile: path.resolve(__dirname, 'testdata/clean.csv'),
+      },
+    });
   });
 
-  test.skip('should support bulk cleaning operations', async ({ page }) => {
+  test('should show column details in read-only mode during ad-hoc analysis', async ({ page }) => {
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
-    // Test "Clean All" checkbox functionality
-    // Should enable/disable cleaning for all columns at once
+    // Load a file for ad-hoc analysis (no dataset)
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
 
-    await expect(page).toHaveTitle(/beefcake/i);
+    // Verify we're in Profiled stage (read-only for ad-hoc analysis)
+    const progressBar = page.getByTestId('analyser-progress-bar');
+    await expect(progressBar.locator('[data-stage="Profiled"]')).toHaveClass(/stage-current/);
+
+    // Expand first column to view details
+    const firstColumnRow = page.getByTestId('analyser-column-row').first();
+    await firstColumnRow.click();
+    await expect(firstColumnRow).toHaveClass(/expanded/);
+
+    // In read-only mode, cleaning config section should NOT be visible
+    await expect(firstColumnRow.locator('.details-config')).not.toBeVisible();
+
+    // But statistics should still be visible for inspection
+    await expect(firstColumnRow.locator('.details-stats')).toBeVisible();
+
+    // Verify checkboxes are disabled in read-only mode
+    const checkbox = firstColumnRow.locator('.col-checkbox');
+    await expect(checkbox).toBeDisabled();
+  });
+
+  test('should hide editing controls in read-only mode', async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+
+    // Load a file for ad-hoc analysis (no dataset)
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
+
+    // Verify we're in Profiled stage (read-only)
+    const progressBar = page.getByTestId('analyser-progress-bar');
+    await expect(progressBar.locator('[data-stage="Profiled"]')).toHaveClass(/stage-current/);
+
+    // Bulk editing controls like "Clean All" should NOT be visible in read-only mode
+    await expect(page.locator('#btn-clean-all')).not.toBeVisible();
+
+    // But export button should still be available
+    await expect(page.getByTestId('analyser-export-button')).toBeVisible();
+
+    // Column selection checkboxes should be disabled
+    const firstCheckbox = page.getByTestId('analyser-column-checkbox').first();
+    await expect(firstCheckbox).toBeDisabled();
   });
 });
 
@@ -242,114 +342,103 @@ test.describe('Full Workflow - Lifecycle Stages', () => {
     await expect(stageBanner).toContainText('Creating dataset versions');
   });
 
-  test.skip('should transition from Profiled to Cleaned stage', async ({ page }) => {
+  test('should show lifecycle progress bar after file analysis', async ({ page }) => {
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
-    // After file load (creates Raw + Profiled):
-    // 1. Click "Begin Cleaning" button
-    // 2. Verify lifecycle rail shows Cleaned as active
-    // 3. Verify cleaning UI becomes available
+    // Load a file
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
 
-    await expect(page).toHaveTitle(/beefcake/i);
+    // Verify progress bar is visible
+    await expect(page.getByTestId('analyser-progress-bar')).toBeVisible();
+
+    // Verify at least Raw and Profiled stages are shown
+    const progressBar = page.getByTestId('analyser-progress-bar');
+    await expect(progressBar.locator('[data-stage="Raw"]')).toBeVisible();
+    await expect(progressBar.locator('[data-stage="Profiled"]')).toBeVisible();
+
+    // Verify Profiled stage has current styling
+    await expect(progressBar.locator('[data-stage="Profiled"]')).toHaveClass(/stage-current/);
   });
 
-  test.skip('should transition through all lifecycle stages', async ({ page }) => {
+  test('should display all lifecycle stages in progress bar', async ({ page }) => {
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
-    // Test full lifecycle progression:
-    // Raw → Profiled → Cleaned → Advanced → Validated → Published
+    // Load a file
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
 
-    await expect(page).toHaveTitle(/beefcake/i);
-  });
-});
+    // Verify all 6 lifecycle stages are present
+    const progressBar = page.getByTestId('analyser-progress-bar');
+    const stages = ['Raw', 'Profiled', 'Cleaned', 'Advanced', 'Validated', 'Published'];
 
-test.describe('Full Workflow - Export', () => {
-  test.skip('should open export modal', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+    for (const stage of stages) {
+      await expect(progressBar.locator(`[data-stage="${stage}"]`)).toBeVisible();
+    }
 
-    // After file is loaded and processed:
-    // 1. Click Export button
-    // 2. Verify export modal opens
-    // 3. Verify destination options are visible
-
-    await expect(page).toHaveTitle(/beefcake/i);
-  });
-
-  test.skip('should allow selecting export destination', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-
-    // Test export destination selection:
-    // 1. Open export modal
-    // 2. Click "Local File" or "Database"
-    // 3. Verify appropriate config UI appears
-
-    await expect(page).toHaveTitle(/beefcake/i);
-  });
-
-  test.skip('should support file export workflow', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-
-    // Complete file export flow:
-    // 1. Open export modal
-    // 2. Select "Local File"
-    // 3. Choose file path
-    // 4. Click "Start Export"
-    // 5. Verify success toast
-
-    await expect(page).toHaveTitle(/beefcake/i);
+    // Verify locked stages have lock icon
+    await expect(progressBar.locator('[data-stage="Cleaned"].stage-locked')).toBeVisible();
+    await expect(progressBar.locator('[data-stage="Advanced"].stage-locked')).toBeVisible();
   });
 });
 
-test.describe('Full Workflow - Error Handling', () => {
-  test.skip('should show loading state during analysis', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+// Export tests moved to "Full Workflow - Export Modal" section above
 
-    // During long operations:
-    // 1. Loading spinner should appear
-    // 2. Loading message should be visible
-    // 3. Abort button should be available
-
-    await expect(page).toHaveTitle(/beefcake/i);
-  });
-
-  test.skip('should allow aborting long operations', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-
-    // Test abort functionality:
-    // 1. Trigger long operation
-    // 2. Click abort button
-    // 3. Verify operation stops
-    // 4. Verify UI returns to stable state
-
-    await expect(page).toHaveTitle(/beefcake/i);
-  });
-
-  test.skip('should show error toast on failure', async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-
-    // Test error handling:
-    // 1. Trigger an error (invalid file, etc.)
-    // 2. Verify error toast appears
-    // 3. Verify app remains stable
-
-    await expect(page).toHaveTitle(/beefcake/i);
-  });
-});
+// Note: Error handling tests (loading, abort, error toasts) are comprehensively
+// covered in error-handling.spec.ts and are not duplicated here.
 
 test.describe('Full Workflow - Integration Test', () => {
-  test.skip('should complete full analysis workflow end-to-end', async ({ page }) => {
+  test('should complete full analysis workflow end-to-end', async ({ page }) => {
+    // Setup comprehensive mocks
+    await setupTauriMock(page, {
+      commands: {
+        ...getFileAnalysisMocks(),
+        ...getLifecycleMocks(),
+      },
+      fileDialog: {
+        openFile: path.resolve(__dirname, 'testdata/clean.csv'),
+      },
+    });
+
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
-    // This test would cover the complete happy path:
-    // 1. Open file
-    // 2. Verify analysis results
-    // 3. Configure cleaning
-    // 4. Transition through lifecycle stages
-    // 5. Export data
-    // 6. Verify success
+    // 1. Open file from dashboard
+    await expect(page.getByTestId('dashboard-view')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('dashboard-open-file-button').click();
 
-    // For now, just verify app loads
-    await expect(page).toHaveTitle(/beefcake/i);
-    await expect(page.getByTestId('dashboard-view')).toBeVisible();
+    // 2. Verify analysis results
+    await expect(page.locator('.analyser-container')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('analyser-row-count')).toContainText('10 rows');
+    await expect(page.getByTestId('analyser-column-count')).toContainText('10 columns');
+    await expect(page.getByTestId('analyser-quality-score')).toBeVisible();
+
+    // 3. Verify we're in Profiled stage (read-only for ad-hoc analysis)
+    const progressBar = page.getByTestId('analyser-progress-bar');
+    await expect(progressBar).toBeVisible();
+    await expect(progressBar.locator('[data-stage="Profiled"]')).toHaveClass(/stage-current/);
+
+    // 4. Expand column to view statistics (read-only)
+    const firstRow = page.getByTestId('analyser-column-row').first();
+    await firstRow.click();
+    await expect(firstRow).toHaveClass(/expanded/);
+
+    // In read-only mode, config controls should not be visible
+    await expect(firstRow.locator('.details-config')).not.toBeVisible();
+
+    // But statistics should be visible
+    await expect(firstRow.locator('.details-stats')).toBeVisible();
+
+    // 5. Open export modal
+    await page.getByTestId('analyser-export-button').click();
+    await expect(page.getByTestId('export-modal')).toBeVisible();
+
+    // 6. Verify export destinations work
+    await expect(page.getByTestId('export-dest-file')).toHaveClass(/active/);
+    await page.getByTestId('export-dest-database').click();
+    await expect(page.getByTestId('export-dest-database')).toHaveClass(/active/);
+
+    // Close modal and verify app remains stable
+    await page.getByTestId('export-modal-close').click();
+    await expect(page.locator('.analyser-container')).toBeVisible();
   });
 });
