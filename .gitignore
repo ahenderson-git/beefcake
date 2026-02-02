@@ -54,8 +54,10 @@ _ul-ANTHONY-PC*
 # IDE folders
 .idea/
 
+# Node.js dependencies
+node_modules/
+
 # Vite/Vitest caches and build artifacts
-node_modules/.vite/
 *.results.json
 
 # E2E test data
