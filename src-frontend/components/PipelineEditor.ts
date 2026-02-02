@@ -147,6 +147,9 @@ export class PipelineEditor {
                     <div class="editor-actions">
                         ${this.state.isDirty ? '<span class="unsaved-indicator">●</span>' : ''}
                         <button id="editor-execute-btn" class="btn-secondary" ${this.state.spec.steps.length === 0 ? 'disabled' : ''}>▶ Execute</button>
+                        <button id="editor-export-ps-btn" class="btn-secondary" ${this.state.spec.steps.length === 0 ? 'disabled' : ''} title="Export as PowerShell script">
+                            <i class="ph ph-file-code"></i> Export PS
+                        </button>
                         <button id="editor-save-btn" class="btn-primary">Save</button>
                     </div>
                 </div>
@@ -334,6 +337,12 @@ export class PipelineEditor {
       }
     });
 
+    // Export PowerShell button
+    const exportPsBtn = this.container.querySelector('#editor-export-ps-btn');
+    exportPsBtn?.addEventListener('click', () => {
+      void this.handleExportPowerShell();
+    });
+
     // Pipeline name input
     const nameInput = this.container.querySelector<HTMLInputElement>('#pipeline-name-input');
     nameInput?.addEventListener('input', e => {
@@ -513,6 +522,50 @@ export class PipelineEditor {
       this.attachEventListeners();
       this.initializePalette();
       this.initializeConfigPanel();
+    }
+  }
+
+  /**
+   * Handle PowerShell export action
+   */
+  private async handleExportPowerShell(): Promise<void> {
+    // Basic validation
+    if (!this.state.spec.name || this.state.spec.name.trim() === '') {
+      alert('Please provide a pipeline name before exporting');
+      return;
+    }
+
+    if (this.state.spec.steps.length === 0) {
+      alert('Pipeline must have at least one step to export');
+      return;
+    }
+
+    // Prompt for save location
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    const savePath = await save({
+      title: 'Export Pipeline as PowerShell Script',
+      defaultPath: `${this.state.spec.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.ps1`,
+      filters: [
+        {
+          name: 'PowerShell Script',
+          extensions: ['ps1'],
+        },
+      ],
+    });
+
+    if (!savePath) return; // User cancelled
+
+    try {
+      // Import the generatePowerShell API function
+      const { generatePowerShell } = await import('../api-pipeline');
+
+      // Generate PowerShell script
+      await generatePowerShell(this.state.spec, savePath);
+
+      alert(`Pipeline exported successfully to:\n${savePath}`);
+    } catch (error) {
+      console.error('PowerShell export failed:', error);
+      alert(`Failed to export PowerShell script:\n${String(error)}`);
     }
   }
 

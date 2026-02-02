@@ -2,7 +2,7 @@
 
 > **Comprehensive guide to Beefcake's capabilities**
 
-*Last Updated: January 24, 2025*
+*Last Updated: February 2, 2026*
 
 ---
 
@@ -376,6 +376,7 @@ Each step has a dedicated configuration panel:
 - Environment diagnostics (check Python/Polars installation)
 - Script templates for common operations
 - Security warnings for arbitrary code execution
+- ANSI color code rendering in output
 
 **Available Libraries:**
 - Polars (required)
@@ -396,6 +397,58 @@ Each step has a dedicated configuration panel:
 - No interactive input (stdin)
 - Limited to single-threaded execution
 - No GPU support
+
+### IDE Enhancements (v0.3.0)
+
+**New in February 2026:**
+
+**Redesigned Toolbar:**
+- Grouped button layout with visual dividers
+- Primary actions highlighted (Run button with gradient)
+- Logical grouping: Run Actions | File Actions | Tools | View Controls
+- Comprehensive tooltips on all buttons
+- Better spacing and visual hierarchy
+
+**Execution Status Tracking:**
+- Real-time status bar showing:
+  - Current state (Ready, Running, Success, Error)
+  - Execution time measurement
+  - Row count for SQL results
+- Color-coded status indicators:
+  - 🔵 Blue = Ready (pulsing animation)
+  - 🟠 Orange = Running (spinning animation)
+  - 🟢 Green = Success
+  - 🔴 Red = Error
+- Performance metrics displayed after each run
+
+**Enhanced Output Panel:**
+- Improved header with icons
+- Better copy button positioning
+- Gradient backgrounds for depth
+- Status bar at bottom of output
+
+**Dark Theme Consistency:**
+- Fixed Monaco editor line numbers (now match dark theme)
+- Consistent background colors throughout
+- Improved contrast for readability
+
+**Column Sidebar Improvements:**
+- Better typography with monospace fonts
+- Data type badges with uppercase styling
+- Smooth hover effects with accent colors
+- Insert column button with transform animations
+
+**Stage Selector Polish:**
+- Gradient background highlighting
+- Improved hover states with shadows
+- Better focus indicators
+- Clearer typography and spacing
+
+**Visual Polish:**
+- Improved button hover animations
+- Smooth transitions throughout
+- Better shadow effects for depth
+- Enhanced focus states for accessibility
 
 ---
 
