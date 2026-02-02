@@ -185,6 +185,7 @@ Click any column row to see:
 1. **Load file** → Analysis completes
 2. **Switch to SQL IDE** (left sidebar → SQL)
 3. **Write query**:
+   <!-- noinspection SqlNoDataSourceInspection -->
    ```sql
    SELECT
      category,
