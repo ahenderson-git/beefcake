@@ -49,3 +49,14 @@ test_*.html
 .output.txt
 NUL
 _UL
+_ul-ANTHONY-PC*
+
+# IDE folders
+.idea/
+
+# Vite/Vitest caches and build artifacts
+node_modules/.vite/
+*.results.json
+
+# E2E test data
+e2e/testdata/

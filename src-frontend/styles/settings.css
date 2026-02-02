@@ -1,0 +1,231 @@
+/* ============================================
+   Settings View Styles
+   ============================================ */
+
+.settings-view {
+  padding: var(--spacing-large);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.settings-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: var(--spacing-large);
+  margin-bottom: var(--spacing-large);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+.settings-section h3 {
+  margin: 0 0 var(--spacing-large) 0;
+  font-size: 1.2rem;
+  color: var(--accent-color);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: var(--spacing-medium);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-description {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: var(--spacing-large);
+}
+
+.pref-item {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  align-items: center;
+  gap: var(--spacing-large);
+  padding: var(--spacing-medium) 0;
+  border-bottom: 1px solid rgba(0,0,0,0.03);
+}
+
+.pref-item:last-child {
+  border-bottom: none;
+}
+
+.pref-item label {
+  font-weight: 500;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.pref-item input[type="number"],
+.pref-item input[type="text"],
+.pref-item select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+  width: 100%;
+  max-width: 300px;
+}
+
+.pref-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-color);
+}
+
+.pref-subsection {
+  margin-top: var(--spacing-large);
+  padding-top: var(--spacing-large);
+  border-top: 1px solid var(--border-color);
+}
+
+.pref-subsection h4 {
+  margin: 0 0 var(--spacing-medium) 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color);
+}
+
+.subsection-description {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-medium);
+}
+
+/* Connections list */
+.connections-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-medium);
+}
+
+.connection-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-medium);
+  background: #fdfcfb;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.conn-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conn-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.conn-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Trusted Paths */
+.trusted-paths-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--spacing-medium);
+}
+
+.trusted-path-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f9f7f5;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.trusted-path-text {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.85rem;
+  color: #555;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: var(--spacing-medium);
+}
+
+.trusted-path-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--spacing-medium);
+}
+
+/* API Key Section */
+.api-key-input-group {
+  display: flex;
+  gap: 8px;
+  width: 300px;
+}
+
+.api-key-input-group input {
+  flex: 1;
+}
+
+.api-key-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.ai-status-message {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.empty-msg {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* Connection Form (Missing from refactor) */
+.connection-form {
+  border-top: 1px solid var(--border-color);
+  margin-top: var(--spacing-large);
+  padding-top: var(--spacing-large);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.connection-form h4 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-medium);
+  font-size: 1rem;
+  color: #555;
+}
+
+.form-actions {
+  margin-top: var(--spacing-large);
+  display: flex;
+  gap: var(--spacing-medium);
+  justify-content: flex-end;
+}
+
+/* Help icon styling */
+.help-icon {
+  cursor: help;
+  color: #888;
+  font-size: 1rem;
+  transition: color 0.2s ease;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.help-icon:hover {
+  color: var(--accent-color);
+}

@@ -1,0 +1,229 @@
+/* ============================================
+   Onboarding Flow Styles
+   ============================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content.modal-onboarding {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modal-slide-up 0.3s ease-out;
+}
+
+.modal-header {
+  padding: var(--spacing-medium) var(--spacing-large);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fdfcfb;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--text-color);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: var(--accent-color);
+}
+
+.modal-body {
+  padding: var(--spacing-large);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-description {
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-large);
+  line-height: 1.6;
+}
+
+.wizard-section {
+  margin-bottom: var(--spacing-large);
+  padding: var(--spacing-medium);
+  background-color: #f9f7f5;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.wizard-section h4 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-medium);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color);
+}
+
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.folder-item {
+  display: flex;
+  gap: 4px;
+}
+
+.folder-item .btn-small {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  flex: 1;
+}
+
+.folder-item .btn-copy-path {
+  flex: 0 0 36px;
+  padding: 0;
+}
+
+.folder-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.folder-path-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wizard-subtext {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.wizard-workspace-path {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--accent-color);
+  font-weight: 500;
+  background: rgba(var(--accent-rgb), 0.05);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: var(--spacing-large);
+  padding-top: var(--spacing-medium);
+  border-top: 1px solid var(--border-color);
+}
+
+.onboarding-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background-color: var(--bg-color);
+  padding: var(--spacing-large);
+}
+
+.onboarding-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+  padding: 40px;
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+}
+
+.onboarding-logo {
+  font-size: 4rem;
+  color: var(--accent-color);
+  margin-bottom: var(--spacing-large);
+}
+
+.onboarding-card h2 {
+  font-size: 2rem;
+  margin-bottom: var(--spacing-small);
+  color: var(--text-color);
+}
+
+.onboarding-card p {
+  color: var(--text-secondary);
+  margin-bottom: 30px;
+  line-height: 1.6;
+}
+
+.onboarding-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-medium);
+  text-align: left;
+}
+
+.onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: var(--spacing-medium);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.onboarding-step:hover {
+  border-color: var(--accent-color);
+  background: rgba(var(--accent-rgb), 0.05);
+}
+
+.step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.onboarding-step.active .step-num {
+  background: var(--accent-color);
+  color: white;
+}

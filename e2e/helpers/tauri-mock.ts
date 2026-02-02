@@ -55,14 +55,15 @@ export async function setupTauriMock(page: Page, options: TauriMockOptions = {})
     }
 
     // Mock the invoke function (used by @tauri-apps/api/core)
-    (window as any).__TAURI_INTERNALS__.invoke = async (cmd: string, args: any) => {
+    (window as any).__TAURI_INTERNALS__.invoke = async (cmd: string, args: unknown) => {
       // Don't log successful commands to avoid infinite loops with console logging overrides
       // Only log warnings for missing mocks
 
       // Handle dialog plugin commands
       if (cmd === 'plugin:dialog|open') {
+        const dialogArgs = args as { directory?: boolean } | undefined;
         // Handle directory picker
-        if (args?.directory && fileDialogMocks.directory !== undefined) {
+        if (dialogArgs?.directory && fileDialogMocks.directory !== undefined) {
           return fileDialogMocks.directory;
         }
 
@@ -110,7 +111,7 @@ export async function setupTauriMock(page: Page, options: TauriMockOptions = {})
     }
 
     (window as any).__TAURI__.dialog = {
-      open: async (options: any) => {
+      open: async (options: Record<string, unknown>) => {
         // Silent - no logging to avoid infinite loops
 
         // Handle directory picker
@@ -125,7 +126,7 @@ export async function setupTauriMock(page: Page, options: TauriMockOptions = {})
 
         return null;
       },
-      save: async (_options: any) => {
+      save: async (_options: Record<string, unknown>) => {
         // Silent - no logging to avoid infinite loops
 
         if (fileDialogMocks.saveFile !== undefined) {
@@ -179,7 +180,7 @@ export async function mockFileDialog(
       }
 
       if (dialogType === 'directory') {
-        (window as any).__TAURI__.dialog.open = async (options: any) => {
+        (window as any).__TAURI__.dialog.open = async (options: Record<string, unknown>) => {
           if (options?.directory) {
             return path;
           }
@@ -202,7 +203,7 @@ export async function waitForCommand(page: Page, command: string, timeout = 5000
   await page.waitForFunction(
     cmd => {
       const calls = (window as any).__TAURI_COMMAND_CALLS__ || [];
-      return calls.some((call: any) => call.command === cmd);
+      return calls.some((call: { command: string }) => call.command === cmd);
     },
     command,
     { timeout }
@@ -212,7 +213,9 @@ export async function waitForCommand(page: Page, command: string, timeout = 5000
 /**
  * Get all Tauri command calls (for test assertions)
  */
-export async function getCommandCalls(page: Page): Promise<Array<{ command: string; args: any }>> {
+export async function getCommandCalls(
+  page: Page
+): Promise<Array<{ command: string; args: unknown }>> {
   return await page.evaluate(() => {
     return (window as any).__TAURI_COMMAND_CALLS__ || [];
   });

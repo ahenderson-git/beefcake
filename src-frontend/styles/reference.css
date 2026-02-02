@@ -1,0 +1,114 @@
+/* ============================================
+   Reference & Documentation Links Styles
+   ============================================ */
+
+.reference-view {
+  padding: var(--spacing-large);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.reference-header-box {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: var(--spacing-large);
+  margin-bottom: var(--spacing-large);
+}
+
+.reference-header-box h3 {
+  margin: 0 0 var(--spacing-small) 0;
+  color: var(--accent-color);
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-large);
+}
+
+.ref-section h3 {
+  margin: 0 0 var(--spacing-medium) 0;
+  font-size: 1.1rem;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: var(--spacing-small);
+}
+
+.ref-card {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: var(--spacing-medium) var(--spacing-large);
+  height: 100%;
+}
+
+.ref-card h4 {
+  margin: var(--spacing-medium) 0 var(--spacing-small) 0;
+  color: var(--accent-color);
+  font-size: 0.95rem;
+}
+
+.ref-card h4:first-child {
+  margin-top: 0;
+}
+
+.link-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-small);
+}
+
+.link-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-medium);
+  padding: var(--spacing-medium);
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+}
+
+.link-card:hover {
+  border-color: var(--accent-color);
+  background-color: #fdfcfb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.link-icon {
+  font-size: 1.5rem;
+  color: var(--accent-color);
+  background: rgba(var(--accent-rgb), 0.05);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.link-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.link-content strong {
+  font-size: 0.9rem;
+}
+
+.link-content span {
+  font-size: 0.75rem;
+  color: #888;
+}

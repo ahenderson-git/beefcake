@@ -1,0 +1,98 @@
+/* ============================================
+   Activity & Audit Log Styles
+   ============================================ */
+
+.activity-view {
+  padding: var(--spacing-large);
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-large);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: var(--spacing-medium);
+}
+
+.activity-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent-color);
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-medium);
+}
+
+.activity-entry {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: var(--spacing-medium) var(--spacing-large);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-medium);
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.activity-entry:hover {
+  transform: translateX(4px);
+  border-color: var(--accent-color);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.entry-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.05);
+  color: var(--accent-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.2rem;
+}
+
+.entry-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entry-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.entry-action {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.entry-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.entry-details {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.empty-msg {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-secondary);
+  font-style: italic;
+}

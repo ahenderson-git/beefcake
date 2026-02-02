@@ -191,6 +191,43 @@ export class SQLComponent extends Component {
     this.editor.focus();
   }
 
+  private updateStatus(
+    status: 'ready' | 'running' | 'success' | 'error',
+    message: string,
+    execTime?: number,
+    rowCount?: number
+  ): void {
+    const statusItem = document.querySelector('#sql-status-text')?.parentElement;
+    const statusText = document.getElementById('sql-status-text');
+    const execTimeItem = document.getElementById('sql-exec-time');
+    const execTimeText = document.getElementById('sql-exec-time-text');
+    const rowCountItem = document.getElementById('sql-row-count');
+    const rowCountText = document.getElementById('sql-row-count-text');
+
+    if (statusItem && statusText) {
+      statusItem.className = `status-item status-${status}`;
+      statusText.textContent = message;
+    }
+
+    if (execTimeItem && execTimeText) {
+      if (execTime !== undefined) {
+        execTimeItem.style.display = 'flex';
+        execTimeText.textContent = `${execTime.toFixed(2)}s`;
+      } else {
+        execTimeItem.style.display = 'none';
+      }
+    }
+
+    if (rowCountItem && rowCountText) {
+      if (rowCount !== undefined) {
+        rowCountItem.style.display = 'flex';
+        rowCountText.textContent = `${rowCount.toLocaleString()} rows`;
+      } else {
+        rowCountItem.style.display = 'none';
+      }
+    }
+  }
+
   private async runSql(state: AppState): Promise<void> {
     if (!this.editor) return;
     if (!(await this.ensureSecurityAcknowledged(state))) return;
@@ -202,6 +239,7 @@ export class SQLComponent extends Component {
       output.textContent =
         'Error: No dataset loaded in Beefcake Analyser.\nPlease go to Dashboard or Analyser to load a file first.';
       this.actions.showToast('No dataset loaded', 'error');
+      this.updateStatus('error', 'No dataset loaded');
       return;
     }
 
@@ -210,10 +248,14 @@ export class SQLComponent extends Component {
       output.textContent =
         'Error: Dataset path is missing from analysis response.\nTry re-loading the file in the Analyser.';
       this.actions.showToast('Dataset path missing', 'error');
+      this.updateStatus('error', 'Missing dataset path');
       return;
     }
 
     output.textContent = 'Executing query...';
+    this.updateStatus('running', 'Executing...');
+    const startTime = performance.now();
+
     try {
       // Cleaning config behavior:
       // - When dataset lifecycle is used (currentDataset exists): cleaning configs are NEVER applied
@@ -222,14 +264,25 @@ export class SQLComponent extends Component {
       // This ensures backward compatibility while supporting the new lifecycle workflow
       const useCleaningConfigs = !state.currentDataset && !state.sqlSkipCleaning;
       const configs = useCleaningConfigs ? state.cleaningConfigs : undefined;
-      output.textContent = await api.runSql(query, dataPath, configs);
+      const result = await api.runSql(query, dataPath, configs);
+      const execTime = (performance.now() - startTime) / 1000;
+
+      output.textContent = result;
+
+      // Try to extract row count from result
+      const rowMatch = result.match(/(\d+)\s+rows?\s+selected/i);
+      const rowCount = rowMatch?.[1] ? parseInt(rowMatch[1]) : undefined;
+
+      this.updateStatus('success', 'Success', execTime, rowCount);
     } catch (err) {
+      const execTime = (performance.now() - startTime) / 1000;
       let errorMsg = String(err);
       if (errorMsg.includes("ModuleNotFoundError: No module named 'polars'")) {
         errorMsg +=
           "\n\nTip: Click the 'Install Polars' button in the SQL IDE toolbar to install the required library.";
       }
       output.textContent = errorMsg;
+      this.updateStatus('error', 'Query failed', execTime);
     }
   }
 

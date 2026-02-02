@@ -276,6 +276,31 @@ export class PythonComponent extends Component {
     }
   }
 
+  private updateStatus(
+    status: 'ready' | 'running' | 'success' | 'error',
+    message: string,
+    execTime?: number
+  ): void {
+    const statusItem = document.querySelector('#py-status-text')?.parentElement;
+    const statusText = document.getElementById('py-status-text');
+    const execTimeItem = document.getElementById('py-exec-time');
+    const execTimeText = document.getElementById('py-exec-time-text');
+
+    if (statusItem && statusText) {
+      statusItem.className = `status-item status-${status}`;
+      statusText.textContent = message;
+    }
+
+    if (execTimeItem && execTimeText) {
+      if (execTime !== undefined) {
+        execTimeItem.style.display = 'flex';
+        execTimeText.textContent = `${execTime.toFixed(2)}s`;
+      } else {
+        execTimeItem.style.display = 'none';
+      }
+    }
+  }
+
   private async runPython(state: AppState): Promise<void> {
     if (!this.editor) return;
     if (!(await this.ensureSecurityAcknowledged(state))) return;
@@ -287,6 +312,7 @@ export class PythonComponent extends Component {
       output.textContent =
         'Error: No dataset loaded in Beefcake Analyser.\nPlease go to Dashboard or Analyser to load a file first.';
       this.actions.showToast('No dataset loaded', 'error');
+      this.updateStatus('error', 'No dataset loaded');
       return;
     }
 
@@ -295,10 +321,14 @@ export class PythonComponent extends Component {
       output.textContent =
         'Error: Dataset path is missing from analysis response.\nThis might be a bug. Try re-loading the file in the Analyser.';
       this.actions.showToast('Dataset path missing', 'error');
+      this.updateStatus('error', 'Missing dataset path');
       return;
     }
 
     output.textContent = 'Running script...';
+    this.updateStatus('running', 'Running...');
+    const startTime = performance.now();
+
     try {
       // Cleaning config behavior:
       // - When dataset lifecycle is used (currentDataset exists): cleaning configs are NEVER applied
@@ -308,10 +338,14 @@ export class PythonComponent extends Component {
       const useCleaningConfigs = !state.currentDataset && !state.pythonSkipCleaning;
       const configs = useCleaningConfigs ? state.cleaningConfigs : undefined;
       const result = await api.runPython(script, dataPath, configs);
+      const execTime = (performance.now() - startTime) / 1000;
+
       // Convert ANSI escape codes to HTML for colored output
       const html = this.ansiConverter.ansi_to_html(result);
       output.innerHTML = DOMPurify.sanitize(html);
+      this.updateStatus('success', 'Success', execTime);
     } catch (err) {
+      const execTime = (performance.now() - startTime) / 1000;
       let errorMsg = String(err);
       if (errorMsg.includes("ModuleNotFoundError: No module named 'polars'")) {
         errorMsg +=
@@ -320,6 +354,7 @@ export class PythonComponent extends Component {
       // Also convert errors to HTML (they might have ANSI codes too)
       const html = this.ansiConverter.ansi_to_html(errorMsg);
       output.innerHTML = DOMPurify.sanitize(html);
+      this.updateStatus('error', 'Script failed', execTime);
     }
   }
 
@@ -379,6 +414,10 @@ export class PythonComponent extends Component {
 
     config.security_warning_acknowledged = true;
     await api.saveAppConfig(config);
+    // Update the state reference so subsequent checks see the updated value
+    if (state.config) {
+      state.config.security_warning_acknowledged = true;
+    }
     this.actions.showToast('Security warning acknowledged', 'info');
     return true;
   }

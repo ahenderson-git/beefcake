@@ -1,6 +1,6 @@
 [package]
 name = "beefcake"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["Anthony Henderson <anthony.s.henderson@gmail.com>"]
 edition = "2024"
 
