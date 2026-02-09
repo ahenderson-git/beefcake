@@ -1,0 +1,47 @@
+{
+  "id": "v-cleaned-abc123",
+  "dataset_id": "dataset-xyz789",
+  "parent_id": "v-profiled-def456",
+  "stage": "Cleaned",
+  "pipeline": {
+    "transforms": [
+      {
+        "transform_type": "RemoveNulls",
+        "parameters": {
+          "columns": ["customer_name", "email"],
+          "strategy": "drop_rows"
+        }
+      },
+      {
+        "transform_type": "NormalizeColumn",
+        "parameters": {
+          "column": "age",
+          "method": "zscore"
+        }
+      },
+      {
+        "transform_type": "OneHotEncode",
+        "parameters": {
+          "column": "loyalty_tier"
+        }
+      }
+    ]
+  },
+  "data_location": {
+    "ParquetFile": "C:\\Users\\test\\beefcake\\datasets\\cleaned-abc123.parquet"
+  },
+  "metadata": {
+    "description": "Customer data with nulls removed and features normalized",
+    "tags": ["customer", "cleaned", "production-ready"],
+    "row_count": 995,
+    "column_count": 13,
+    "file_size_bytes": 52480,
+    "created_by": "analyst@example.com",
+    "custom_fields": {
+      "project_code": "CUST-2025-Q1",
+      "quality_score": 0.92,
+      "reviewer": "data-science-team"
+    }
+  },
+  "created_at": "2025-01-27T10:30:00Z"
+}

@@ -1,0 +1,26 @@
+{
+  "settings": {
+    "connections": [],
+    "active_import_id": null,
+    "active_export_id": null,
+    "powershell_font_size": 14,
+    "python_font_size": 14,
+    "sql_font_size": 14,
+    "first_run_completed": false,
+    "trusted_paths": [],
+    "preview_row_limit": 100,
+    "security_warning_acknowledged": false,
+    "skip_full_row_count": false,
+    "analysis_sample_size": 10000,
+    "sampling_strategy": "balanced",
+    "ai_config": {
+      "enabled": true,
+      "model": "gpt-4o",
+      "temperature": 0.7,
+      "max_tokens": 2000
+    }
+  },
+  "audit_log": {
+    "entries": []
+  }
+}

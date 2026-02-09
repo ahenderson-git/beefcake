@@ -1,0 +1,144 @@
+{
+  "file_name": "customer_data.csv",
+  "path": "C:\\Users\\test\\data\\customer_data.csv",
+  "file_size": 1024,
+  "row_count": 10,
+  "total_row_count": 10,
+  "column_count": 10,
+  "analysis_duration": {
+    "secs": 0,
+    "nanos": 150000000
+  },
+  "health": {
+    "score": 0.85,
+    "risks": ["Some columns have missing values"],
+    "notes": []
+  },
+  "correlation_matrix": null,
+  "summary": [
+    {
+      "name": "customer_id",
+      "standardized_name": "customer_id",
+      "kind": "Numeric",
+      "count": 10,
+      "nulls": 0,
+      "stats": {
+        "Numeric": {
+          "mean": 5.5,
+          "median": 5.5,
+          "min": 1.0,
+          "max": 10.0,
+          "std_dev": 3.03,
+          "q1": 3.0,
+          "q3": 8.0,
+          "p05": 1.5,
+          "p95": 9.5,
+          "trimmed_mean": 5.5,
+          "skew": 0.0,
+          "distinct_count": 10,
+          "zero_count": 0,
+          "negative_count": 0,
+          "is_integer": true,
+          "is_sorted": true,
+          "is_sorted_rev": false,
+          "bin_width": 1.0,
+          "histogram": [
+            [1.5, 1],
+            [2.5, 1],
+            [3.5, 1]
+          ]
+        }
+      },
+      "interpretation": ["Unique identifier column"],
+      "ml_advice": ["Use as primary key"],
+      "business_summary": ["Unique identifier column"],
+      "samples": ["1", "2", "3", "4", "5"]
+    },
+    {
+      "name": "customer_name",
+      "standardized_name": "customer_name",
+      "kind": "Text",
+      "count": 10,
+      "nulls": 0,
+      "stats": {
+        "Text": {
+          "min_length": 8,
+          "max_length": 15,
+          "avg_length": 11.5,
+          "distinct_count": 10,
+          "top_value": ["John Smith", 1]
+        }
+      },
+      "interpretation": ["Name field"],
+      "ml_advice": ["Consider text vectorization"],
+      "business_summary": ["Text column with names"],
+      "samples": ["John Smith", "Jane Doe", "Bob Johnson"]
+    },
+    {
+      "name": "is_active",
+      "standardized_name": "is_active",
+      "kind": "Boolean",
+      "count": 10,
+      "nulls": 0,
+      "stats": {
+        "Boolean": {
+          "true_count": 8,
+          "false_count": 2
+        }
+      },
+      "interpretation": ["Boolean flag"],
+      "ml_advice": ["Binary feature"],
+      "business_summary": ["Active status indicator"],
+      "samples": ["true", "false"]
+    },
+    {
+      "name": "loyalty_tier",
+      "standardized_name": "loyalty_tier",
+      "kind": "Categorical",
+      "count": 10,
+      "nulls": 0,
+      "stats": {
+        "Categorical": {
+          "distinct_count": 4,
+          "top_values": [
+            ["Gold", 3],
+            ["Silver", 3],
+            ["Platinum", 2]
+          ]
+        }
+      },
+      "interpretation": ["Categorical feature"],
+      "ml_advice": ["Consider one-hot encoding"],
+      "business_summary": ["Customer loyalty tier"],
+      "samples": ["Gold", "Silver", "Platinum", "Bronze"]
+    },
+    {
+      "name": "order_date",
+      "standardized_name": "order_date",
+      "kind": "Temporal",
+      "count": 10,
+      "nulls": 0,
+      "stats": {
+        "Temporal": {
+          "min": "2025-01-15",
+          "max": "2025-01-25",
+          "distinct_count": 10,
+          "p05": null,
+          "p95": null,
+          "is_sorted": true,
+          "is_sorted_rev": false,
+          "bin_width": 86400,
+          "histogram": [
+            [1737892800, 3],
+            [1737979200, 4],
+            [1738065600, 3]
+          ]
+        }
+      },
+      "interpretation": ["Temporal feature"],
+      "ml_advice": ["Extract date components"],
+      "business_summary": ["Order dates"],
+      "samples": ["2025-01-15", "2025-01-16", "2025-01-17"]
+    }
+  ]
+}

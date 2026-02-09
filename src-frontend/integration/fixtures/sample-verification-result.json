@@ -1,0 +1,39 @@
+{
+  "passed": true,
+  "message": "File integrity verified successfully. Hash matches receipt.",
+  "file_path": "C:\\Users\\test\\exports\\customer_data_export.parquet",
+  "expected_hash": "sha256:a7b3c2d1e4f5g6h7i8j9k0l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5a6b7c8d9e0f1",
+  "actual_hash": "sha256:a7b3c2d1e4f5g6h7i8j9k0l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5a6b7c8d9e0f1",
+  "receipt": {
+    "receipt_version": 1,
+    "created_utc": "2025-01-27T10:45:00Z",
+    "producer": {
+      "app_name": "Beefcake",
+      "app_version": "0.2.3",
+      "platform": "Windows 11 x64"
+    },
+    "export": {
+      "filename": "customer_data_export.parquet",
+      "format": "parquet",
+      "file_size_bytes": 52480,
+      "row_count": 995,
+      "column_count": 10,
+      "schema": [
+        { "name": "customer_id", "dtype": "Int64" },
+        { "name": "customer_name", "dtype": "String" },
+        { "name": "email", "dtype": "String" },
+        { "name": "age", "dtype": "Int64" },
+        { "name": "order_date", "dtype": "Date" },
+        { "name": "total_spent", "dtype": "Float64" },
+        { "name": "loyalty_tier", "dtype": "String" },
+        { "name": "region", "dtype": "String" },
+        { "name": "signup_date", "dtype": "Date" },
+        { "name": "is_active", "dtype": "Boolean" }
+      ]
+    },
+    "integrity": {
+      "hash_algorithm": "SHA256",
+      "hash": "a7b3c2d1e4f5g6h7i8j9k0l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5a6b7c8d9e0f1"
+    }
+  }
+}
