@@ -79,6 +79,7 @@ import {
   getDefaultAppConfig,
   DatasetVersion,
 } from './types';
+import { createLogger } from './utils/logger';
 
 /**
  * Main application controller for Beefcake frontend.
@@ -113,6 +114,8 @@ import {
  * ```
  */
 class BeefcakeApp {
+  private logger = createLogger('Lifecycle');
+
   /**
    * Centralized application state.
    *
@@ -451,16 +454,16 @@ class BeefcakeApp {
 
   private async createLifecycleDatasetAsync(fileName: string, path: string): Promise<void> {
     try {
-      console.log('[Lifecycle] Creating dataset:', { fileName, path });
+      this.logger.info('Creating dataset:', { fileName, path });
       const datasetId = await api.createDataset(fileName, path);
-      console.log('[Lifecycle] Dataset created with ID:', datasetId);
+      this.logger.info('Dataset created with ID:', datasetId);
 
-      console.log('[Lifecycle] Listing versions for dataset:', datasetId);
+      this.logger.info('Listing versions for dataset:', datasetId);
       const versionsJson = await api.listVersions(datasetId);
-      console.log('[Lifecycle] Versions JSON:', versionsJson);
+      this.logger.debug('Versions JSON:', versionsJson);
 
       const versions = JSON.parse(versionsJson) as DatasetVersion[];
-      console.log('[Lifecycle] Parsed versions:', versions);
+      this.logger.info('Parsed versions:', versions);
 
       if (versions.length > 0 && versions[0]) {
         this.state.currentDataset = {
@@ -470,9 +473,9 @@ class BeefcakeApp {
           activeVersionId: versions[0].id, // Raw version
           rawVersionId: versions[0].id,
         };
-        console.log('[Lifecycle] currentDataset set:', this.state.currentDataset);
+        this.logger.info('currentDataset set:', this.state.currentDataset);
       } else {
-        console.error('[Lifecycle] No versions found in dataset');
+        this.logger.error('No versions found in dataset');
       }
 
       // Re-render to show lifecycle rail with Raw stage
@@ -481,19 +484,19 @@ class BeefcakeApp {
       // Automatically create Profiled version since we already ran analysis
       // Profiled stage just captures analysis metadata without transforming data
       try {
-        console.log('[Lifecycle] Creating Profiled version...');
+        this.logger.info('Creating Profiled version...');
         const emptyPipeline = { transforms: [] };
         const profiledVersionId = await api.applyTransforms(
           datasetId,
           JSON.stringify(emptyPipeline),
           'Profiled'
         );
-        console.log('[Lifecycle] Profiled version created:', profiledVersionId);
+        this.logger.info('Profiled version created:', profiledVersionId);
 
         // Refresh versions list
         const updatedVersionsJson = await api.listVersions(datasetId);
         const updatedVersions = JSON.parse(updatedVersionsJson) as DatasetVersion[];
-        console.log('[Lifecycle] Updated versions:', updatedVersions);
+        this.logger.info('Updated versions:', updatedVersions);
 
         // Update state with new versions
         if (this.state.currentDataset) {

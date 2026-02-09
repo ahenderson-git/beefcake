@@ -87,7 +87,7 @@ pub const HASH_ALGORITHM: &str = "SHA-256";
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use std::io::Write as _;
     use tempfile::NamedTempFile;
 
     #[test]

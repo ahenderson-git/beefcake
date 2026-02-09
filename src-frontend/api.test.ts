@@ -1,5 +1,6 @@
 // Note: This file has non-standard import order due to vi.mock() hoisting requirements
 /* eslint-disable import/order */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import type { AnalysisResponse, AppConfig, ColumnCleanConfig } from './types';
 
@@ -42,6 +43,7 @@ describe('API', () => {
 
       vi.mocked(invoke).mockResolvedValue(mockResponse);
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const result = await api.analyseFile('/path/to/file.csv');
 
       expect(invoke).toHaveBeenCalledWith('analyze_file', { path: '/path/to/file.csv' });

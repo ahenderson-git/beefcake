@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import DOMPurify from 'dompurify';
 
-import { AppState } from '../types';
+import { AppState, ColumnSummary } from '../types';
 
 import { Component, ComponentActions } from './Component';
 
@@ -307,7 +307,7 @@ export class AIAssistantComponent extends Component {
       fileName: state.analysisResponse.file_name,
       rowCount: state.analysisResponse.row_count,
       columnCount: state.analysisResponse.column_count,
-      columns: (state.analysisResponse.summary || []).slice(0, 20).map(col => ({
+      columns: (state.analysisResponse.summary || []).slice(0, 20).map((col: ColumnSummary) => ({
         name: col.name,
         type: col.kind,
         nullCount: col.nulls,

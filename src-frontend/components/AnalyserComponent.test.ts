@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import * as api from '../api';
