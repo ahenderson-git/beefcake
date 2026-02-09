@@ -24,6 +24,7 @@
     "test:coverage": "vitest run --coverage --coverage.thresholds.lines=100",
     "test:e2e": "playwright test",
     "test:e2e:clean": "npm run kill-ports && playwright test",
+    "test:report": "node scripts/kill-ports.js 9323 && npx playwright show-report",
     "test:rust": "npm run clean-pdbs && cargo test",
     "test:rust:integration": "cargo test --test '*'",
     "test:all": "npm run type-check && npm run test:rust && npm test -- --run && npm run test:e2e",

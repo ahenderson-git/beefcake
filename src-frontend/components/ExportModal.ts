@@ -21,8 +21,8 @@ export class ExportModal extends Component {
   }
 
   render(state: AppState): void {
-    const activeExportId = state.config?.active_export_id;
-    const connections = state.config?.connections ?? [];
+    const activeExportId = state.config?.settings.active_export_id;
+    const connections = state.config?.settings.connections ?? [];
 
     const container = this.getContainer();
     container.innerHTML = renderers.renderExportModal(
@@ -38,8 +38,8 @@ export class ExportModal extends Component {
   }
 
   private updateConfigSection(state: AppState): void {
-    const activeExportId = state.config?.active_export_id;
-    const connections = state.config?.connections ?? [];
+    const activeExportId = state.config?.settings.active_export_id;
+    const connections = state.config?.settings.connections ?? [];
 
     const configContainer = document.getElementById('export-config-container');
     if (configContainer) {

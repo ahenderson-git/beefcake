@@ -609,6 +609,12 @@
           "markdownDescription": "Allows the load_pipeline_template command"
         },
         {
+          "description": "Allows the log_frontend_error command",
+          "type": "string",
+          "const": "allow-log-frontend-error",
+          "markdownDescription": "Allows the log_frontend_error command"
+        },
+        {
           "description": "Allows the open_path command",
           "type": "string",
           "const": "allow-open-path",

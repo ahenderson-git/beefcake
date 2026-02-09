@@ -282,9 +282,9 @@ test.describe('Full Workflow - Cleaning Configuration', () => {
     // But statistics should still be visible for inspection
     await expect(firstColumnRow.locator('.details-stats')).toBeVisible();
 
-    // Verify checkboxes are disabled in read-only mode
-    const checkbox = firstColumnRow.locator('.col-checkbox');
-    await expect(checkbox).toBeDisabled();
+    // In Profiled stage, checkboxes remain enabled to allow column deselection
+    const checkbox = page.getByTestId('analyser-column-checkbox').first();
+    await expect(checkbox).toBeEnabled();
   });
 
   test('should hide editing controls in read-only mode', async ({ page }) => {
@@ -304,9 +304,9 @@ test.describe('Full Workflow - Cleaning Configuration', () => {
     // But export button should still be available
     await expect(page.getByTestId('analyser-export-button')).toBeVisible();
 
-    // Column selection checkboxes should be disabled
+    // In Profiled stage, checkboxes remain enabled to allow column deselection
     const firstCheckbox = page.getByTestId('analyser-column-checkbox').first();
-    await expect(firstCheckbox).toBeDisabled();
+    await expect(firstCheckbox).toBeEnabled();
   });
 });
 

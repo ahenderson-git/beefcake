@@ -375,6 +375,32 @@
   color: #2ecc71;
 }
 
+/* Sidebar Actions */
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: var(--spacing-medium);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-small);
+}
+
+.btn-full-width {
+  width: 100%;
+  justify-content: center;
+}
+
+.sidebar-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.sidebar-hint.warn {
+  color: #e67e22;
+}
+
 /* Metrics Dashboard */
 .metrics-dashboard {
   display: grid;

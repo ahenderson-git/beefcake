@@ -69,19 +69,26 @@ describe('API', () => {
   describe('loadAppConfig', () => {
     test('should load configuration from backend', async () => {
       const mockConfig: AppConfig = {
-        connections: [],
-        active_import_id: null,
-        active_export_id: null,
-        powershell_font_size: 14,
-        python_font_size: 14,
-        sql_font_size: 14,
-        analysis_sample_size: 10000,
-        sampling_strategy: 'first',
-        ai_config: {
-          enabled: true,
-          model: 'gpt-4',
-          temperature: 0.7,
-          max_tokens: 1000,
+        settings: {
+          connections: [],
+          active_import_id: null,
+          active_export_id: null,
+          powershell_font_size: 14,
+          python_font_size: 14,
+          sql_font_size: 14,
+          first_run_completed: false,
+          trusted_paths: [],
+          preview_row_limit: 100,
+          security_warning_acknowledged: false,
+          skip_full_row_count: false,
+          analysis_sample_size: 10000,
+          sampling_strategy: 'first',
+          ai_config: {
+            enabled: true,
+            model: 'gpt-4',
+            temperature: 0.7,
+            max_tokens: 1000,
+          },
         },
         audit_log: {
           entries: [],
@@ -100,12 +107,27 @@ describe('API', () => {
   describe('saveAppConfig', () => {
     test('should save configuration to backend', async () => {
       const mockConfig: AppConfig = {
-        connections: [],
-        active_import_id: null,
-        active_export_id: null,
-        powershell_font_size: 12,
-        python_font_size: 12,
-        sql_font_size: 12,
+        settings: {
+          connections: [],
+          active_import_id: null,
+          active_export_id: null,
+          powershell_font_size: 12,
+          python_font_size: 12,
+          sql_font_size: 12,
+          first_run_completed: false,
+          trusted_paths: [],
+          preview_row_limit: 100,
+          security_warning_acknowledged: false,
+          skip_full_row_count: false,
+          analysis_sample_size: 10000,
+          sampling_strategy: 'balanced',
+          ai_config: {
+            enabled: true,
+            model: 'gpt-4o',
+            temperature: 0.7,
+            max_tokens: 2000,
+          },
+        },
         audit_log: {
           entries: [],
         },

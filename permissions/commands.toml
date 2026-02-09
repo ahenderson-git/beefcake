@@ -287,3 +287,8 @@ commands.allow = ["add_trusted_path"]
 identifier = "allow-remove-trusted-path"
 description = "Allows the remove_trusted_path command"
 commands.allow = ["remove_trusted_path"]
+
+[[permission]]
+identifier = "allow-log-frontend-error"
+description = "Allows the log_frontend_error command"
+commands.allow = ["log_frontend_error"]

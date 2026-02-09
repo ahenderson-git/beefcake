@@ -76,7 +76,12 @@ export function renderPowerShellView(fontSize: number): string {
       </div>
       <div id="ps-editor" class="ide-editor" style="height: 400px;" data-testid="powershell-ide-editor"></div>
       <div class="ide-output" data-testid="powershell-ide-output-panel">
-        <div class="output-header">Output</div>
+        <div class="output-header">
+          <div class="output-header-left">
+            <i class="ph ph-terminal-window"></i>
+            <span>Output</span>
+          </div>
+        </div>
         <pre id="ps-output" class="output-content" data-testid="powershell-ide-output"></pre>
       </div>
     </div>
@@ -84,7 +89,7 @@ export function renderPowerShellView(fontSize: number): string {
 }
 
 export function renderPythonView(state: AppState): string {
-  const fontSize = state.config?.python_font_size ?? 14;
+  const fontSize = state.config?.settings.python_font_size ?? 14;
   const showRefactorBtn =
     state.currentDataset && state.previousVersionId && state.selectedVersionId;
 
@@ -190,7 +195,7 @@ export function renderPythonView(state: AppState): string {
 }
 
 export function renderSQLView(state: AppState): string {
-  const fontSize = state.config?.sql_font_size ?? 14;
+  const fontSize = state.config?.settings.sql_font_size ?? 14;
   const showRefactorBtn =
     state.currentDataset && state.previousVersionId && state.selectedVersionId;
 

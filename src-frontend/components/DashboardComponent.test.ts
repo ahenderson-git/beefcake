@@ -114,7 +114,7 @@ describe('DashboardComponent', () => {
     test('should display connection count from config', () => {
       const mockState = createMockState();
       if (mockState.config) {
-        mockState.config.connections = [
+        mockState.config.settings.connections = [
           {
             id: '1',
             name: 'test-connection',

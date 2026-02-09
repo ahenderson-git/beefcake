@@ -91,7 +91,7 @@ export class SQLComponent extends Component {
         language: 'sql',
         theme: 'vs-dark',
         automaticLayout: true,
-        fontSize: state.config?.sql_font_size ?? 14,
+        fontSize: state.config?.settings.sql_font_size ?? 14,
         fontFamily: "'Fira Code', monospace",
         fontLigatures: true,
         minimap: { enabled: false },
@@ -351,14 +351,14 @@ export class SQLComponent extends Component {
 
   private async updateFontSize(state: AppState, delta: number): Promise<void> {
     if (state.config) {
-      state.config.sql_font_size = Math.max(
+      state.config.settings.sql_font_size = Math.max(
         8,
-        Math.min(32, (state.config.sql_font_size ?? 14) + delta)
+        Math.min(32, (state.config.settings.sql_font_size ?? 14) + delta)
       );
-      this.editor?.updateOptions({ fontSize: state.config.sql_font_size });
+      this.editor?.updateOptions({ fontSize: state.config.settings.sql_font_size });
 
       const label = document.getElementById('sql-font-size-label');
-      if (label) label.textContent = state.config.sql_font_size.toString();
+      if (label) label.textContent = state.config.settings.sql_font_size.toString();
 
       await api.saveAppConfig(state.config);
       this.actions.onStateChange();
@@ -371,7 +371,7 @@ export class SQLComponent extends Component {
       return false;
     }
 
-    if (state.config.security_warning_acknowledged) {
+    if (state.config.settings.security_warning_acknowledged) {
       return true;
     }
 
@@ -382,7 +382,7 @@ export class SQLComponent extends Component {
       return false;
     }
 
-    state.config.security_warning_acknowledged = true;
+    state.config.settings.security_warning_acknowledged = true;
     await api.saveAppConfig(state.config);
     this.actions.showToast('Security warning acknowledged', 'info');
     return true;

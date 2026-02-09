@@ -309,7 +309,7 @@ describe('PythonComponent', () => {
     test('should respect font size from config', async () => {
       const state = createMockState();
       if (state.config) {
-        state.config.python_font_size = 16;
+        state.config.settings.python_font_size = 16;
       }
 
       component.render(state);
@@ -322,7 +322,7 @@ describe('PythonComponent', () => {
     test('should use default font size if not configured', async () => {
       const state = createMockState();
       if (state.config) {
-        state.config.python_font_size = 14; // Default
+        state.config.settings.python_font_size = 14; // Default
       }
 
       component.render(state);

@@ -54,14 +54,14 @@ export class SettingsComponent extends Component {
 
     document.getElementById('select-import-id')?.addEventListener('change', e => {
       if (state.config) {
-        state.config.active_import_id = (e.target as HTMLSelectElement).value || null;
+        state.config.settings.active_import_id = (e.target as HTMLSelectElement).value || null;
         void api.saveAppConfig(state.config);
       }
     });
 
     document.getElementById('select-export-id')?.addEventListener('change', e => {
       if (state.config) {
-        state.config.active_export_id = (e.target as HTMLSelectElement).value || null;
+        state.config.settings.active_export_id = (e.target as HTMLSelectElement).value || null;
         void api.saveAppConfig(state.config);
       }
     });
@@ -98,7 +98,7 @@ export class SettingsComponent extends Component {
           value = Math.max(1000, Math.min(500000, value));
           (e.target as HTMLInputElement).value = value.toString();
 
-          state.config.analysis_sample_size = value;
+          state.config.settings.analysis_sample_size = value;
           void api.saveAppConfig(state.config).then(() => {
             // Add impact summary to toast
             let impactSummary;
@@ -138,7 +138,7 @@ export class SettingsComponent extends Component {
         this.updateSamplingStrategyWarning(strategy, sampleSize);
 
         if (state.config) {
-          state.config.sampling_strategy = strategy;
+          state.config.settings.sampling_strategy = strategy;
           void api.saveAppConfig(state.config).then(() => {
             // Add impact summary to toast
             let strategyLabel;
@@ -294,13 +294,13 @@ export class SettingsComponent extends Component {
     aiEnabled?.addEventListener('change', () => {
       void (async (): Promise<void> => {
         if (state.config) {
-          state.config.ai_config = state.config.ai_config ?? {
+          state.config.settings.ai_config = state.config.settings.ai_config ?? {
             enabled: false,
             model: 'gpt-3.5-turbo',
             temperature: 0.7,
             max_tokens: 1000,
           };
-          state.config.ai_config.enabled = aiEnabled.checked;
+          state.config.settings.ai_config.enabled = aiEnabled.checked;
           await api.saveAppConfig(state.config);
           this.actions.showToast(
             `AI Assistant ${aiEnabled.checked ? 'enabled' : 'disabled'}`,
@@ -386,7 +386,7 @@ export class SettingsComponent extends Component {
     // Update AI config on change
     const updateAIConfig = async (): Promise<void> => {
       if (state.config) {
-        state.config.ai_config = {
+        state.config.settings.ai_config = {
           enabled: aiEnabled?.checked ?? false,
           model: aiModel?.value ?? 'gpt-3.5-turbo',
           temperature: parseFloat(aiTemperature?.value ?? '0.7'),
@@ -394,7 +394,7 @@ export class SettingsComponent extends Component {
         };
 
         try {
-          await invoke<void>('ai_update_config', { aiConfig: state.config.ai_config });
+          await invoke<void>('ai_update_config', { aiConfig: state.config.settings.ai_config });
           await api.saveAppConfig(state.config);
           this.actions.showToast('AI configuration updated', 'success');
         } catch (error: unknown) {
@@ -552,7 +552,7 @@ export class SettingsComponent extends Component {
     };
 
     if (state.config) {
-      state.config.connections.push(newConn);
+      state.config.settings.connections.push(newConn);
       await api.saveAppConfig(state.config);
       state.isAddingConnection = false;
       this.actions.onStateChange();
@@ -588,7 +588,7 @@ export class SettingsComponent extends Component {
     id: string,
     btn: HTMLButtonElement
   ): Promise<void> {
-    const conn = state.config?.connections.find(c => c.id === id);
+    const conn = state.config?.settings.connections.find(c => c.id === id);
     if (!conn) return;
 
     const icon = btn.querySelector('i');
@@ -614,9 +614,13 @@ export class SettingsComponent extends Component {
   private async deleteConnection(state: AppState, id: string): Promise<void> {
     if (state.config) {
       if (!confirm('Are you sure you want to delete this connection?')) return;
-      state.config.connections = state.config.connections.filter(c => c.id !== id);
-      if (state.config.active_import_id === id) state.config.active_import_id = null;
-      if (state.config.active_export_id === id) state.config.active_export_id = null;
+      state.config.settings.connections = state.config.settings.connections.filter(
+        c => c.id !== id
+      );
+      if (state.config.settings.active_import_id === id)
+        state.config.settings.active_import_id = null;
+      if (state.config.settings.active_export_id === id)
+        state.config.settings.active_export_id = null;
 
       await api.deleteConnection(id);
       await api.saveAppConfig(state.config);

@@ -5,7 +5,7 @@
  * Features a two-panel layout with step palette on left and pipeline canvas on right.
  */
 
-import { PipelineSpec, PipelineStep } from '../api-pipeline';
+import { PipelineSpec, PipelineStep, generatePowerShell } from '../api-pipeline';
 
 import { StepConfigPanel } from './StepConfigPanel';
 import { StepPalette } from './StepPalette';
@@ -556,9 +556,6 @@ export class PipelineEditor {
     if (!savePath) return; // User cancelled
 
     try {
-      // Import the generatePowerShell API function
-      const { generatePowerShell } = await import('../api-pipeline');
-
       // Generate PowerShell script
       await generatePowerShell(this.state.spec, savePath);
 

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment */
-import { AnalysisResponse, ColumnCleanConfig, LifecycleStage } from '../types';
+import { AnalysisResponse, ColumnCleanConfig, LifecycleStage, CurrentDataset } from '../types';
 
 import {
   type FilterState,
@@ -39,7 +39,9 @@ export function renderAnalyser(
   isReadOnly: boolean = false,
   selectedColumns: Set<string> = new Set(),
   _useOriginalColumnNames: boolean = false,
-  advancedProcessingEnabled: boolean = false
+  advancedProcessingEnabled: boolean = false,
+  hasDataset: boolean = false,
+  dataset: CurrentDataset | null = null
 ): string {
   if (!response) {
     return renderEmptyAnalyser();
@@ -71,6 +73,8 @@ export function renderAnalyser(
         true,
         advancedProcessingEnabled
       )}
+
+      ${renderStageProgressBar(currentStage, dataset)}
 
       ${renderDatasetOverview(response)}
 
@@ -122,7 +126,7 @@ export function renderAnalyser(
             </div>
           </div>
         </div>
-        ${renderSchemaSidebar(response, configs)}
+        ${renderSchemaSidebar(response, configs, currentStage, isReadOnly, selectedColumns, hasDataset)}
       </div>
     </div>
   `;

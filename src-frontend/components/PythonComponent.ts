@@ -146,7 +146,7 @@ export class PythonComponent extends Component {
         language: 'python',
         theme: 'vs-dark',
         automaticLayout: true,
-        fontSize: state.config?.python_font_size ?? 14,
+        fontSize: state.config?.settings.python_font_size ?? 14,
         fontFamily: "'Fira Code', monospace",
         fontLigatures: true,
         minimap: { enabled: false },
@@ -380,14 +380,14 @@ export class PythonComponent extends Component {
 
   private async updateFontSize(state: AppState, delta: number): Promise<void> {
     if (state.config) {
-      state.config.python_font_size = Math.max(
+      state.config.settings.python_font_size = Math.max(
         8,
-        Math.min(32, state.config.python_font_size + delta)
+        Math.min(32, state.config.settings.python_font_size + delta)
       );
-      this.editor?.updateOptions({ fontSize: state.config.python_font_size });
+      this.editor?.updateOptions({ fontSize: state.config.settings.python_font_size });
 
       const label = document.getElementById('py-font-size-label');
-      if (label) label.textContent = state.config.python_font_size.toString();
+      if (label) label.textContent = state.config.settings.python_font_size.toString();
 
       await api.saveAppConfig(state.config);
       this.actions.onStateChange();
@@ -401,7 +401,7 @@ export class PythonComponent extends Component {
       return false;
     }
 
-    if (config.security_warning_acknowledged) {
+    if (config.settings.security_warning_acknowledged) {
       return true;
     }
 
@@ -412,11 +412,11 @@ export class PythonComponent extends Component {
       return false;
     }
 
-    config.security_warning_acknowledged = true;
+    config.settings.security_warning_acknowledged = true;
     await api.saveAppConfig(config);
     // Update the state reference so subsequent checks see the updated value
     if (state.config) {
-      state.config.security_warning_acknowledged = true;
+      state.config.settings.security_warning_acknowledged = true;
     }
     this.actions.showToast('Security warning acknowledged', 'info');
     return true;

@@ -9,7 +9,7 @@ export function renderSettingsView(
 ): string {
   const folders = standardPaths ?? null;
   const trusted = trustedPaths ?? [];
-  const connections = config.connections ?? [];
+  const connections = config.settings.connections ?? [];
 
   return `
     <div class="settings-view">
@@ -69,10 +69,10 @@ export function renderSettingsView(
           <label>Default Import Connection</label>
           <select id="select-import-id">
             <option value="">None</option>
-            ${config.connections
+            ${config.settings.connections
               .map(
                 c => `
-              <option value="${c.id}" ${config.active_import_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>
+              <option value="${c.id}" ${config.settings.active_import_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>
             `
               )
               .join('')}
@@ -82,10 +82,10 @@ export function renderSettingsView(
           <label>Default Export Connection</label>
           <select id="select-export-id">
             <option value="">None</option>
-            ${config.connections
+            ${config.settings.connections
               .map(
                 c => `
-              <option value="${c.id}" ${config.active_export_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>
+              <option value="${c.id}" ${config.settings.active_export_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>
             `
               )
               .join('')}
@@ -103,7 +103,7 @@ export function renderSettingsView(
             </label>
             <input type="number" id="analysis-sample-size"
               min="1000" max="500000" step="1000"
-              value="${config.analysis_sample_size ?? 10000}"
+              value="${config.settings.analysis_sample_size ?? 10000}"
               aria-describedby="sample-size-warning">
             <div id="sample-size-warning" class="sample-size-warning" role="status" aria-live="polite"></div>
           </div>
@@ -113,10 +113,10 @@ export function renderSettingsView(
               <i class="ph ph-info help-icon" title="How to sample data from billion-row files" aria-label="Help: How to sample data from billion-row files"></i>
             </label>
             <select id="sampling-strategy" aria-describedby="sampling-strategy-info">
-              <option value="fast" ${(config.sampling_strategy ?? 'balanced') === 'fast' ? 'selected' : ''}>
+              <option value="fast" ${(config.settings.sampling_strategy ?? 'balanced') === 'fast' ? 'selected' : ''}>
                 Fast (samples from start - fastest, may be biased)
               </option>
-              <option value="balanced" ${(config.sampling_strategy ?? 'balanced') === 'balanced' ? 'selected' : ''}>
+              <option value="balanced" ${(config.settings.sampling_strategy ?? 'balanced') === 'balanced' ? 'selected' : ''}>
                 Balanced (stratified sampling - recommended)
               </option>
               <option value="accurate" disabled>
@@ -239,7 +239,7 @@ export function renderSettingsView(
             Enable AI Assistant
             <i class="ph ph-info help-icon" title="Enable ChatGPT integration for in-app help" aria-label="Help: Enable ChatGPT integration"></i>
           </label>
-          <input type="checkbox" id="ai-enabled" data-testid="settings-ai-enabled-toggle" ${config.ai_config?.enabled ? 'checked' : ''}>
+          <input type="checkbox" id="ai-enabled" data-testid="settings-ai-enabled-toggle" ${config.settings.ai_config?.enabled ? 'checked' : ''}>
         </div>
 
         <div class="pref-item">
@@ -267,19 +267,19 @@ export function renderSettingsView(
             <i class="ph ph-info help-icon" title="OpenAI model to use" aria-label="Help: OpenAI model"></i>
           </label>
           <select id="ai-model">
-            <option value="gpt-4o-mini" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4o-mini' ? 'selected' : ''}>
+            <option value="gpt-4o-mini" ${(config.settings.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4o-mini' ? 'selected' : ''}>
               GPT-4o Mini (recommended - fast & affordable)
             </option>
-            <option value="gpt-4o" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4o' ? 'selected' : ''}>
+            <option value="gpt-4o" ${(config.settings.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4o' ? 'selected' : ''}>
               GPT-4o (flagship model)
             </option>
-            <option value="gpt-4.1" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4.1' ? 'selected' : ''}>
+            <option value="gpt-4.1" ${(config.settings.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4.1' ? 'selected' : ''}>
               GPT-4.1 (latest, best performance)
             </option>
-            <option value="gpt-4-turbo" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4-turbo' ? 'selected' : ''}>
+            <option value="gpt-4-turbo" ${(config.settings.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-4-turbo' ? 'selected' : ''}>
               GPT-4 Turbo (legacy)
             </option>
-            <option value="gpt-3.5-turbo" ${(config.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-3.5-turbo' ? 'selected' : ''}>
+            <option value="gpt-3.5-turbo" ${(config.settings.ai_config?.model ?? 'gpt-4o-mini') === 'gpt-3.5-turbo' ? 'selected' : ''}>
               GPT-3.5 Turbo (legacy, cheapest)
             </option>
           </select>
@@ -292,7 +292,7 @@ export function renderSettingsView(
           </label>
           <input type="number" id="ai-temperature"
             min="0" max="2" step="0.1"
-            value="${config.ai_config?.temperature ?? 0.7}">
+            value="${config.settings.ai_config?.temperature ?? 0.7}">
         </div>
 
         <div class="pref-item">
@@ -302,7 +302,7 @@ export function renderSettingsView(
           </label>
           <input type="number" id="ai-max-tokens"
             min="100" max="4000" step="100"
-            value="${config.ai_config?.max_tokens ?? 1000}">
+            value="${config.settings.ai_config?.max_tokens ?? 1000}">
         </div>
       </div>
 
@@ -324,15 +324,15 @@ export function renderSettingsView(
           <div class="font-size-controls">
             <div class="font-size-item">
               <span>Python IDE:</span>
-              <span>${config.python_font_size ?? 14}px</span>
+              <span>${config.settings.python_font_size ?? 14}px</span>
             </div>
             <div class="font-size-item">
               <span>SQL IDE:</span>
-              <span>${config.sql_font_size ?? 14}px</span>
+              <span>${config.settings.sql_font_size ?? 14}px</span>
             </div>
             <div class="font-size-item">
               <span>PowerShell:</span>
-              <span>${config.powershell_font_size ?? 14}px</span>
+              <span>${config.settings.powershell_font_size ?? 14}px</span>
             </div>
           </div>
           <p class="hint-text">Adjust font sizes using the +/- buttons in each IDE</p>

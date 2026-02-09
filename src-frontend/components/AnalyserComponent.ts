@@ -70,7 +70,6 @@ export class AnalyserComponent extends Component {
     if (!existingWrapper) {
       container.innerHTML = `
         <div class="analyser-wrapper">
-          <div id="stage-progress-container"></div>
           <div id="lifecycle-rail-container"></div>
           <div id="analyser-content-container" class="analyser-container-outer"></div>
         </div>
@@ -82,20 +81,10 @@ export class AnalyserComponent extends Component {
       // Fallback if something went wrong
       container.innerHTML = `
         <div class="analyser-wrapper">
-          <div id="stage-progress-container"></div>
           <div id="lifecycle-rail-container"></div>
           <div id="analyser-content-container" class="analyser-container-outer"></div>
         </div>
       `;
-    }
-
-    // Render stage progress bar
-    const stageProgressContainer = document.getElementById('stage-progress-container');
-    if (stageProgressContainer) {
-      stageProgressContainer.innerHTML = renderers.renderStageProgressBar(
-        currentStage,
-        state.currentDataset
-      );
     }
 
     // Note: lifecycle rail rendering is handled by LifecycleRailComponent in main.ts
@@ -117,7 +106,9 @@ export class AnalyserComponent extends Component {
         isReadOnly,
         state.selectedColumns,
         state.useOriginalColumnNames,
-        state.advancedProcessingEnabled
+        state.advancedProcessingEnabled,
+        !!state.currentDataset,
+        state.currentDataset
       );
     }
 
@@ -494,7 +485,10 @@ export class AnalyserComponent extends Component {
 
   private async handleBeginCleaning(state: AppState): Promise<void> {
     if (!state.currentDataset) {
-      this.actions.showToast('No dataset loaded', 'error');
+      this.actions.showToast(
+        'Dataset creation failed. Please check backend logs and try reloading the file.',
+        'error'
+      );
       return;
     }
 

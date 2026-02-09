@@ -69,6 +69,7 @@
     "allow-open-path",
     "allow-list-trusted-paths",
     "allow-add-trusted-path",
-    "allow-remove-trusted-path"
+    "allow-remove-trusted-path",
+    "allow-log-frontend-error"
   ]
 }

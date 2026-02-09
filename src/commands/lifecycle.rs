@@ -140,7 +140,10 @@ pub async fn lifecycle_list_versions(request: ListVersionsRequest) -> Result<Str
     let dataset = registry
         .get_dataset(&dataset_id)
         .map_err(|e| e.to_string())?;
-    serde_json::to_string(&dataset).map_err(|e| e.to_string())
+
+    // Return array of versions, not the entire dataset
+    let versions = dataset.versions.list_all();
+    serde_json::to_string(&versions).map_err(|e| e.to_string())
 }
 
 #[derive(serde::Serialize)]
