@@ -2,7 +2,7 @@
 
 > **Getting started with Beefcake data analysis and transformation**
 
-*Version 0.3.0 | Last Updated: February 2026*
+*Version 0.3.1 | Last Updated: February 2026*
 
 ---
 

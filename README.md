@@ -20,7 +20,7 @@ If this project resonates with you, or you’re curious about where it’s headi
 
 > A desktop data analysis and transformation toolkit built with Rust and TypeScript
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/yourusername/beefcake)
+[![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)](https://github.com/yourusername/beefcake)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue.svg)](https://www.typescriptlang.org)
@@ -159,10 +159,11 @@ Beefcake is best understood as an **experimental toolkit** for exploring modern 
 
 ## Project Status
 
-**Current Version**: `0.3.0` (February 2026)
+**Current Version**: `0.3.1` (February 2026)
 
 ### Recent Milestones
 
+- ✅ **v0.3.1** (Feb 2026): Bug fixes and ESLint warning resolution
 - ✅ **v0.3.0** (Feb 2026): SQL & Python IDE makeover with grouped toolbars, execution status bars, dark theme consistency, and enhanced UX
 - ✅ **v0.2.0** (Jan 2025): Pipeline Builder with 11 step types, 8 templates, drag-and-drop editor, filesystem watcher, and pipeline executor
 - ✅ **v0.1.5** (Dec 2024): Lifecycle management with immutable version control and diff engine
