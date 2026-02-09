@@ -68,6 +68,7 @@ export function getStdDev(col: ColumnSummary): string | number {
 
 export function getMinMax(col: ColumnSummary): string {
   const numericStats = col.kind === 'Numeric' ? col.stats.Numeric : undefined;
+  // eslint-disable-next-line @typescript-eslint/prefer-optional-chain -- Need type narrowing for .min and .max access
   if (numericStats && numericStats.min !== null && numericStats.max !== null) {
     return `${numericStats.min.toFixed(1)} / ${numericStats.max.toFixed(1)}`;
   }
@@ -203,7 +204,7 @@ export function renderAnalyserRow(
         </div>
         <div class="col-name" title="${escapeHtml(col.name)}" data-testid="analyser-column-name">
           <i class="ph ${typeIcon} type-icon"></i>
-          <span class="name-text">${escapeHtml(config?.new_name || col.name)}</span>
+          <span class="name-text">${escapeHtml(config?.new_name ?? col.name)}</span>
           ${config?.new_name && config.new_name !== col.name ? `<span class="original-name">(${escapeHtml(col.name)})</span>` : ''}
         </div>
         <div class="col-type" data-testid="analyser-column-type">

@@ -59,7 +59,7 @@ export class WizardService {
       btn.addEventListener('click', () => {
         const path = btn.dataset.copy;
         if (path) {
-          const label = btn.title || btn.getAttribute('aria-label') || 'Path';
+          const label = btn.title ?? btn.getAttribute('aria-label') ?? 'Path';
           void this.copyPath(path, label);
         }
       });

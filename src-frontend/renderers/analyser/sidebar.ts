@@ -61,7 +61,7 @@ export function renderSchemaSidebar(
             return `
             <div class="column-item-compact ${isActive ? 'active' : 'inactive'}" data-col="${escapeHtml(col.name)}">
               <i class="ph ${isActive ? 'ph-check-circle' : 'ph-circle'}"></i>
-              <span class="col-name">${escapeHtml(config?.new_name || col.name)}</span>
+              <span class="col-name">${escapeHtml(config?.new_name ?? col.name)}</span>
             </div>
           `;
           })

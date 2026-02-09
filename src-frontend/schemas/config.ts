@@ -99,7 +99,9 @@ export const BackendAppConfigSchema = z.object({
  * @returns Validated and flattened config for frontend use
  * @throws ZodError if validation fails with detailed error message
  */
-export function validateAndTransformBackendConfig(rawConfig: unknown) {
+export function validateAndTransformBackendConfig(
+  rawConfig: unknown
+): z.infer<typeof AppConfigSchema> {
   // First, validate the backend structure
   const backendConfig = BackendAppConfigSchema.parse(rawConfig);
 
@@ -271,7 +273,9 @@ export const AnalysisResponseSchema = z.object({
 /**
  * Validates analysis response from backend
  */
-export function validateAnalysisResponse(rawResponse: unknown) {
+export function validateAnalysisResponse(
+  rawResponse: unknown
+): z.infer<typeof AnalysisResponseSchema> {
   return AnalysisResponseSchema.parse(rawResponse);
 }
 
@@ -354,7 +358,7 @@ export const DatasetVersionSchema = z.object({
 /**
  * Validates dataset version from backend
  */
-export function validateDatasetVersion(rawVersion: unknown) {
+export function validateDatasetVersion(rawVersion: unknown): z.infer<typeof DatasetVersionSchema> {
   return DatasetVersionSchema.parse(rawVersion);
 }
 
@@ -431,7 +435,9 @@ export const VerificationResultSchema = z.object({
  * Validates verification result from backend
  * CRITICAL: Used for security-sensitive integrity verification
  */
-export function validateVerificationResult(rawResult: unknown) {
+export function validateVerificationResult(
+  rawResult: unknown
+): z.infer<typeof VerificationResultSchema> {
   return VerificationResultSchema.parse(rawResult);
 }
 
