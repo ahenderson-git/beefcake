@@ -60,9 +60,8 @@ export function renderAnalyserHeader(
   cleanAllActive: boolean = true,
   advancedProcessingEnabled: boolean = false
 ): string {
-  const rowCount = typeof response.row_count === 'number' ? response.row_count : 0;
-  const totalRowCount =
-    typeof response.total_row_count === 'number' ? response.total_row_count : rowCount;
+  const rowCount = response.row_count;
+  const totalRowCount = response.total_row_count;
   const isSampled = totalRowCount > rowCount;
   const rowDisplay = isSampled
     ? `${totalRowCount.toLocaleString()} rows <small>(Analysed ${rowCount.toLocaleString()} rows)</small>`
