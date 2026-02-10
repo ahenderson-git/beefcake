@@ -6,6 +6,9 @@
  * even when the sidebar DOM element is dynamically replaced.
  */
 
+// Track if document-level listeners have been attached
+let documentListenersAttached = false;
+
 /**
  * Sets up collapse/expand event listeners for the IDE sidebar.
  *
@@ -15,8 +18,8 @@
  * - Attaches double-click listener to sidebar header
  * - Handles toggling the 'collapsed' class and persisting state
  *
- * **Important**: This function removes and re-adds event listeners to prevent
- * duplicate listeners when called multiple times (e.g., after sidebar DOM updates).
+ * **Important**: Uses document-level event delegation so listeners
+ * survive DOM replacements when sidebar is dynamically updated.
  *
  * @example
  * ```typescript
@@ -25,7 +28,7 @@
  *
  * // Call again after dynamically updating sidebar content
  * updateSidebarDisplay(state);
- * setupIDESidebarToggle(); // Re-bind events to new DOM
+ * setupIDESidebarToggle(); // Applies saved state to new DOM
  * ```
  */
 export function setupIDESidebarToggle(): void {
@@ -40,30 +43,43 @@ export function setupIDESidebarToggle(): void {
     ideSidebar.classList.remove('collapsed');
   }
 
-  // Remove any existing event listeners by cloning and replacing the element
-  // This prevents duplicate listeners when setupIDESidebarToggle is called multiple times
-  const newSidebar = ideSidebar.cloneNode(true) as HTMLElement;
-  ideSidebar.replaceWith(newSidebar);
+  // Only attach document-level listeners once
+  // Event delegation means they work even after sidebar DOM updates
+  if (documentListenersAttached) return;
 
   const toggleSidebar = (): void => {
-    newSidebar.classList.toggle('collapsed');
-    const collapsed = newSidebar.classList.contains('collapsed');
+    const sidebar = document.getElementById('ide-sidebar');
+    if (!sidebar) return;
+
+    sidebar.classList.toggle('collapsed');
+    const collapsed = sidebar.classList.contains('collapsed');
     localStorage.setItem('ide-sidebar-collapsed', collapsed.toString());
   };
 
-  // Handle collapse button click (uses event delegation for dynamically created buttons)
-  newSidebar.addEventListener('click', (e: Event) => {
+  // Use document-level event delegation so listeners survive DOM replacements
+  document.addEventListener('click', (e: Event) => {
     const target = e.target as HTMLElement;
-    if (target.closest('#ide-collapse-btn') ?? target.closest('#ide-collapsed-tab')) {
-      toggleSidebar();
+    const sidebar = document.getElementById('ide-sidebar');
+    if (!sidebar) return;
+
+    // Check if click is within the sidebar and targets collapse elements
+    if (sidebar.contains(target)) {
+      if (target.closest('#ide-collapse-btn') ?? target.closest('#ide-collapsed-tab')) {
+        toggleSidebar();
+      }
     }
   });
 
   // Handle double-click on header to toggle
-  newSidebar.addEventListener('dblclick', (e: Event) => {
+  document.addEventListener('dblclick', (e: Event) => {
     const target = e.target as HTMLElement;
-    if (target.closest('#ide-sidebar-header')) {
+    const sidebar = document.getElementById('ide-sidebar');
+    if (!sidebar) return;
+
+    if (sidebar.contains(target) && target.closest('#ide-sidebar-header')) {
       toggleSidebar();
     }
   });
+
+  documentListenersAttached = true;
 }

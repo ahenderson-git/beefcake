@@ -34,9 +34,15 @@ const MOCK_DATASET = {
       data_location: {
         ParquetFile: '/data/cleaned.parquet',
       },
+      metadata: {
+        row_count: 1000,
+        column_count: 5,
+        file_size_bytes: 50000,
+      },
     },
   ],
-  active_version_id: 'v-cleaned-001',
+  activeVersionId: 'v-cleaned-001',
+  rawVersionId: 'v-cleaned-001',
 };
 
 const MOCK_APP_CONFIG = {
@@ -757,19 +763,31 @@ test.describe('Python IDE - Lifecycle Integration', () => {
           type: 'success',
           data: {
             id: 'ds-test-123',
+            name: 'customer_data',
             versions: [
               {
                 id: 'v-raw-001',
                 stage: 'Raw',
                 data_location: { OriginalFile: '/data/raw.csv' },
+                metadata: {
+                  row_count: 1000,
+                  column_count: 5,
+                  file_size_bytes: 50000,
+                },
               },
               {
                 id: 'v-cleaned-001',
                 stage: 'Cleaned',
                 data_location: { ParquetFile: '/data/cleaned.parquet' },
+                metadata: {
+                  row_count: 1000,
+                  column_count: 5,
+                  file_size_bytes: 45000,
+                },
               },
             ],
-            active_version_id: 'v-cleaned-001',
+            activeVersionId: 'v-cleaned-001',
+            rawVersionId: 'v-raw-001',
           },
         },
         get_version_schema: {
@@ -1118,10 +1136,11 @@ test.describe('Python IDE - Sidebar Functionality', () => {
     // Wait for sidebar to render
     await expect(page.getByTestId('ide-column-sidebar')).toBeVisible({ timeout: 5000 });
 
-    // Verify columns are displayed
-    await expect(page.getByTestId('ide-column-name-id')).toBeVisible();
-    await expect(page.getByTestId('ide-column-name-customer_name')).toBeVisible();
-    await expect(page.getByTestId('ide-column-name-order_date')).toBeVisible();
+    // Verify columns are displayed (from analysisResponse since lifecycle isn't fully loaded)
+    // The sidebar shows columns from the initial file analysis
+    await expect(page.getByTestId('ide-column-item-customer_id')).toBeVisible();
+    await expect(page.getByTestId('ide-column-item-customer_name')).toBeVisible();
+    await expect(page.getByTestId('ide-column-item-order_date')).toBeVisible();
   });
 
   test('should collapse and expand sidebar on button click', async ({ page }) => {
