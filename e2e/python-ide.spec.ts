@@ -1069,3 +1069,147 @@ test.describe('Python IDE - Error Handling', () => {
     await expect(editor).toBeVisible();
   });
 });
+
+test.describe('Python IDE - Sidebar Functionality', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupTauriMock(page, {
+      commands: getStandardMocks({
+        get_config: {
+          type: 'success',
+          data: MOCK_APP_CONFIG,
+        },
+        analyze_file: {
+          type: 'success',
+          data: {
+            ...mockAnalysisResponse,
+            path: '/data/customer_data.csv',
+          },
+        },
+        lifecycle_get_dataset: {
+          type: 'success',
+          data: MOCK_DATASET,
+        },
+        get_version_schema: {
+          type: 'success',
+          data: [
+            { name: 'id', dtype: 'Int64' },
+            { name: 'customer_name', dtype: 'Utf8' },
+            { name: 'order_date', dtype: 'Date' },
+          ],
+        },
+      }),
+      fileDialog: {
+        openFile: '/data/customer_data.csv',
+      },
+    });
+  });
+
+  test('should display column sidebar with columns', async ({ page }) => {
+    await gotoApp(page);
+
+    // Load a dataset
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.getByTestId('analyser-view')).toBeVisible({ timeout: 10000 });
+
+    // Navigate to Python IDE
+    await page.getByTestId('nav-python').click();
+    await expect(page.getByTestId('python-ide-view')).toBeVisible({ timeout: 5000 });
+
+    // Wait for sidebar to render
+    await expect(page.getByTestId('ide-column-sidebar')).toBeVisible({ timeout: 5000 });
+
+    // Verify columns are displayed
+    await expect(page.getByTestId('ide-column-name-id')).toBeVisible();
+    await expect(page.getByTestId('ide-column-name-customer_name')).toBeVisible();
+    await expect(page.getByTestId('ide-column-name-order_date')).toBeVisible();
+  });
+
+  test('should collapse and expand sidebar on button click', async ({ page }) => {
+    await gotoApp(page);
+
+    // Load a dataset
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.getByTestId('analyser-view')).toBeVisible({ timeout: 10000 });
+
+    // Navigate to Python IDE
+    await page.getByTestId('nav-python').click();
+    await expect(page.getByTestId('python-ide-view')).toBeVisible({ timeout: 5000 });
+
+    // Wait for sidebar to render
+    const sidebar = page.locator('#ide-sidebar');
+    await expect(sidebar).toBeVisible({ timeout: 5000 });
+
+    // Verify sidebar is expanded initially
+    await expect(sidebar).not.toHaveClass(/collapsed/);
+
+    // Click collapse button
+    await page.locator('#ide-collapse-btn').click();
+
+    // Verify sidebar is now collapsed
+    await expect(sidebar).toHaveClass(/collapsed/);
+
+    // Click collapsed tab to expand
+    await page.locator('#ide-collapsed-tab').click();
+
+    // Verify sidebar is expanded again
+    await expect(sidebar).not.toHaveClass(/collapsed/);
+  });
+
+  test('should maintain collapse state after column schema update', async ({ page }) => {
+    await gotoApp(page);
+
+    // Load a dataset
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.getByTestId('analyser-view')).toBeVisible({ timeout: 10000 });
+
+    // Navigate to Python IDE
+    await page.getByTestId('nav-python').click();
+    await expect(page.getByTestId('python-ide-view')).toBeVisible({ timeout: 5000 });
+
+    // Wait for sidebar to render
+    const sidebar = page.locator('#ide-sidebar');
+    await expect(sidebar).toBeVisible({ timeout: 5000 });
+
+    // Collapse the sidebar
+    await page.locator('#ide-collapse-btn').click();
+    await expect(sidebar).toHaveClass(/collapsed/);
+
+    // Wait for any async column schema updates to complete
+    await page.waitForTimeout(1000);
+
+    // Verify sidebar remains collapsed after updates
+    await expect(sidebar).toHaveClass(/collapsed/);
+
+    // Verify we can still expand it (tests that event listeners work)
+    await page.locator('#ide-collapsed-tab').click();
+    await expect(sidebar).not.toHaveClass(/collapsed/);
+  });
+
+  test('should allow double-click on header to collapse sidebar', async ({ page }) => {
+    await gotoApp(page);
+
+    // Load a dataset
+    await page.getByTestId('dashboard-open-file-button').click();
+    await expect(page.getByTestId('analyser-view')).toBeVisible({ timeout: 10000 });
+
+    // Navigate to Python IDE
+    await page.getByTestId('nav-python').click();
+    await expect(page.getByTestId('python-ide-view')).toBeVisible({ timeout: 5000 });
+
+    // Wait for sidebar to render
+    const sidebar = page.locator('#ide-sidebar');
+    await expect(sidebar).toBeVisible({ timeout: 5000 });
+
+    // Double-click on sidebar header
+    await page.locator('#ide-sidebar-header').dblclick();
+
+    // Verify sidebar collapsed
+    await expect(sidebar).toHaveClass(/collapsed/);
+
+    // Double-click again to expand
+    await page.locator('#ide-sidebar-header').dblclick();
+
+    // Verify sidebar expanded
+    await expect(sidebar).not.toHaveClass(/collapsed/);
+  });
+});

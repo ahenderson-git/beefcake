@@ -7,6 +7,7 @@ import * as renderers from '../renderers';
 import { renderColumnSidebar } from '../renderers/ide';
 import { AppState, ExportSource } from '../types';
 import { getDataPathForExecution } from '../utils';
+import { setupIDESidebarToggle } from '../utils/ide-sidebar';
 
 import { Component, ComponentActions } from './Component';
 import { ExportModal } from './ExportModal';
@@ -120,6 +121,10 @@ export class PythonComponent extends Component {
 
       // Re-bind sidebar events (insert column buttons)
       this.bindSidebarEvents();
+
+      // Re-bind collapse/expand functionality after DOM replacement
+      // This ensures the collapse button works after sidebar updates
+      setupIDESidebarToggle();
     }
   }
 

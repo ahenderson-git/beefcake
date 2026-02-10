@@ -79,6 +79,7 @@ import {
   getDefaultAppConfig,
   DatasetVersion,
 } from './types';
+import { setupIDESidebarToggle } from './utils/ide-sidebar';
 import { createLogger } from './utils/logger';
 
 /**
@@ -592,39 +593,8 @@ class BeefcakeApp {
   }
 
   private setupIDESidebarToggle(): void {
-    const ideSidebar = document.getElementById('ide-sidebar');
-    if (!ideSidebar) return;
-
-    // Load saved collapsed state
-    const isCollapsed = localStorage.getItem('ide-sidebar-collapsed') === 'true';
-    if (isCollapsed) {
-      ideSidebar.classList.add('collapsed');
-    } else {
-      ideSidebar.classList.remove('collapsed');
-    }
-
-    const toggleSidebar = (): void => {
-      ideSidebar.classList.toggle('collapsed');
-      const collapsed = ideSidebar.classList.contains('collapsed');
-      localStorage.setItem('ide-sidebar-collapsed', collapsed.toString());
-    };
-
-    // Handle collapse button click (created dynamically by IDE renderers)
-    // Use event delegation since the button is created after this runs
-    ideSidebar.addEventListener('click', e => {
-      const target = e.target as HTMLElement;
-      if (target.closest('#ide-collapse-btn') ?? target.closest('#ide-collapsed-tab')) {
-        toggleSidebar();
-      }
-    });
-
-    // Handle double-click on header to toggle
-    ideSidebar.addEventListener('dblclick', e => {
-      const target = e.target as HTMLElement;
-      if (target.closest('#ide-sidebar-header')) {
-        toggleSidebar();
-      }
-    });
+    // Delegate to utility function for consistency with component updates
+    setupIDESidebarToggle();
   }
 
   private async loadDatasetById(_datasetId: string): Promise<void> {
