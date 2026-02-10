@@ -444,6 +444,11 @@
   pointer-events: none;
 }
 
+/* Keep header clickable even when collapsed for double-click toggle */
+.ide-sidebar.collapsed #ide-sidebar-header {
+  pointer-events: auto;
+}
+
 .ide-sidebar-collapsed-tab {
   position: absolute;
   right: 0;

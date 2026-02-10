@@ -97,7 +97,7 @@ export function renderAnalyserHeader(
           <i class="ph ph-file-plus"></i> Select File
         </button>
         ${
-          !isReadOnly
+          currentStage === 'Advanced'
             ? `
           <div class="action-divider"></div>
           <label class="toggle-control" title="Enable Advanced stage for ML preprocessing features (imputation, normalisation, encoding)">
@@ -105,6 +105,12 @@ export function renderAnalyserHeader(
             <span class="toggle-slider"></span>
             <span class="toggle-label">Advanced Stage</span>
           </label>
+          <div class="action-divider"></div>`
+            : ''
+        }
+        ${
+          !isReadOnly
+            ? `
           <div class="action-divider"></div>
           <button id="btn-toggle-names" class="btn-ghost btn-small ${useOriginalColumnNames ? 'active' : ''}">
             <i class="ph ${useOriginalColumnNames ? 'ph-tag-simple' : 'ph-tag'}"></i>

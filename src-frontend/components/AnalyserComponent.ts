@@ -364,6 +364,28 @@ export class AnalyserComponent extends Component {
       }
     });
 
+    document.getElementById('btn-toggle-names')?.addEventListener('click', () => {
+      state.useOriginalColumnNames = !state.useOriginalColumnNames;
+      // Update all configs to use either original or standardized names
+      if (state.analysisResponse) {
+        (state.analysisResponse.summary || []).forEach(s => {
+          const config = state.cleaningConfigs[s.name];
+          if (config) {
+            config.new_name = state.useOriginalColumnNames ? s.name : s.standardized_name;
+          }
+        });
+      }
+      this.render(state);
+      this.actions.onStateChange();
+    });
+
+    document.getElementById('btn-clean-all')?.addEventListener('click', () => {
+      state.cleanAllActive = !state.cleanAllActive;
+      Object.values(state.cleaningConfigs).forEach(c => (c.active = state.cleanAllActive));
+      this.render(state);
+      this.actions.onStateChange();
+    });
+
     document.getElementById('btn-export')?.addEventListener('click', () => {
       void this.handleExport(state);
     });
